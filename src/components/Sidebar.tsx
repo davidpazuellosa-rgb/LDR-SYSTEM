@@ -1,0 +1,166 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import SasiLogo from "@/components/SasiLogo";
+
+type Badges = { bases: number; pending: number };
+
+function Icon({ name }: { name: string }) {
+  const common = "h-5 w-5";
+  switch (name) {
+    case "grid":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
+      );
+    case "database":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <ellipse cx="12" cy="5" rx="8" ry="3" />
+          <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+          <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+        </svg>
+      );
+    case "phone":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L20 13l-2 6a2 2 0 0 1-2 1A16 16 0 0 1 4 6a2 2 0 0 1 1-2Z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "history":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3 12a9 9 0 1 0 3-6.7" strokeLinecap="round" />
+          <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "link":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M10 14a4 4 0 0 0 6 .5l2.5-2.5a4 4 0 0 0-5.7-5.7L11.5 8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M14 10a4 4 0 0 0-6-.5L5.5 12a4 4 0 0 0 5.7 5.7L12.5 16" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "gear":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="9" cy="8" r="3.2" />
+          <path d="M3.5 20a5.5 5.5 0 0 1 11 0" strokeLinecap="round" />
+          <path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 20a5.5 5.5 0 0 0-2.3-4.5" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+export default function Sidebar({
+  collapsed,
+  badges,
+  role,
+}: {
+  collapsed: boolean;
+  badges: Badges;
+  role: string;
+}) {
+  const pathname = usePathname();
+  const admin = role === "admin";
+
+  const nav = [
+    { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
+    { href: "/bases", label: "Bases de Dados", icon: "database", badge: badges.bases },
+    { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: badges.pending },
+    { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
+    // Áreas sensíveis: só admin
+    ...(admin ? [{ href: "/hubspot", label: "HubSpot CRM", icon: "link", badge: 0 }] : []),
+    ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
+    { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
+  ];
+
+  return (
+    <aside
+      className={`flex shrink-0 flex-col bg-[#191d45] text-white transition-all duration-200 ${
+        collapsed ? "w-20" : "w-64"
+      }`}
+    >
+      {/* Logo + tag */}
+      <div className="flex h-16 items-center gap-2 px-5">
+        <SasiLogo height={26} className="text-white" />
+        {!collapsed && (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-300">
+            LDR Hub
+          </span>
+        )}
+      </div>
+
+      {/* Navegação */}
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        {nav.map((item) => {
+          const active =
+            pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                active
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+              } ${collapsed ? "justify-center" : ""}`}
+            >
+              <Icon name={item.icon} />
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.badge > 0 && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    active ? "bg-white/90 text-indigo-700" : "bg-indigo-600 text-white"
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Suporte + rodapé */}
+      <div className="border-t border-white/10 px-3 py-4">
+        <a
+          href="mailto:suporte@sasi.com?subject=Suporte%20LDR%20Hub"
+          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
+            collapsed ? "justify-center" : ""
+          }`}
+          title="Suporte SASI"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="m5 5 4 4m6 6 4 4M19 5l-4 4M9 15l-4 4" strokeLinecap="round" />
+          </svg>
+          {!collapsed && "Suporte SASI"}
+        </a>
+        {!collapsed && (
+          <div className="mt-4 px-3 text-[11px] leading-relaxed text-slate-500">
+            SASI LDR Hub · v1.0.0
+            <br />© 2026 SASI LTDA
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}

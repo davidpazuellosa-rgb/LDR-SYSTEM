@@ -1,0 +1,115 @@
+// SASI LDR Hub — modelo de dados
+// SQLite: simples de operar e roda dentro de um volume Docker no VPS.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Usuários do sistema (login/senha)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         String   @default("user") // user | admin
+  createdAt    DateTime @default(now())
+
+  createdCorrections  Correction[] @relation("CorrectionCreatedBy")
+  resolvedCorrections Correction[] @relation("CorrectionResolvedBy")
+}
+
+// Uma "base" é uma planilha/lote de contatos importado ou criado manualmente
+model Base {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  source      String    @default("manual") // manual | import
+  createdAt   DateTime  @default(now())
+  contacts    Contact[]
+}
+
+// Um contato dentro de uma base (uma prefeitura)
+model Contact {
+  id     String @id @default(cuid())
+  baseId String
+  base   Base   @relation(fields: [baseId], references: [id], onDelete: Cascade)
+
+  // Colunas de prefeitura
+  cidade             String?
+  estado             String?
+  regiao             String?
+  populacao          String?
+  telefonePrefeitura String?
+  emailInstitucional String?
+  secretariaAdmin    String?
+  nomePrefeito       String?
+  siteOficial        String?
+  whatsapp           String?
+  codigoIbge         String?
+  origemContato      String?
+  faseCicloVida      String?
+  campanha           String?
+  setor              String?
+  departamentos      String?
+  solucaoInteresse   String?
+  prospectante       String?
+  proprietario       String?
+
+  // ok | phone_invalid | corrected | synced
+  status    String  @default("ok")
+  hubspotId String? // id do contato no HubSpot após sincronizar
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  corrections Correction[]
+  scans       Scan[]
+
+  @@index([baseId])
+  @@index([status])
+}
+
+// Fila de correção: cada vez que um telefone é marcado como incorreto,
+// nasce uma entrada aqui. O histórico fica preservado mesmo após resolver.
+model Scan {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  ok        Boolean
+  data      Json?
+  error     String?
+  summary   String?
+  model     String?
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+  @@index([createdAt])
+}
+
+model Correction {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  field    String  @default("telefonePrefeitura") // telefone geral da prefeitura
+  oldValue String?
+  newValue String?
+  reason   String?
+  status   String  @default("pending") // pending | resolved
+
+  createdById  String?
+  createdBy    User?   @relation("CorrectionCreatedBy", fields: [createdById], references: [id])
+  resolvedById String?
+  resolvedBy   User?   @relation("CorrectionResolvedBy", fields: [resolvedById], references: [id])
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([status])
+  @@index([contactId])
+}

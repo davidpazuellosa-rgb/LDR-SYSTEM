@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Para publicar em subcaminho no nginx, defina aqui (ex.: /sasi-ldr) e rebuilde.
+        NEXT_PUBLIC_BASE_PATH: "${NEXT_PUBLIC_BASE_PATH:-}"
+    container_name: sasi-ldr-hub
+    restart: unless-stopped
+    # Porta 9010 do servidor -> 3000 do app (use >= 9000 conforme o manual da SASI)
+    ports:
+      - "9010:3000"
+    env_file:
+      - .env.production
+    volumes:
+      # Banco SQLite persiste aqui, fora da imagem
+      - ldr-data:/data
+
+volumes:
+  ldr-data:
