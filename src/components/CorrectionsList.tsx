@@ -56,7 +56,28 @@ function scanErrorMessage(message: string) {
     return "Limite de varreduras atingido no momento. Aguarde alguns instantes e tente novamente.";
   }
 
+  if (lower.includes("failed to fetch") || lower.includes("networkerror")) {
+    return "Não foi possível conectar ao servidor da varredura. Atualize a página e tente novamente.";
+  }
+
   return message || "Não foi possível concluir a varredura agora. Tente novamente.";
+}
+
+async function fetchWithRetry(input: string, init: RequestInit, attempts = 2) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 function initials(city: string | null, state: string | null) {
@@ -231,7 +252,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
     const loadingId = toast.loading("Varredura em andamento...", `Buscando contatos de ${target.titulo}.`);
 
     try {
-      const res = await fetch(apiPath(`/api/contacts/${target.contactId}/scan`), { method: "POST" });
+      const res = await fetchWithRetry(apiPath(`/api/contacts/${target.contactId}/scan`), { method: "POST" });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
