@@ -279,9 +279,21 @@ export default function ScanModal({
 
                           <div className="mt-3 space-y-1.5">
                             {contact.telefone && (
-                              <div className="flex items-center gap-2 text-base font-medium text-slate-800">
-                                <PhoneGlyph />
-                                {contact.telefone}
+                              <div className="flex flex-wrap items-center gap-2 text-base font-medium text-slate-800">
+                                <span className="inline-flex items-center gap-2">
+                                  <PhoneGlyph />
+                                  {contact.telefone}
+                                </span>
+                                {whatsappHref && (
+                                  <a
+                                    href={whatsappHref}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                                  >
+                                    Validar no WhatsApp Web
+                                  </a>
+                                )}
                               </div>
                             )}
                             {contact.email && (
