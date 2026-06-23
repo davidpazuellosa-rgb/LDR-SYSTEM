@@ -252,14 +252,6 @@ export default function ScanModal({
                             </div>
 
                             <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                              {whatsappHref && (
-                                <a
-                                  href={whatsappHref}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-                                >Validar WhatsApp Web</a>
-                              )}
                               {contact.telefone && onUsePhone && (
                                 <button
                                   onClick={() => {
