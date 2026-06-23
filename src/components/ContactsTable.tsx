@@ -392,10 +392,10 @@ export default function ContactsTable({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="order-2 flex items-center justify-between gap-3 overflow-x-auto rounded-full border border-slate-200 bg-slate-100 px-2 py-1 shadow-sm">
         {/* Esquerda: filtros por situação do telefone (nomenclatura do CRM) */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-max items-center gap-1">
           {[
             { key: "all", label: "Todos", count: counts.all, dot: "bg-slate-400", active: "border-indigo-600 bg-indigo-50 text-indigo-700" },
             { key: STATUS_INCORRETO, label: STATUS_META[STATUS_INCORRETO].label, count: counts[STATUS_INCORRETO], dot: STATUS_META[STATUS_INCORRETO].dot, active: STATUS_META[STATUS_INCORRETO].active },
@@ -422,7 +422,7 @@ export default function ContactsTable({
         </div>
 
         {/* Direita: ações */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-max items-center gap-2">
           {message && (
             <span className="rounded-lg bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
               {message}
@@ -486,7 +486,7 @@ export default function ContactsTable({
 
       {/* Paginação por estado (UF) */}
       {estados.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200">
+        <div className="order-1 flex gap-1 overflow-x-auto border-b border-slate-200 px-2">
           <button
             onClick={() => setTab(ALL)}
             className={`rounded-t-lg px-3 py-2 text-sm font-medium transition ${
@@ -513,7 +513,7 @@ export default function ContactsTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm" onMouseUp={() => setIsDragging(false)}>
+      <div className="order-3 overflow-x-auto rounded-2xl bg-white shadow-sm" onMouseUp={() => setIsDragging(false)}>
         <table className="text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
