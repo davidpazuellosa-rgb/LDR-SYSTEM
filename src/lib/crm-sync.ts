@@ -100,7 +100,7 @@ export type SyncResult = {
 //  - THROTTLE:   janela mínima entre syncs reais quando NÃO é forçado
 let running = false;
 let lastResult: SyncResult | null = null;
-const THROTTLE_MS = 60_000;
+const THROTTLE_MS = 45_000;
 
 export async function syncFromCrm(opts?: { force?: boolean }): Promise<SyncResult> {
   const force = opts?.force ?? false;

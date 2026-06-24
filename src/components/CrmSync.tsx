@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 
 // Ressincroniza sozinho enquanto a página está aberta.
-const AUTO_INTERVAL_MS = 3 * 60_000; // a cada 3 min
+const AUTO_INTERVAL_MS = 60_000; // a cada 1 min (o throttle do servidor evita excesso)
 
 type State = "idle" | "running" | "done" | "error";
 
