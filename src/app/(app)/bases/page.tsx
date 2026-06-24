@@ -15,13 +15,40 @@ function DatabaseIcon() {
   );
 }
 
+type CrmStats = { emCrm: number; incorretos: number; atualizados: number };
+
 export default async function BasesPage() {
   const bases = await prisma.base.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      _count: { select: { contacts: true } },
+      _count: { select: { contacts: { where: { deletedAt: null } } } },
     },
   });
+
+  const [crmLinked, incorretos, atualizados] = await Promise.all([
+    prisma.contact.groupBy({
+      by: ["baseId"],
+      where: { deletedAt: null, hubspotId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.contact.groupBy({
+      by: ["baseId"],
+      where: { deletedAt: null, status: "telefone_incorreto" },
+      _count: { _all: true },
+    }),
+    prisma.contact.groupBy({
+      by: ["baseId"],
+      where: { deletedAt: null, status: "telefone_atualizado" },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const crmMap = new Map<string, CrmStats>(
+    bases.map((b) => [b.id, { emCrm: 0, incorretos: 0, atualizados: 0 }])
+  );
+  for (const r of crmLinked) { const s = crmMap.get(r.baseId); if (s) s.emCrm = r._count._all; }
+  for (const r of incorretos) { const s = crmMap.get(r.baseId); if (s) s.incorretos = r._count._all; }
+  for (const r of atualizados) { const s = crmMap.get(r.baseId); if (s) s.atualizados = r._count._all; }
 
   return (
     <>
@@ -42,6 +69,9 @@ export default async function BasesPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {bases.map((b) => {
               const isImport = b.source === "import";
+              const total = b._count.contacts;
+              const crm = crmMap.get(b.id) ?? { emCrm: 0, incorretos: 0, atualizados: 0 };
+              const hasCrmData = crm.emCrm > 0 || crm.incorretos > 0 || crm.atualizados > 0;
               return (
                 <Link
                   key={b.id}
@@ -68,12 +98,46 @@ export default async function BasesPage() {
                     <p className="mt-3 line-clamp-2 text-sm text-slate-500">{b.description}</p>
                   )}
 
+                  {/* Painel CRM */}
+                  {total > 0 && (
+                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        HubSpot CRM
+                      </p>
+                      {hasCrmData ? (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                          <span className="flex items-center gap-1.5 text-indigo-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                            <strong>{crm.emCrm.toLocaleString("pt-BR")}</strong> vinculados
+                          </span>
+                          {crm.incorretos > 0 && (
+                            <span className="flex items-center gap-1.5 text-red-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                              <strong>{crm.incorretos.toLocaleString("pt-BR")}</strong> tel. incorreto
+                            </span>
+                          )}
+                          {crm.atualizados > 0 && (
+                            <span className="flex items-center gap-1.5 text-emerald-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              <strong>{crm.atualizados.toLocaleString("pt-BR")}</strong> atualizados
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs text-amber-600">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          Aguardando verificação no CRM
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                     <span className="text-sm text-slate-500">
                       <strong className="font-semibold text-slate-800">
-                        {b._count.contacts.toLocaleString("pt-BR")}
+                        {total.toLocaleString("pt-BR")}
                       </strong>{" "}
-                      {b._count.contacts === 1 ? "contato" : "contatos"}
+                      {total === 1 ? "contato" : "contatos"}
                     </span>
                     <span className="flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2">
                       Abrir

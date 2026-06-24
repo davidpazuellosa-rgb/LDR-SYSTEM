@@ -122,7 +122,10 @@ export async function POST(
   }
 
   let invalidCount = 0;
-  await prisma.$transaction(
+  // @ts-expect-error id custom na sessão
+  const userId: string | null = session.user.id ?? null;
+
+  const created = await prisma.$transaction(
     newRows.map((r) => {
       const phone = r[PHONE_FIELD];
       const validPhone = looksLikeValidPhone(phone);
@@ -130,14 +133,28 @@ export async function POST(
       return prisma.contact.create({
         data: {
           baseId: id,
-          // @ts-expect-error id custom na sessão
-          createdById: session.user.id ?? null,
+          createdById: userId,
           ...r,
           status: validPhone ? "ok" : "telefone_incorreto",
         },
       });
     })
   );
+
+  // Cria entradas na fila de correção para cada contato importado com telefone inválido
+  const invalidContacts = created.filter((c) => c.status === "telefone_incorreto");
+  if (invalidContacts.length > 0) {
+    await prisma.correction.createMany({
+      data: invalidContacts.map((c) => ({
+        contactId: c.id,
+        field: "telefonePrefeitura",
+        oldValue: c.telefonePrefeitura,
+        reason: "Telefone inválido detectado na importação",
+        status: "pending",
+        createdById: userId,
+      })),
+    });
+  }
 
   await prisma.base.update({ where: { id }, data: { source: "import" } });
 
