@@ -1356,7 +1356,7 @@ async function saveCell(id: string, key: string, value: string) {
       if (data.imported > 0) {
         // Dispara verificação CRM em background; o card da base atualiza ao terminar
         const syncId = toast.loading("Verificando no HubSpot CRM…", "Buscando contatos com telefone incorreto.");
-        fetch(apiPath("/api/crm/sync"), { method: "POST" })
+        fetch(apiPath("/api/crm/sync?force=1"), { method: "POST" })
           .then(() => toast.update(syncId, { type: "success", title: "CRM sincronizado!", description: "Dados do HubSpot atualizados." }))
           .catch(() => toast.update(syncId, { type: "error", title: "CRM indisponível", description: "Sincronização automática pendente." }))
           .finally(() => router.refresh());

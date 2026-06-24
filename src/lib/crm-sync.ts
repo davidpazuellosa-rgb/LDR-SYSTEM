@@ -86,22 +86,54 @@ async function search(extraFilters: object[], properties: string[]) {
   return out;
 }
 
-let running = false;
+export type SyncResult = {
+  ok: boolean;
+  detail?: string;
+  syncedAt?: number; // epoch ms da última sync bem-sucedida
+  throttled?: boolean; // true quando reusou o resultado recente sem chamar o HubSpot
+  running?: boolean; // true quando já havia uma sync em andamento
+};
 
-export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
+// Estado em memória (por instância) para coordenar gatilhos automáticos:
+//  - running:    evita duas syncs simultâneas na mesma instância
+//  - lastResult: último resultado bem-sucedido (devolvido em chamadas throttladas)
+//  - THROTTLE:   janela mínima entre syncs reais quando NÃO é forçado
+let running = false;
+let lastResult: SyncResult | null = null;
+const THROTTLE_MS = 60_000;
+
+export async function syncFromCrm(opts?: { force?: boolean }): Promise<SyncResult> {
+  const force = opts?.force ?? false;
   if (!process.env.HUBSPOT_TOKEN) return { ok: false, detail: "sem token" };
-  if (running) return { ok: false, detail: "já em execução" };
+
+  // Já em execução: devolve o último resultado conhecido sem disparar outra chamada.
+  if (running) return lastResult ? { ...lastResult, running: true } : { ok: false, detail: "já em execução", running: true };
+
+  // Throttle: se sincronizou há pouco e não é forçado, reusa o resultado recente.
+  if (!force && lastResult?.ok && lastResult.syncedAt && Date.now() - lastResult.syncedAt < THROTTLE_MS) {
+    return { ...lastResult, throttled: true };
+  }
+
   running = true;
   try {
     const base = await prisma.base.findFirst({ where: { name: BASE_NAME } });
     if (!base) return { ok: false, detail: "base não encontrada" };
 
-    const locais = await prisma.contact.findMany({ where: { baseId: base.id, deletedAt: null }, select: { id: true, cidade: true, estado: true, status: true } });
+    const locais = await prisma.contact.findMany({
+      where: { baseId: base.id, deletedAt: null },
+      select: { id: true, cidade: true, estado: true, status: true, hubspotId: true, proprietario: true, telefonePrefeitura: true },
+    });
     const byKey = new Map<string, string>();
     const byCity = new Map<string, string[]>();
     const statusOf = new Map<string, string>();
+    const hubspotIdOf = new Map<string, string | null>();
+    const proprietarioOf = new Map<string, string | null>();
+    const phoneOf = new Map<string, string | null>();
     for (const c of locais) {
       statusOf.set(c.id, c.status);
+      hubspotIdOf.set(c.id, c.hubspotId);
+      proprietarioOf.set(c.id, c.proprietario);
+      phoneOf.set(c.id, c.telefonePrefeitura);
       const k = norm(c.cidade) + "|" + norm(c.estado);
       if (norm(c.cidade)) { byKey.set(k, c.id); byCity.set(norm(c.cidade), [...(byCity.get(norm(c.cidade)) || []), c.id]); }
     }
@@ -112,12 +144,11 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
       return a && a.length === 1 ? a[0] : null;
     };
 
-    // ---- Proprietário (sempre atualiza) ----
+    // ---- Proprietário + hubspotId (só grava o que mudou) ----
     const owners = await fetchOwners();
     await sleep(400);
     const all = await search([], ["firstname", "lastname", "city", "state", "hubspot_owner_id"]);
 
-    // Coleta atualizações de proprietário em memória, depois faz 1 transaction
     const ownerBatch: { id: string; hubspotId: string; proprietario?: string }[] = [];
     for (const c of all) {
       if (!norm((c.properties.firstname || "") + (c.properties.lastname || "")).includes("prefeitura")) continue;
@@ -125,6 +156,9 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
       const id = matchId(cidade, uf);
       if (!id) continue;
       const ownerName = owners.get(String(c.properties.hubspot_owner_id || "")) || null;
+      const needHubspot = hubspotIdOf.get(id) !== c.id;
+      const needOwner = !!ownerName && proprietarioOf.get(id) !== ownerName;
+      if (!needHubspot && !needOwner) continue; // já sincronizado — pula
       ownerBatch.push({ id, hubspotId: c.id, ...(ownerName ? { proprietario: ownerName } : {}) });
     }
     if (ownerBatch.length > 0) {
@@ -143,7 +177,7 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
     await sleep(400);
     const atualizados = await search([{ propertyName: "lifecyclestage", operator: "EQ", value: STAGE.atualizado }], ["firstname", "lastname", "city", "state", "phone"]);
 
-    // Atualizado no CRM → batch: atualiza contato + resolve correção pendente
+    // Atualizado no CRM → batch: atualiza contato + resolve correção pendente (só o que mudou)
     const atzBatch: { id: string; phone: string }[] = [];
     for (const c of atualizados) {
       const { cidade, uf } = parse(c.properties);
@@ -151,6 +185,7 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
       if (!id) continue;
       const newValue = c.properties.phone || "";
       if (!isValidPhone(newValue)) continue;
+      if (phoneOf.get(id) === newValue && statusOf.get(id) === "telefone_atualizado") continue; // já atualizado
       atzBatch.push({ id, phone: newValue });
     }
     if (atzBatch.length > 0) {
@@ -165,17 +200,20 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
       ]);
     }
 
-    // Incorreto no CRM → batch: marca status + cria correção se não existir
+    // Incorreto no CRM → batch: marca status + cria correção se não existir (só o que mudou)
     const incIds: string[] = [];
     for (const c of incorretos) {
       const { cidade, uf } = parse(c.properties);
       const id = matchId(cidade, uf);
       if (!id) continue;
-      if (statusOf.get(id) === "telefone_atualizado") continue;
+      if (statusOf.get(id) === "telefone_atualizado") continue; // preserva correção local
       incIds.push(id);
     }
     if (incIds.length > 0) {
-      await prisma.contact.updateMany({ where: { id: { in: incIds } }, data: { status: "telefone_incorreto" } });
+      const toMark = incIds.filter((id) => statusOf.get(id) !== "telefone_incorreto");
+      if (toMark.length > 0) {
+        await prisma.contact.updateMany({ where: { id: { in: toMark } }, data: { status: "telefone_incorreto" } });
+      }
       const existing = await prisma.correction.findMany({
         where: { contactId: { in: incIds }, status: "pending" },
         select: { contactId: true },
@@ -197,7 +235,13 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
       }
     }
 
-    return { ok: true, detail: `owners:${ownerUpdates} incorreto:${incorretos.length} atualizado:${atualizados.length}` };
+    const result: SyncResult = {
+      ok: true,
+      detail: `owners:${ownerUpdates} incorreto:${incorretos.length} atualizado:${atualizados.length}`,
+      syncedAt: Date.now(),
+    };
+    lastResult = result;
+    return result;
   } catch (e) {
     return { ok: false, detail: (e as Error).message };
   } finally {

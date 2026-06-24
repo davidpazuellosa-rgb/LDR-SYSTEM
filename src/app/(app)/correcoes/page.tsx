@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import CorrectionsList from "@/components/CorrectionsList";
-import CrmSyncButton from "@/components/CrmSyncButton";
+import CrmSync from "@/components/CrmSync";
 
 export const dynamic = "force-dynamic";
 
@@ -26,15 +26,16 @@ export default async function CorrecoesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Correção de Contatos"
-        action={<CrmSyncButton />}
-      />
+      <PageHeader title="Correção de Contatos" action={<CrmSync />} />
       <div className="space-y-8 p-8">
         <section>
           {pending.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <CrmSyncButton variant="empty" />
+              <p className="text-sm text-slate-500">
+                Nenhuma correção pendente. A integração com o HubSpot é sincronizada
+                automaticamente — assim que aparecer um telefone incorreto no CRM, ele
+                surge aqui.
+              </p>
             </div>
           ) : (
             <CorrectionsList items={pending} />
