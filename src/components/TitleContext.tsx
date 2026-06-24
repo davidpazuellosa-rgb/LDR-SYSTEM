@@ -2,13 +2,27 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type TitleCtx = { title: string; setTitle: (t: string) => void };
+// Estado de salvamento da planilha (mostrado discretamente ao lado do título).
+export type SavedStatus = { state: "saving" | "saved" | "error"; at: number } | null;
 
-const Ctx = createContext<TitleCtx>({ title: "", setTitle: () => {} });
+type TitleCtx = {
+  title: string;
+  setTitle: (t: string) => void;
+  saved: SavedStatus;
+  setSaved: (s: SavedStatus) => void;
+};
+
+const Ctx = createContext<TitleCtx>({
+  title: "",
+  setTitle: () => {},
+  saved: null,
+  setSaved: () => {},
+});
 
 export function TitleProvider({ children }: { children: React.ReactNode }) {
   const [title, setTitle] = useState("");
-  return <Ctx.Provider value={{ title, setTitle }}>{children}</Ctx.Provider>;
+  const [saved, setSaved] = useState<SavedStatus>(null);
+  return <Ctx.Provider value={{ title, setTitle, saved, setSaved }}>{children}</Ctx.Provider>;
 }
 
 export function useTitle() {

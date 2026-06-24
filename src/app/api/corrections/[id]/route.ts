@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guard";
 import { looksLikeValidPhone } from "@/lib/import";
 import { pushCorrectionToHubspot } from "@/lib/hubspot-write";
+import { PHONE_FIELD } from "@/lib/contact-fields";
 
-// Resolve uma correção: grava o novo telefone no contato, fecha o item da fila
-// (preservando o histórico) e, quando válido, ENVIA a atualização ao HubSpot
+// Resolve uma correção: grava o novo telefone na base local usada pela planilha,
+// fecha o item da fila (preservando o histórico) e, quando válido, ENVIA ao HubSpot
 // (telefone + Fase do Ciclo de Vida -> "Telefone Atualizado").
 export async function PATCH(
   req: Request,
@@ -25,7 +26,7 @@ export async function PATCH(
 
   const valid = looksLikeValidPhone(newValue);
 
-  await prisma.$transaction([
+  const [, updatedContact] = await prisma.$transaction([
     prisma.correction.update({
       where: { id },
       data: {
@@ -39,9 +40,15 @@ export async function PATCH(
     prisma.contact.update({
       where: { id: correction.contactId },
       data: {
-        telefonePrefeitura: newValue,
+        [PHONE_FIELD]: newValue,
         ...(hasWhatsapp ? { whatsapp: newValue } : {}),
         status: valid ? "telefone_atualizado" : "telefone_incorreto",
+      },
+      select: {
+        id: true,
+        telefonePrefeitura: true,
+        whatsapp: true,
+        status: true,
       },
     }),
   ]);
@@ -61,5 +68,17 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ ok: true, valid, hubspot });
+  return NextResponse.json({
+    ok: true,
+    valid,
+    database: {
+      ok: true,
+      contactId: updatedContact.id,
+      field: PHONE_FIELD,
+      value: updatedContact.telefonePrefeitura,
+      whatsapp: updatedContact.whatsapp,
+      status: updatedContact.status,
+    },
+    hubspot,
+  });
 }

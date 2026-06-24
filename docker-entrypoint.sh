@@ -11,4 +11,4 @@ echo "==> Garantindo usuário admin e dados iniciais..."
 npm run db:seed || echo "(seed pulado)"
 
 echo "==> Subindo o SASI LDR Hub..."
-exec npm start
+exec node .next/standalone/server.js

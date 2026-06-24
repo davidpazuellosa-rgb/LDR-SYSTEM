@@ -2,7 +2,36 @@
 
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/(app)/logout-action";
-import { useTitle } from "@/components/TitleContext";
+import { useTitle, type SavedStatus } from "@/components/TitleContext";
+
+// Indicador discreto de salvamento ao lado do título (estilo Google Docs).
+function SavedBadge({ saved }: { saved: NonNullable<SavedStatus> }) {
+  if (saved.state === "saving") {
+    return <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">Salvando…</span>;
+  }
+  if (saved.state === "error") {
+    return (
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-amber-600">
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 8v5M12 16.5v.5" strokeLinecap="round" />
+          <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinejoin="round" />
+        </svg>
+        Falha ao salvar
+      </span>
+    );
+  }
+  const d = new Date(saved.at);
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const data = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return (
+    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-slate-400">
+      <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      Salvo às {hora} · {data}
+    </span>
+  );
+}
 
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Visão geral",
@@ -35,7 +64,7 @@ export default function Topbar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
-  const { title } = useTitle();
+  const { title, saved } = useTitle();
   const pageTitle = title || fallbackTitle(pathname);
 
   return (
@@ -58,7 +87,10 @@ export default function Topbar({
             <span className="text-slate-300">›</span>
             <span className="truncate text-slate-500">{pageTitle}</span>
           </div>
-          <h1 className="truncate text-2xl font-bold text-slate-900">{pageTitle}</h1>
+          <div className="flex items-baseline gap-3">
+            <h1 className="truncate text-2xl font-bold text-slate-900">{pageTitle}</h1>
+            {saved && <SavedBadge saved={saved} />}
+          </div>
         </div>
       </div>
 

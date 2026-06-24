@@ -54,7 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{ show, success, error, loading, update, dismiss }}>
       {children}
-      <div className="pointer-events-none fixed right-5 top-5 z-[100] flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3">
+      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-[min(340px,calc(100vw-2rem))] flex-col gap-2">
         {toasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onClose={() => dismiss(toast.id)} />
         ))}
@@ -65,57 +65,73 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
 function ToastIcon({ type }: { type: ToastType }) {
   if (type === "loading") {
-    return <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />;
+    return <span className="block h-[18px] w-[18px] animate-spin rounded-full border-2 border-current border-t-transparent opacity-70" />;
   }
-
   if (type === "success") {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-        <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+      <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="9" />
+        <path d="m8.5 12.5 2.4 2.4 4.6-5.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
-
   return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-      <path d="M12 8v5" strokeLinecap="round" />
-      <path d="M12 17h.01" strokeLinecap="round" />
-      <path d="M10.3 4.3 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" strokeLinejoin="round" />
+    <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" strokeLinecap="round" />
+      <path d="M12 16.2h.01" strokeLinecap="round" />
     </svg>
   );
 }
 
 function ToastCard({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  const styles = {
-    success: "border-emerald-200 bg-emerald-50 text-emerald-800 shadow-emerald-900/10",
-    error: "border-red-200 bg-red-50 text-red-800 shadow-red-900/10",
-    loading: "border-indigo-200 bg-indigo-50 text-indigo-800 shadow-indigo-900/10",
+  const accent = {
+    success: "text-emerald-600",
+    error: "text-red-600",
+    loading: "text-indigo-600",
   }[toast.type];
 
-  const iconStyles = {
-    success: "bg-emerald-600 text-white",
-    error: "bg-red-600 text-white",
-    loading: "bg-white text-indigo-600",
+  const bar = {
+    success: "bg-emerald-500",
+    error: "bg-red-500",
+    loading: "bg-indigo-500",
   }[toast.type];
 
   return (
-    <div className={`pointer-events-auto relative rounded-xl border p-4 shadow-lg ${styles}`}>
+    <div
+      className="pointer-events-auto group relative flex w-full items-start gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-2.5 shadow-lg shadow-slate-900/5"
+      style={{ animation: "toast-in 0.18s ease-out" }}
+    >
+      <span className={`mt-0.5 shrink-0 ${accent}`}>
+        <ToastIcon type={toast.type} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold leading-tight text-slate-800">{toast.title}</p>
+        {toast.description && (
+          <p className="mt-0.5 text-xs leading-snug text-slate-500">{toast.description}</p>
+        )}
+      </div>
       <button
         onClick={onClose}
-        className="absolute -left-2 -top-2 grid h-5 w-5 place-items-center rounded-full border border-current bg-white/90 text-xs leading-none opacity-80 hover:opacity-100"
-        aria-label="Fechar notificação"
+        aria-label="Fechar"
+        className="-mr-0.5 shrink-0 rounded p-0.5 text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100"
       >
-        ×
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+        </svg>
       </button>
-      <div className="flex gap-3">
-        <div className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${iconStyles}`}>
-          <ToastIcon type={toast.type} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold">{toast.title}</div>
-          {toast.description && <div className="mt-1 text-sm opacity-85">{toast.description}</div>}
-        </div>
-      </div>
+
+      {toast.type === "loading" ? (
+        <span
+          className={`absolute left-0 top-0 h-[2px] w-1/3 rounded-full ${bar}`}
+          style={{ animation: "toast-indeterminate 1.1s ease-in-out infinite" }}
+        />
+      ) : (
+        <span
+          className={`absolute bottom-0 left-0 h-[2px] w-full origin-left ${bar} opacity-70`}
+          style={{ animation: "toast-progress 4.5s linear forwards" }}
+        />
+      )}
     </div>
   );
 }

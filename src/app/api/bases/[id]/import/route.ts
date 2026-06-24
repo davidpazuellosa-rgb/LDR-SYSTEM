@@ -46,7 +46,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { deny } = await requirePermission("data.import");
+  const { session, deny } = await requirePermission("data.import");
   if (deny) return deny;
 
   const { id } = await params;
@@ -84,7 +84,7 @@ export async function POST(
   }
 
   const existingContacts = await prisma.contact.findMany({
-    where: { baseId: id },
+    where: { baseId: id, deletedAt: null },
     select: {
       codigoIbge: true,
       cidade: true,
@@ -130,6 +130,8 @@ export async function POST(
       return prisma.contact.create({
         data: {
           baseId: id,
+          // @ts-expect-error id custom na sessão
+          createdById: session.user.id ?? null,
           ...r,
           status: validPhone ? "ok" : "telefone_incorreto",
         },

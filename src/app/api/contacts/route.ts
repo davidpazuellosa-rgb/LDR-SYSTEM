@@ -7,7 +7,7 @@ import { STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
 
 // Cadastro manual de um novo contato (prefeitura) dentro de uma base.
 export async function POST(req: Request) {
-  const { deny } = await requireUser();
+  const { session, deny } = await requireUser();
   if (deny) return deny;
 
   const body = await req.json();
@@ -23,6 +23,8 @@ export async function POST(req: Request) {
   const contact = await prisma.contact.create({
     data: {
       baseId,
+      // @ts-expect-error id custom na sessão
+      createdById: session.user.id ?? null,
       ...data,
       status: looksLikeValidPhone(phone) ? STATUS_OK : phone ? STATUS_INCORRETO : STATUS_OK,
     },

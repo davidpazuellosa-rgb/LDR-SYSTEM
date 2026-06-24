@@ -91,7 +91,7 @@ export async function syncFromCrm(): Promise<{ ok: boolean; detail?: string }> {
     const base = await prisma.base.findFirst({ where: { name: BASE_NAME } });
     if (!base) return { ok: false, detail: "base não encontrada" };
 
-    const locais = await prisma.contact.findMany({ where: { baseId: base.id }, select: { id: true, cidade: true, estado: true, status: true } });
+    const locais = await prisma.contact.findMany({ where: { baseId: base.id, deletedAt: null }, select: { id: true, cidade: true, estado: true, status: true } });
     const byKey = new Map<string, string>();
     const byCity = new Map<string, string[]>();
     const statusOf = new Map<string, string>();

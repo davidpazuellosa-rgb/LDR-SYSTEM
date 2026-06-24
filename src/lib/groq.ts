@@ -302,22 +302,31 @@ Não diga nem conclua que o contato "não existe" por ligação não atendida, o
 Se a fonte indicar que o órgão/contato existe, mas o telefone estiver incerto, retorne o contato com telefone vazio em vez de inventar número.
 Se não encontrar algum campo, use string vazia. Não escreva nada além do JSON.`;
 
+  const requestInit: RequestInit = {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Você busca contatos públicos de órgãos e responde somente JSON válido." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+    }),
+  };
+
+  const callGroq = () => fetch("https://api.groq.com/openai/v1/chat/completions", requestInit);
+
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: "Você busca contatos públicos de órgãos e responde somente JSON válido." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.2,
-      }),
-    });
+    let res = await callGroq();
+    // Plano gratuito do Groq tem limite de taxa: 1 nova tentativa após uma pausa curta.
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 4000));
+      res = await callGroq();
+    }
 
     if (!res.ok) {
       const text = await res.text();

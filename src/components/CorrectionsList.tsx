@@ -220,7 +220,12 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
 
       if (res.ok) {
         toast.dismiss(loadingId);
-        toast.success("Telefone corrigido!", data.hubspot?.ok ? "Atualizado no HubSpot." : undefined);
+        toast.success(
+          "Telefone corrigido!",
+          data.hubspot?.ok
+            ? "Atualizado na base local e no HubSpot."
+            : "Atualizado na base local."
+        );
         router.refresh();
       } else {
         toast.dismiss(loadingId);

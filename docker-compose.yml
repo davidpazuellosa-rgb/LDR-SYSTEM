@@ -15,6 +15,12 @@ services:
     volumes:
       # Banco SQLite persiste aqui, fora da imagem
       - ldr-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://$$(hostname):3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   ldr-data:

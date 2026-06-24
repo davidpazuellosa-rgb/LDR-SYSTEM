@@ -15,7 +15,7 @@ export async function GET(
   const { id } = await params;
   const base = await prisma.base.findUnique({
     where: { id },
-    include: { contacts: { orderBy: [{ estado: "asc" }, { cidade: "asc" }] } },
+    include: { contacts: { where: { deletedAt: null }, orderBy: [{ estado: "asc" }, { cidade: "asc" }] } },
   });
   if (!base) return NextResponse.json({ error: "Base não encontrada" }, { status: 404 });
 

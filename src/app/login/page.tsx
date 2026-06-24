@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { login } from "./actions";
+import { type FormEvent, useState } from "react";
+import { signIn } from "next-auth/react";
 import SasiLogo from "@/components/SasiLogo";
 
 function FeatureItem({
@@ -22,8 +22,39 @@ function FeatureItem({
 }
 
 export default function LoginPage() {
-  const [error, formAction, pending] = useActionState(login, undefined);
+  const [error, setError] = useState<string | undefined>();
+  const [pending, setPending] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [email, setEmail] = useState("admin@sasi.com");
+  const [password, setPassword] = useState("sasi1234");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(undefined);
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    try {
+      const result = await signIn("credentials", {
+        email: normalizedEmail,
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      });
+
+      if (result?.error) {
+        setError("E-mail ou senha inválidos. Confirme se está usando um usuário cadastrado.");
+        return;
+      }
+
+      window.location.href = result?.url || "/dashboard";
+    } catch {
+      setError("Não foi possível entrar agora. Atualize a página e tente novamente.");
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen w-full bg-white">
@@ -97,9 +128,9 @@ export default function LoginPage() {
       {/* ===== Coluna direita (formulário) ===== */}
       <div className="flex w-full flex-col justify-center px-6 py-12 sm:px-12 lg:w-1/2 lg:px-20">
         <div className="mx-auto w-full max-w-md">
-          {/* logo no topo só no mobile */}
-          <div className="mb-10 text-[#191d45] lg:hidden">
-            <SasiLogo height={34} />
+          {/* logo no topo só no mobile (fundo escuro p/ a logo negativa aparecer) */}
+          <div className="mb-10 inline-flex rounded-xl bg-[#191d45] px-4 py-3 lg:hidden">
+            <SasiLogo height={30} />
           </div>
 
           <h2 className="text-3xl font-bold text-slate-900">Entrar na plataforma</h2>
@@ -107,7 +138,7 @@ export default function LoginPage() {
             Acesse o painel para sanear e organizar as bases comerciais da SASI.
           </p>
 
-          <form action={formAction} className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {/* E-mail */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -125,7 +156,9 @@ export default function LoginPage() {
                   type="email"
                   required
                   autoComplete="username"
-                  placeholder="voce@sasi.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="admin@sasi.com"
                   className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-3 text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                 />
               </div>
@@ -151,6 +184,8 @@ export default function LoginPage() {
                   type={showPass ? "text" : "password"}
                   required
                   autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
                   className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-11 text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                 />

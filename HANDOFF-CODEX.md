@@ -134,13 +134,14 @@ Arquivos de deploy já existem no repo:
 - **`Dockerfile`** (node:20-alpine; `prisma generate` + `next build`; entrypoint faz `prisma db push`
   + seed + `npm start`). `DATABASE_URL=file:/data/app.db`.
 - **`docker-compose.yml`** — serviço `app`, porta **9010:3000**, volume `ldr-data:/data`,
-  `env_file: .env.production`.
+  `env_file: .env.production`, `restart: unless-stopped` e healthcheck em `/login`.
 - **`docker-entrypoint.sh`** — migra o banco, garante admin e sobe.
 - **`.dockerignore`**.
 
 Pendências de deploy:
 1. Criar **`.env.production`** no VPS (NÃO commitar) com `AUTH_SECRET`, `HUBSPOT_TOKEN` (token NOVO),
-   `SEED_ADMIN_*`, `CRM_AUTO_SYNC`, `CRM_SYNC_INTERVAL_MIN`. `DATABASE_URL` já vem do Dockerfile.
+   `GROQ_API_KEY`, `GROQ_MODEL`, `SEED_ADMIN_*`, `CRM_AUTO_SYNC`, `CRM_SYNC_INTERVAL_MIN`.
+   `DATABASE_URL` já vem do Dockerfile.
 2. Decidir **basePath**: se for publicar em subcaminho (`/sasi-ldr`), buildar com
    `NEXT_PUBLIC_BASE_PATH=/sasi-ldr` (e `apiPath()` em `src/lib/path.ts` já prefixa as chamadas).
    Recomendado pedir **subdomínio** ao admin para rodar na raiz e evitar dor de cabeça com basePath.

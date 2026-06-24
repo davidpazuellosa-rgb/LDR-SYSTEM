@@ -6,7 +6,7 @@ export const { auth: middleware } = NextAuth(authConfig);
 
 export const config = {
   matcher: [
-    // Roda em tudo, menos rotas de API, arquivos estáticos e imagens.
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    // Roda em tudo, menos rotas de API, estáticos do Next e arquivos do /public (imagens).
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)).*)",
   ],
 };
