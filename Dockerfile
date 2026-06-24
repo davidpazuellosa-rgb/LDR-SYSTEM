@@ -4,8 +4,6 @@ FROM node:20-alpine
 # Tudo roda dentro de /app
 WORKDIR /app
 
-# O banco SQLite vive em /data (montado como volume, persiste entre deploys)
-ENV DATABASE_URL="file:/data/app.db"
 ENV PORT=3000
 
 # basePath (subcaminho no nginx). Vazio = raiz. É build-time, então vem como ARG.
