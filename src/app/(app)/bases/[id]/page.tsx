@@ -37,6 +37,9 @@ export default async function BaseDetailPage({
   const initialFormats = Object.fromEntries(
     base.contacts.map((c) => [c.id, (c.formats as Record<string, unknown>) || {}])
   ) as ComponentProps<typeof ContactsTable>["initialFormats"];
+  const initialHeaders = ((base.headers as Record<string, string> | null) || {}) as ComponentProps<
+    typeof ContactsTable
+  >["initialHeaders"];
 
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.
@@ -60,6 +63,7 @@ export default async function BaseDetailPage({
           baseId={base.id}
           initialContacts={contacts}
           initialFormats={initialFormats}
+          initialHeaders={initialHeaders}
           initialSavedAt={lastSaved?.toISOString() ?? null}
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}

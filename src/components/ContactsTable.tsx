@@ -174,6 +174,7 @@ export default function ContactsTable({
   baseId,
   initialContacts,
   initialFormats = {},
+  initialHeaders = {},
   initialSavedAt = null,
   canDelete = true,
   canImport = true,
@@ -182,6 +183,7 @@ export default function ContactsTable({
   baseId: string;
   initialContacts: Contact[];
   initialFormats?: Record<string, Record<string, CellFmt>>;
+  initialHeaders?: Record<string, string>;
   initialSavedAt?: string | null;
   canDelete?: boolean;
   canImport?: boolean;
@@ -201,6 +203,7 @@ export default function ContactsTable({
     return () => setSaved(null);
   }, [initialSavedAt, setSaved]);
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  const [headerLabels, setHeaderLabels] = useState<Record<string, string>>(initialHeaders);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
@@ -241,6 +244,10 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const visibleFields = useMemo(
     () => CONTACT_FIELDS.filter((f) => !hiddenColumns.has(f.key)),
     [hiddenColumns]
+  );
+  const headerLabelFor = useCallback(
+    (key: string, fallback: string) => headerLabels[key] || fallback,
+    [headerLabels]
   );
   const fieldKeys = useMemo(() => visibleFields.map((field) => field.key), [visibleFields]);
 
@@ -336,6 +343,30 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     setEditingCell(null);
     setClip(null);
   }, [tab, phoneFilter, search]);
+
+  async function saveHeaderLabel(key: string, fallback: string, nextRaw: string) {
+    const next = nextRaw.trim() || fallback;
+    const prev = headerLabelFor(key, fallback);
+    if (next === prev) return;
+
+    setHeaderLabels((labels) => ({ ...labels, [key]: next }));
+    markSaving();
+
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ headers: { [key]: next } }),
+      });
+
+      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      markSaved();
+    } catch (err) {
+      setHeaderLabels((labels) => ({ ...labels, [key]: prev }));
+      markSaveError();
+      toast.error("Não foi possível salvar o cabeçalho.", (err as Error).message);
+    }
+  }
 
   // Encerra o arraste de seleção mesmo quando o botão é solto fora da grade.
   useEffect(() => {
@@ -1641,15 +1672,36 @@ async function saveCell(id: string, key: string, value: string) {
               <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-indigo-50 px-1 py-3 font-semibold text-indigo-700">
                 1
               </th>
-              {visibleFields.map((col, i) => (
-                <th
-                  key={col.key}
-                  className={`bg-slate-50 px-3 py-3 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
-                  style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
-                >
-                  {col.label}
-                </th>
-              ))}
+              {visibleFields.map((col, i) => {
+                const label = headerLabelFor(col.key, col.label);
+                return (
+                  <th
+                    key={col.key}
+                    className={`bg-slate-50 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
+                    style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
+                  >
+                    <input
+                      defaultValue={label}
+                      title="Editar cabeçalho"
+                      aria-label={`Editar cabeçalho ${label}`}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.currentTarget.value = label;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs font-medium uppercase text-slate-500 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </th>
+                );
+              })}
               <th className="bg-slate-50 px-3 py-3 font-medium">Status</th>
             </tr>
           </thead>
