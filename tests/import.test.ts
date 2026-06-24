@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import * as XLSX from "xlsx";
 import {
   MAX_SPREADSHEET_BYTES,
   looksLikeValidPhone,
@@ -26,6 +27,34 @@ test("parseSpreadsheet normalizes supported CSV headers", () => {
     emailInstitucional: "contato@manaus.am.gov.br",
     nomePrefeito: "Joana Silva",
   });
+});
+
+test("parseSpreadsheet imports rows from every workbook sheet", () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["Cidade", "UF", "Telefone"],
+      ["Maceió", "AL", "(82) 99999-0000"],
+    ]),
+    "ALAGOAS"
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["Cidade", "UF", "Telefone"],
+      ["Salvador", "BA", "(71) 99999-0000"],
+    ]),
+    "BAHIA"
+  );
+
+  const rows = parseSpreadsheet(Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })), "contatos.xlsx");
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual(
+    rows.map((row) => row.estado),
+    ["AL", "BA"]
+  );
 });
 
 test("looksLikeValidPhone accepts only plausible Brazilian phone lengths", () => {

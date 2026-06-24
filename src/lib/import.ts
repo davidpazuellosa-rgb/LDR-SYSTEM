@@ -98,17 +98,48 @@ function parseCsv(buffer: Buffer): SpreadsheetParseResult {
 
 function parseWorkbook(buffer: Buffer): SpreadsheetParseResult {
   const workbook = XLSX.read(buffer, { type: "buffer", cellFormula: false, cellHTML: false });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return { rows: [], headers: [], matchedColumns: [], unknownColumns: [], missingRequiredColumns: REQUIRED_IMPORT_FIELDS.map(fieldLabel) };
+  const parsedSheets = workbook.SheetNames.map((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return null;
 
-  const raw: string[][] = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    blankrows: false,
-    defval: "",
-    raw: false,
-  });
+    const raw: string[][] = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      blankrows: false,
+      defval: "",
+      raw: false,
+    });
 
-  return normalizeRows(raw);
+    return normalizeRows(raw);
+  }).filter((result): result is SpreadsheetParseResult => Boolean(result && result.headers.length));
+
+  const usableSheets = parsedSheets.filter((result) => result.missingRequiredColumns.length === 0);
+  const sheetsToImport = usableSheets.length > 0 ? usableSheets : parsedSheets;
+
+  if (sheetsToImport.length === 0) {
+    return {
+      rows: [],
+      headers: [],
+      matchedColumns: [],
+      unknownColumns: [],
+      missingRequiredColumns: REQUIRED_IMPORT_FIELDS.map(fieldLabel),
+    };
+  }
+
+  return {
+    rows: sheetsToImport.flatMap((result) => result.rows),
+    headers: Array.from(new Set(sheetsToImport.flatMap((result) => result.headers))),
+    matchedColumns: Array.from(
+      new Map(
+        sheetsToImport
+          .flatMap((result) => result.matchedColumns)
+          .map((column) => [`${column.header}:${column.field}`, column])
+      ).values()
+    ),
+    unknownColumns: Array.from(new Set(sheetsToImport.flatMap((result) => result.unknownColumns))),
+    missingRequiredColumns: usableSheets.length > 0
+      ? []
+      : Array.from(new Set(parsedSheets.flatMap((result) => result.missingRequiredColumns))),
+  };
 }
 
 // Recebe o conteúdo de um arquivo CSV ou Excel e devolve linhas normalizadas.
