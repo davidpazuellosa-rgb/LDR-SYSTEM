@@ -50,6 +50,10 @@ export default function CrmSync() {
           setDetail(data.detail ?? null);
           setSyncedAt(data.syncedAt ?? Date.now());
           router.refresh();
+        } else if (data.running) {
+          // Outra sync já estava rodando — não é erro. Volta ao idle; o label
+          // continua mostrando "Sincronizado há X" porque syncedAt persiste.
+          setState((prev) => (prev === "running" ? "idle" : prev));
         } else {
           setState("error");
           setDetail(data.detail ?? data.error ?? "Erro desconhecido.");
