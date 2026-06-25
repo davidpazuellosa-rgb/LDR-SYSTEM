@@ -222,7 +222,7 @@ async function AdminMain() {
     prisma.contact.count({ where: { deletedAt: null } }),
     prisma.contact.count({ where: { status: "telefone_incorreto", deletedAt: null } }),
     prisma.contact.count({ where: { status: "telefone_atualizado", deletedAt: null } }),
-    prisma.user.findMany({ where: { role: "user" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { role: "ldr" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.base.findMany({ select: { id: true, name: true } }),
     prisma.meta.findMany() as Promise<Meta[]>,
     loadProgress(),

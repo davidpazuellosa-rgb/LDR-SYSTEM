@@ -13,7 +13,10 @@ const escapeHtml = (s: string) =>
 
 export async function sendInviteEmail(opts: { to: string; name?: string | null; link: string; role: string }): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY;
-  if (!key) return { sent: false, reason: "sem provedor de e-mail (RESEND_API_KEY)" };
+  if (!key) {
+    console.error("[sendInviteEmail] RESEND_API_KEY ausente ou vazia.");
+    return { sent: false, reason: "sem provedor de e-mail (RESEND_API_KEY ausente ou vazia)" };
+  }
 
   const from = process.env.EMAIL_FROM || "SASI LDR Hub <onboarding@resend.dev>";
   const primeiro = (opts.name || "").trim().split(/\s+/)[0];
@@ -51,10 +54,14 @@ export async function sendInviteEmail(opts: { to: string; name?: string | null; 
     });
     if (!res.ok) {
       const t = await res.text();
-      return { sent: false, reason: `Resend ${res.status}: ${t.slice(0, 150)}` };
+      const reason = `Resend ${res.status}: ${t.slice(0, 150)}`;
+      console.error("[sendInviteEmail] falhou:", reason);
+      return { sent: false, reason };
     }
     return { sent: true };
   } catch (e) {
-    return { sent: false, reason: (e as Error).message };
+    const reason = (e as Error).message;
+    console.error("[sendInviteEmail] erro de rede:", reason);
+    return { sent: false, reason };
   }
 }

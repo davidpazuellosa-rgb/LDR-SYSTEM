@@ -49,5 +49,5 @@ export async function POST(req: Request) {
 
   const inviteLink = buildInviteLink(req, token);
   const mail = await sendInviteEmail({ to: created.email, name: created.name, link: inviteLink, role: ROLE_LABELS[role] || role });
-  return NextResponse.json({ ...created, pending: true, inviteLink, emailSent: mail.sent });
+  return NextResponse.json({ ...created, pending: true, inviteLink, emailSent: mail.sent, emailReason: mail.reason });
 }

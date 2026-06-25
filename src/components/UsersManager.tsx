@@ -70,7 +70,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [linkResult, setLinkResult] = useState<{ email: string; link: string; emailSent: boolean } | null>(null);
+  const [linkResult, setLinkResult] = useState<{ email: string; link: string; emailSent: boolean; reason?: string } | null>(null);
   const [metaUser, setMetaUser] = useState<{ id: string; name: string } | null>(null);
 
   async function copy(text: string) {
@@ -103,7 +103,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
       setUsers((prev) => [{ id: data.id, name: data.name, email: data.email, role: data.role, createdAt: data.createdAt, pending: true }, ...prev]);
       setOpen(false);
       setForm({ name: "", email: "", role: "ldr" });
-      if (data.inviteLink) setLinkResult({ email: data.email, link: data.inviteLink, emailSent: !!data.emailSent });
+      if (data.inviteLink) setLinkResult({ email: data.email, link: data.inviteLink, emailSent: !!data.emailSent, reason: data.emailReason });
       toast.success(data.emailSent ? "Convite enviado por e-mail." : "Convite criado.", data.email);
     } catch (err) {
       toast.dismiss(loadingId);
@@ -157,7 +157,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
         return;
       }
       setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, pending: true } : item)));
-      setLinkResult({ email: user.email, link: data.inviteLink, emailSent: !!data.emailSent });
+      setLinkResult({ email: user.email, link: data.inviteLink, emailSent: !!data.emailSent, reason: data.emailReason });
     } catch (err) {
       toast.dismiss(loadingId);
       toast.error("Não foi possível gerar o link.", (err as Error).message);
@@ -395,9 +395,14 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
             {linkResult.emailSent ? (
               <p className="mt-3 text-xs text-emerald-600">✓ Enviado automaticamente por e-mail. O link acima serve de backup.</p>
             ) : (
-              <p className="mt-3 text-xs text-slate-400">
-                Envio automático por e-mail ainda não está ativo — por enquanto, copie e envie o link manualmente.
-              </p>
+              <div className="mt-3 space-y-1">
+                <p className="text-xs text-slate-400">
+                  Envio automático por e-mail não ativo — por enquanto, copie e envie o link manualmente.
+                </p>
+                {linkResult.reason && (
+                  <p className="rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-700">Motivo: {linkResult.reason}</p>
+                )}
+              </div>
             )}
             <div className="mt-5 flex justify-end">
               <button

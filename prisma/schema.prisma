@@ -17,7 +17,7 @@ model User {
   email        String   @unique
   name         String?
   passwordHash String
-  role         String   @default("user") // user | admin
+  role         String   @default("ldr") // admin | ldr
   createdAt    DateTime @default(now())
 
   createdCorrections  Correction[] @relation("CorrectionCreatedBy")

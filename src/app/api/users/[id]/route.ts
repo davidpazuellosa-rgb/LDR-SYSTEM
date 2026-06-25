@@ -27,7 +27,7 @@ export async function PATCH(
     await prisma.user.update({ where: { id }, data: { passwordHash: sentinel } });
     const inviteLink = buildInviteLink(req, token);
     const mail = await sendInviteEmail({ to: target.email, name: target.name, link: inviteLink, role: ROLE_LABELS[target.role] || target.role });
-    return NextResponse.json({ ok: true, inviteLink, emailSent: mail.sent });
+    return NextResponse.json({ ok: true, inviteLink, emailSent: mail.sent, emailReason: mail.reason });
   }
 
   const data: Record<string, string> = {};
