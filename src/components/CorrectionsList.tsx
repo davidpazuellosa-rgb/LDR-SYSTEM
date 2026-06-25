@@ -6,7 +6,6 @@ import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import ScanModal from "@/components/ScanModal";
 import { useToast } from "@/components/Toast";
-import { STATUS_META, STATUS_INCORRETO } from "@/lib/status";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 
 type CorrectionItem = {
@@ -109,19 +108,6 @@ function ScopeCard({
       </div>
       <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-indigo-500">→</span>
     </button>
-  );
-}
-
-function StatusPill({ reason }: { reason: string | null }) {
-  const meta = STATUS_META[STATUS_INCORRETO];
-  return (
-    <span
-      title={reason || meta.label}
-      className={`inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium ${meta.badge}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-      {meta.label}
-    </span>
   );
 }
 
@@ -442,11 +428,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
         <>
           <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
-              <div className="min-w-[1180px]">
-                <div className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_150px_180px_220px_250px] border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="min-w-[1030px]">
+                <div className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_220px_250px] border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <div className="px-5 py-3">Prefeitura</div>
                   <div className="px-4 py-3">Proprietário</div>
-                  <div className="px-4 py-3">Status</div>
                   <div className="px-4 py-3">Telefone atual</div>
                   <div className="px-4 py-3">Novo número</div>
                   <div className="px-4 py-3 text-right">Ações</div>
@@ -470,7 +455,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                   return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_150px_180px_220px_250px] items-center bg-white transition hover:bg-slate-50/80"
+                        className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_220px_250px] items-center bg-white transition hover:bg-slate-50/80"
                       >
                         <div className="flex min-w-0 items-center gap-3 px-5 py-4">
                           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700">
@@ -484,10 +469,6 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
 
                         <div className="min-w-0 px-4 py-4 text-sm text-slate-600">
                           <div className="truncate">{item.contact.proprietario || "(sem proprietário)"}</div>
-                        </div>
-
-                        <div className="px-4 py-4">
-                          <StatusPill reason={item.reason} />
                         </div>
 
                         <div className="px-4 py-4 text-sm text-slate-400 line-through decoration-slate-300">
@@ -571,7 +552,6 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       <div className="font-semibold text-slate-800">{cityTitle || "Sem cidade"}</div>
                       <div className="text-sm text-slate-500">{item.contact.nomePrefeito || "Prefeito não informado"}</div>
                     </div>
-                    <StatusPill reason={item.reason} />
                   </div>
 
                   <div className="mt-4 grid gap-3 text-sm">
