@@ -218,8 +218,8 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
         <div className="grid grid-cols-[1.4fr_1.6fr_1fr_0.9fr_auto] items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <div>Usuário</div>
           <div>E-mail</div>
-          <div className="text-center">Cargo</div>
-          <div className="text-center">Status</div>
+          <div>Cargo</div>
+          <div>Status</div>
           <div className="text-right">Ações</div>
         </div>
         <div className="divide-y divide-slate-100">
@@ -240,12 +240,12 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   </div>
                 </div>
                 <div className="truncate text-sm text-slate-600">{user.email}</div>
-                <div className="flex justify-center">
+                <div>
                   <select
                     value={asRole(user.role)}
                     disabled={isSelf || busy}
                     onChange={(event) => changeRole(user, event.target.value as Role)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500 disabled:opacity-50"
+                    className="w-40 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500 disabled:opacity-50"
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
@@ -254,7 +254,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                     ))}
                   </select>
                 </div>
-                <div className="flex justify-center">
+                <div>
                   {user.pending ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Convite pendente
