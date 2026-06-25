@@ -124,15 +124,6 @@ export default function Sidebar({
             >
               <Icon name={item.icon} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && item.badge > 0 && (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    active ? "bg-white/90 text-indigo-700" : "bg-indigo-600 text-white"
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
             </Link>
           );
         })}

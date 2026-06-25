@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
+import { ufSigla } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { STATUS_META, STATUS_OK, STATUS_INCORRETO, STATUS_ATUALIZADO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
@@ -1457,7 +1458,7 @@ async function saveCell(id: string, key: string, value: string) {
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {uf === NO_UF ? "Sem UF" : uf} <span className="text-xs text-slate-400">({n})</span>
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
             </button>
           ))}
         </div>

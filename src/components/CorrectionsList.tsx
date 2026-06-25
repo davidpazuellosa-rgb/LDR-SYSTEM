@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
+import { ufSigla } from "@/lib/uf";
 import ScanModal from "@/components/ScanModal";
 import { useToast } from "@/components/Toast";
 import { STATUS_META, STATUS_INCORRETO } from "@/lib/status";
@@ -440,7 +441,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
 
                 <div className="divide-y divide-slate-100">
                   {shown.map((item) => {
-                  const cityTitle = [item.contact.cidade, item.contact.estado].filter(Boolean).join(" / ");
+                  const cityTitle = [item.contact.cidade, ufSigla(item.contact.estado)].filter(Boolean).join(" / ");
                   const value = values[item.id] ?? PHONE_PREFIX;
                   const valid = localDigits(value).length >= 10;
                   const scanTarget = {
@@ -460,7 +461,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       >
                         <div className="flex min-w-0 items-center gap-3 px-5 py-4">
                           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700">
-                            {initials(item.contact.cidade, item.contact.estado)}
+                            {initials(item.contact.cidade, ufSigla(item.contact.estado))}
                           </div>
                           <div className="min-w-0">
                             <div className="truncate text-base font-semibold text-slate-800">{item.contact.cidade || "Sem cidade"}</div>
@@ -530,7 +531,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
 
           <div className="space-y-3 lg:hidden">
             {shown.map((item) => {
-                  const cityTitle = [item.contact.cidade, item.contact.estado].filter(Boolean).join(" / ");
+                  const cityTitle = [item.contact.cidade, ufSigla(item.contact.estado)].filter(Boolean).join(" / ");
                   const value = values[item.id] ?? PHONE_PREFIX;
                   const valid = localDigits(value).length >= 10;
                   const scanTarget = {
