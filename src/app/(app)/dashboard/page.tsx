@@ -3,9 +3,9 @@ import { auth } from "@/auth";
 import { isAdmin } from "@/lib/permissions";
 import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
-import { normCampanha } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
+import { metaFeito, startOfDay, startOfWeek, startOfMonth, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import PageHeader from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -14,65 +14,11 @@ function percent(value: number, total: number) {
   if (!total) return 0;
   return Math.round((value / total) * 100);
 }
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function startOfWeek(d: Date) {
-  const x = startOfDay(d);
-  const dow = (x.getDay() + 6) % 7; // segunda = 0
-  x.setDate(x.getDate() - dow);
-  return x;
-}
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
 function fmtDateTime(value: Date | null) {
   if (!value) return "";
   return new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
-
-// ===================== Metas =====================
-type Meta = {
-  id: string;
-  userId: string;
-  tipo: string;
-  baseId: string | null;
-  regiao: string | null;
-  estado: string | null;
-  campanha: string | null;
-  prazo: string;
-  alvo: number;
-};
-type Fill = { concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null };
-type CorrDone = { resolvedById: string | null; resolvedAt: Date | null; campanha: string | null };
-
-const periodStart = (prazo: string, now: Date) => (prazo === "mensal" ? startOfMonth(now) : startOfWeek(now));
 const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : "esta semana");
-
-// Produção realizada de uma meta no seu prazo.
-//  - correção: o que ESTE LDR resolveu na campanha, no período
-//  - preenchimento: linhas que ficaram completas no território da meta (base+região+
-//    estado) no período. Atribuição é por TERRITÓRIO — cada estado é de 1 LDR, então
-//    o que importa é a linha estar completa, não quem digitou. (ContactFill guarda o
-//    quando; o preenchidoPorId fica como auditoria de quem completou.)
-function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): number {
-  const start = periodStart(m.prazo, now);
-  if (m.tipo === "correcao") {
-    const camp = normCampanha(m.campanha);
-    return corrections.filter(
-      (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
-    ).length;
-  }
-  return fills.filter(
-    (f) =>
-      f.concluidoEm >= start &&
-      f.baseId === m.baseId &&
-      ((f.regiao && f.regiao.trim()) || "Sem região") === m.regiao &&
-      ufSigla(f.estado) === m.estado
-  ).length;
-}
 
 async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] }> {
   await ensureContactFillTable();

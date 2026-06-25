@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "sh -c 'node --import tsx --test $(find tests -name \"*.test.ts\" -print)'",
+    "verify:metas": "node --env-file=.env --import tsx scripts/verify-metas.ts",
     "backup:sqlite": "node scripts/backup-sqlite.js",
     "repair:history": "node scripts/repair-invalid-history.js",
     "db:push": "prisma db push",

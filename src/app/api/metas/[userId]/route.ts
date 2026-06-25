@@ -5,6 +5,7 @@ import { ensureMetaTable } from "@/lib/meta";
 import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 import { tipoOrgao } from "@/lib/completude";
+import { sanitizeMetas } from "@/lib/metas-input";
 
 export const dynamic = "force-dynamic";
 
@@ -86,18 +87,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
   return NextResponse.json({ metas, tipos, basesById, campanhas });
 }
 
-type RawRow = {
-  tipo?: unknown;
-  baseId?: unknown;
-  regiao?: unknown;
-  estado?: unknown;
-  campanha?: unknown;
-  prazo?: unknown;
-  alvo?: unknown;
-};
-
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-
 // Substitui todas as metas do LDR pelas enviadas.
 export async function PUT(req: Request, { params }: { params: Promise<{ userId: string }> }) {
   const { deny } = await requireAdmin();
@@ -106,28 +95,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ userId: 
   await ensureMetaTable();
 
   const body = await req.json().catch(() => ({}));
-  const rawRows: unknown[] = Array.isArray(body?.metas) ? body.metas : [];
-
-  const clean = rawRows
-    .map((r) => r as RawRow)
-    .map((r) => {
-      const tipo = r.tipo === "correcao" ? "correcao" : "preenchimento";
-      const prazo = r.prazo === "mensal" ? "mensal" : "semanal";
-      const alvo = Math.max(0, Math.min(1_000_000, Math.trunc(Number(r.alvo) || 0)));
-      if (tipo === "correcao") {
-        return { userId, tipo, baseId: null, regiao: null, estado: null, campanha: str(r.campanha), prazo, alvo };
-      }
-      return { userId, tipo, baseId: str(r.baseId), regiao: str(r.regiao), estado: str(r.estado), campanha: null, prazo, alvo };
-    })
-    // Cada tipo exige suas dimensões; sem elas a linha é descartada.
-    .filter((r) => (r.tipo === "correcao" ? !!r.campanha : !!(r.baseId && r.regiao && r.estado)))
-    .slice(0, 500);
-
-  // Deduplica: preenchimento por base+região+estado; correção por campanha.
-  const keyOf = (r: (typeof clean)[number]) =>
-    r.tipo === "correcao" ? `c|${r.campanha}` : `p|${r.baseId}|${r.regiao}|${r.estado}`;
-  const byKey = new Map(clean.map((r) => [keyOf(r), r] as const));
-  const final = [...byKey.values()];
+  const final = sanitizeMetas(body?.metas, userId);
 
   await prisma.$transaction([
     prisma.meta.deleteMany({ where: { userId } }),
