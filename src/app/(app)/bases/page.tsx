@@ -51,13 +51,6 @@ function DatabaseIcon() {
   );
 }
 
-// Rótulo da região de uma base: se os contatos apontam para uma única região,
-// usa ela; senão cai no nome da base (planilha multi-região ou ainda sem dados).
-function regionLabel(regioes: RegiaoAgg[], baseName: string): string {
-  const named = regioes.filter((r) => r.regiao !== "Sem região");
-  return named.length === 1 ? named[0].regiao : baseName;
-}
-
 // Ordem preferida dos tipos no nível 1; tipos novos vão para o fim, em ordem alfabética.
 const TIPO_ORDER = ["Prefeitura", "Secretaria de Educação", "Secretaria de Saúde", "SENAI"];
 const tipoRank = (t: string) => {
@@ -196,8 +189,21 @@ export default async function BasesPage({
     );
   }
 
-  // ─── Nível 2: cards por região (planilhas do tipo selecionado) ───────────
+  // ─── Nível 2: cards por região ───────────────────────────────────────────
+  // Cada região vira um card próprio (uma "planilha"), mesmo quando várias
+  // regiões moram dentro da mesma base — é o caso do Aluno a Bordo.
   const doTipo = bases.filter((b) => tipoOrgao(b.name) === tipo);
+  const multiBase = doTipo.length > 1;
+
+  type RegCard = { baseId: string; baseName: string; isImport: boolean; regiao: string; total: number; done: number };
+  const cards: RegCard[] = [];
+  for (const b of doTipo) {
+    const a = agg.get(b.id)!;
+    for (const s of a.regioes.values()) {
+      cards.push({ baseId: b.id, baseName: b.name, isImport: b.source === "import", regiao: s.regiao, total: s.total, done: s.done });
+    }
+  }
+  cards.sort((x, y) => x.regiao.localeCompare(y.regiao) || x.baseName.localeCompare(y.baseName));
 
   return (
     <>
@@ -212,29 +218,24 @@ export default async function BasesPage({
       <div className="space-y-5 p-8">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-slate-500">
-            {doTipo.length} {doTipo.length === 1 ? "região" : "regiões"}
+            {cards.length} {cards.length === 1 ? "região" : "regiões"}
           </p>
           <NewBaseButton />
         </div>
 
-        {doTipo.length === 0 ? (
+        {cards.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
-            Nenhuma planilha deste tipo ainda.
+            Nenhuma região com dados neste tipo ainda.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {doTipo.map((b) => {
-              const isImport = b.source === "import";
-              const a = agg.get(b.id) ?? { total: 0, done: 0, regioes: new Map() };
-              const pct = pctOf(a.done, a.total);
+            {cards.map((c) => {
+              const pct = pctOf(c.done, c.total);
               const t = tier(pct);
-              const regioes = [...a.regioes.values()].sort((x, y) => x.regiao.localeCompare(y.regiao));
-              const label = regionLabel(regioes, b.name);
-
               return (
                 <Link
-                  key={b.id}
-                  href={`/bases/${b.id}`}
+                  key={`${c.baseId}:${c.regiao}`}
+                  href={`/bases/${c.baseId}?regiao=${encodeURIComponent(c.regiao)}`}
                   className={`group flex flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 shadow-sm transition hover:shadow-md`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -243,54 +244,32 @@ export default async function BasesPage({
                         <DatabaseIcon />
                       </span>
                       <div className="min-w-0">
-                        <h3 className="truncate font-semibold text-slate-800">{label}</h3>
-                        {label !== b.name && <p className="truncate text-xs text-slate-400">{b.name}</p>}
+                        <h3 className="truncate font-semibold text-slate-800">{c.regiao}</h3>
+                        {multiBase && <p className="truncate text-xs text-slate-400">{c.baseName}</p>}
                       </div>
                     </div>
-                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${isImport ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
-                      {isImport ? "importada" : "manual"}
+                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${c.isImport ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
+                      {c.isImport ? "importada" : "manual"}
                     </span>
                   </div>
 
-                  {b.description && <p className="mt-3 line-clamp-2 text-sm text-slate-500">{b.description}</p>}
-
-                  {a.total > 0 && (
-                    <div className="mt-4">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className={`text-2xl font-bold ${t.text}`}>{pct}%</span>
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span>
-                      </div>
-                      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
-                      </div>
-                      <p className="mt-1.5 text-xs text-slate-400">
-                        {a.done.toLocaleString("pt-BR")} de {a.total.toLocaleString("pt-BR")} prefeituras preenchidas
-                      </p>
-
-                      {/* Quando a planilha tem mais de uma região, mostra o detalhe por região. */}
-                      {regioes.length > 1 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {regioes.map((s) => {
-                            const sp = pctOf(s.done, s.total);
-                            return (
-                              <span
-                                key={s.regiao}
-                                title={`${s.regiao}: ${s.done}/${s.total} (${sp}%)`}
-                                className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${tier(sp).chip}`}
-                              >
-                                {s.regiao} · {sp}%
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
+                  <div className="mt-4">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className={`text-2xl font-bold ${t.text}`}>{pct}%</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span>
                     </div>
-                  )}
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      {c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")} prefeituras preenchidas
+                    </p>
+                  </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                     <span className="text-sm text-slate-500">
-                      <strong className="font-semibold text-slate-800">{a.total.toLocaleString("pt-BR")}</strong>{" "}
-                      {a.total === 1 ? "contato" : "contatos"}
+                      <strong className="font-semibold text-slate-800">{c.total.toLocaleString("pt-BR")}</strong>{" "}
+                      {c.total === 1 ? "contato" : "contatos"}
                     </span>
                     <span className="flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2">
                       Abrir planilha
