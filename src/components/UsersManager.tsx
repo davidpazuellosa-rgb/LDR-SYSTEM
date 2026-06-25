@@ -4,6 +4,7 @@ import { useState } from "react";
 import { apiPath } from "@/lib/path";
 import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type Role } from "@/lib/permissions";
 import { useToast } from "@/components/Toast";
+import MetaModal from "@/components/MetaModal";
 
 type User = {
   id: string;
@@ -70,6 +71,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [linkResult, setLinkResult] = useState<{ email: string; link: string; emailSent: boolean } | null>(null);
+  const [metaUser, setMetaUser] = useState<{ id: string; name: string } | null>(null);
 
   async function copy(text: string) {
     try {
@@ -264,6 +266,15 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   )}
                 </div>
                 <div className="flex items-center justify-end gap-1">
+                  {asRole(user.role) === "ldr" && (
+                    <button
+                      onClick={() => setMetaUser({ id: user.id, name: user.name || user.email })}
+                      className="mr-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:border-indigo-300 hover:bg-indigo-50"
+                      title="Definir a meta deste LDR (por base e estado)"
+                    >
+                      Meta
+                    </button>
+                  )}
                   <button
                     onClick={() => reinvite(user)}
                     disabled={busy}
@@ -398,6 +409,10 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
             </div>
           </div>
         </div>
+      )}
+
+      {metaUser && (
+        <MetaModal userId={metaUser.id} userName={metaUser.name} onClose={() => setMetaUser(null)} />
       )}
     </div>
   );

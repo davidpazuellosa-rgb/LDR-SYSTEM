@@ -126,3 +126,18 @@ model Correction {
   @@index([status])
   @@index([contactId])
 }
+
+// Metas por LDR (definidas pelo admin), por base e por estado.
+// A tabela é criada sob demanda via SQL (ensureMetaTable em src/lib/meta.ts),
+// porque o banco de produção não pode ser migrado por fora.
+model Meta {
+  id          String @id @default(cuid())
+  userId      String
+  baseId      String
+  estado      String
+  corrigidos  Int    @default(0)
+  preenchidos Int    @default(0)
+
+  @@unique([userId, baseId, estado])
+  @@index([userId])
+}
