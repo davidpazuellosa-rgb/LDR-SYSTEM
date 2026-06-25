@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
+import { isInvitePending } from "@/lib/invite";
 
 async function ensureSeedAdmin(email: string, password: string) {
   const seedEmail = (process.env.SEED_ADMIN_EMAIL || "admin@sasi.com").toLowerCase().trim();
@@ -44,6 +45,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const existingUser = await prisma.user.findUnique({ where: { email } });
         let user = existingUser || (await ensureSeedAdmin(email, password));
         if (!user) return null;
+
+        // Conta convidada que ainda não definiu a senha não pode logar.
+        if (isInvitePending(user.passwordHash)) return null;
 
         let ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {
