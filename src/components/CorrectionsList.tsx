@@ -32,6 +32,12 @@ function uniq(values: (string | null | undefined)[]) {
   return Array.from(new Set(values.map((value) => (value || "").trim()).filter(Boolean))).sort();
 }
 
+// Campanha ativa do sistema. As demais ("Cidade na Mão 2027/2029/2033…", 1 contato
+// cada) são ruído de dados e não devem aparecer no seletor de campanhas.
+const CAMPANHA_ATIVA = "Cidade na Mão 2026";
+const normCampanha = (value: string | null | undefined) =>
+  (value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
 function localDigits(value: string | undefined) {
   const digits = (value || "").replace(/\D/g, "");
   return digits.startsWith("55") ? digits.slice(2) : digits;
@@ -164,7 +170,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   const [regiao, setRegiao] = useState<string | null>(null);
   const [owner, setOwner] = useState("all");
 
-  const campanhas = useMemo(() => uniq(items.map((item) => item.contact.campanha)), [items]);
+  const campanhas = useMemo(
+    () => uniq(items.map((item) => item.contact.campanha)).filter((name) => normCampanha(name) === normCampanha(CAMPANHA_ATIVA)),
+    [items],
+  );
 
   const regioes = useMemo(
     () => uniq(items.filter((item) => (item.contact.campanha || "") === campanha).map((item) => item.contact.regiao)),
