@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/permissions";
 import { ufSigla } from "@/lib/uf";
-import { isComplete, tipoOrgao } from "@/lib/completude";
+import { tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
+import { ensureContactFillTable } from "@/lib/contact-fill";
 import PageHeader from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -44,18 +45,7 @@ type Meta = {
   prazo: string;
   alvo: number;
 };
-type FillContact = {
-  baseId: string;
-  regiao: string | null;
-  estado: string | null;
-  updatedAt: Date;
-  cidade: string | null;
-  telefonePrefeitura: string | null;
-  emailInstitucional: string | null;
-  nomePrefeito: string | null;
-  whatsapp: string | null;
-  siteOficial: string | null;
-};
+type Fill = { preenchidoPorId: string; concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null };
 type CorrDone = { resolvedById: string | null; resolvedAt: Date | null; campanha: string | null };
 
 const periodStart = (prazo: string, now: Date) => (prazo === "mensal" ? startOfMonth(now) : startOfWeek(now));
@@ -63,8 +53,8 @@ const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : "esta 
 
 // Produção realizada de uma meta no seu prazo.
 //  - correção: o que ESTE LDR resolveu na campanha, no período
-//  - preenchimento: prefeituras com a linha completa no território (base+região+estado), no período
-function metaFeito(m: Meta, now: Date, contacts: FillContact[], corrections: CorrDone[]): number {
+//  - preenchimento: linhas que ESTE LDR completou no território (base+região+estado), no período
+function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): number {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
@@ -72,33 +62,21 @@ function metaFeito(m: Meta, now: Date, contacts: FillContact[], corrections: Cor
       (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
     ).length;
   }
-  return contacts.filter(
-    (c) =>
-      c.baseId === m.baseId &&
-      ((c.regiao && c.regiao.trim()) || "Sem região") === m.regiao &&
-      ufSigla(c.estado) === m.estado &&
-      c.updatedAt >= start &&
-      isComplete(c)
+  return fills.filter(
+    (f) =>
+      f.preenchidoPorId === m.userId &&
+      f.concluidoEm >= start &&
+      f.baseId === m.baseId &&
+      ((f.regiao && f.regiao.trim()) || "Sem região") === m.regiao &&
+      ufSigla(f.estado) === m.estado
   ).length;
 }
 
-async function loadProgress(): Promise<{ contacts: FillContact[]; corrections: CorrDone[] }> {
-  const [contacts, corrections] = await Promise.all([
-    prisma.contact.findMany({
-      where: { deletedAt: null },
-      select: {
-        baseId: true,
-        regiao: true,
-        estado: true,
-        updatedAt: true,
-        cidade: true,
-        telefonePrefeitura: true,
-        emailInstitucional: true,
-        nomePrefeito: true,
-        whatsapp: true,
-        siteOficial: true,
-      },
-    }),
+async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] }> {
+  await ensureContactFillTable();
+  const [contacts, fillRows, corrections] = await Promise.all([
+    prisma.contact.findMany({ where: { deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } }),
+    prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction
       .findMany({
         where: { status: "resolved", resolvedAt: { not: null } },
@@ -106,7 +84,14 @@ async function loadProgress(): Promise<{ contacts: FillContact[]; corrections: C
       })
       .then((rows) => rows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }))),
   ]);
-  return { contacts, corrections };
+  // Junta cada conclusão ao território (base/região/estado) do seu contato.
+  const terr = new Map(contacts.map((c) => [c.id, c]));
+  const fills: Fill[] = [];
+  for (const f of fillRows) {
+    const c = terr.get(f.contactId);
+    if (c) fills.push({ preenchidoPorId: f.preenchidoPorId, concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+  }
+  return { fills, corrections };
 }
 
 function StatCard({ label, value, hint, color }: { label: string; value: number | string; hint: string; color: string }) {
@@ -212,7 +197,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {fillMetas.map((m) => (
-                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.contacts, progress.corrections)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -228,7 +213,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {corrMetas.map((m) => (
-                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.contacts, progress.corrections)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -337,7 +322,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preenchimento</p>
                           {fill.map((m) => (
-                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.contacts, progress.corrections)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
                           ))}
                         </div>
                       )}
@@ -345,7 +330,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Correção</p>
                           {corr.map((m) => (
-                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.contacts, progress.corrections)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
                           ))}
                         </div>
                       )}

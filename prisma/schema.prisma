@@ -130,6 +130,19 @@ model Correction {
 // Metas por LDR (definidas pelo admin), por base e por estado.
 // A tabela é criada sob demanda via SQL (ensureMetaTable em src/lib/meta.ts),
 // porque o banco de produção não pode ser migrado por fora.
+// Quem completou cada linha de contato e quando (produtividade de preenchimento).
+// Tabela à parte (criada sob demanda via ensureContactFillTable) para NÃO alterar a
+// tabela Contact, que é lida em todo o app — adicionar coluna nela quebraria a produção
+// (sem migration no deploy). Existe um registro só enquanto a linha está completa.
+model ContactFill {
+  contactId       String   @id
+  preenchidoPorId String
+  concluidoEm     DateTime @default(now())
+
+  @@index([preenchidoPorId])
+  @@index([concluidoEm])
+}
+
 // Cada LDR tem duas submetas independentes que somam a meta dele:
 //  - preenchimento: completar a linha da prefeitura (base + região + estado)
 //  - correcao: arrumar contatos errados de uma campanha do HubSpot

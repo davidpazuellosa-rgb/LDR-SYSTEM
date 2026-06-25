@@ -1025,12 +1025,21 @@ async function saveCell(id: string, key: string, value: string) {
 
     markSaving();
     try {
+      // Agrupa por contato: 1 PATCH por linha com todos os campos. Assim, quando um
+      // colar completa a linha (preenche vários campos da régua de uma vez), o servidor
+      // recalcula a conclusão sobre o estado final — sem corrida entre requisições.
+      const byId = new Map<string, Record<string, string>>();
+      for (const u of updates) {
+        const fields = byId.get(u.id) ?? {};
+        fields[u.key] = u.value;
+        byId.set(u.id, fields);
+      }
       const results = await Promise.all(
-        updates.map((update) =>
-          fetch(apiPath(`/api/contacts/${update.id}`), {
+        [...byId.entries()].map(([id, fields]) =>
+          fetch(apiPath(`/api/contacts/${id}`), {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [update.key]: update.value }),
+            body: JSON.stringify(fields),
           })
         )
       );

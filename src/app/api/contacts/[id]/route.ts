@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
+import { REQUIRED_FIELDS, isComplete } from "@/lib/completude";
+import { ensureContactFillTable } from "@/lib/contact-fill";
 
 // Edição inline de um contato (formato planilha).
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { deny } = await requireUser();
+  const { session, deny } = await requireUser();
   if (deny) return deny;
+  const meId = session?.user?.id || null;
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -22,6 +25,24 @@ export async function PATCH(
   if ("formats" in body) data.formats = body.formats ?? null;
 
   const contact = await prisma.contact.update({ where: { id }, data });
+
+  // Se um campo da régua mudou, atualiza o registro de conclusão (quem completou e
+  // quando). Existe um ContactFill só enquanto a linha está completa; o primeiro a
+  // completar fica com o crédito (upsert sem sobrescrever).
+  const touchedRequired = REQUIRED_FIELDS.some((f) => f in data);
+  if (touchedRequired && meId) {
+    await ensureContactFillTable();
+    if (isComplete(contact)) {
+      await prisma.contactFill.upsert({
+        where: { contactId: id },
+        create: { contactId: id, preenchidoPorId: meId, concluidoEm: new Date() },
+        update: {},
+      });
+    } else {
+      await prisma.contactFill.deleteMany({ where: { contactId: id } });
+    }
+  }
+
   return NextResponse.json(contact);
 }
 
