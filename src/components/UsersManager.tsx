@@ -31,6 +31,36 @@ function RolePill({ role }: { role: Role }) {
   return <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ${cls}`}>{ROLE_LABELS[role]}</span>;
 }
 
+const ICON = "h-[18px] w-[18px]";
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={ICON}>
+      <circle cx="8" cy="16" r="3.4" />
+      <path d="M10.4 13.6 19 5" />
+      <path d="m15.5 8.5 2 2" />
+      <path d="m18 6 2 2" />
+    </svg>
+  );
+}
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={ICON}>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="m4 7.5 8 5 8-5" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={ICON}>
+      <path d="M4 7h16" />
+      <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" />
+      <path d="M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 export default function UsersManager({ initialUsers, selfId }: { initialUsers: User[]; selfId?: string }) {
   const toast = useToast();
   const [users, setUsers] = useState<User[]>(initialUsers);
@@ -237,17 +267,20 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   <button
                     onClick={() => reinvite(user)}
                     disabled={busy}
-                    className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-50"
-                    title={user.pending ? "Copiar/gerar novo link do convite" : "Enviar link para redefinir a senha"}
+                    className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                    title={user.pending ? "Copiar/gerar novo link do convite" : "Enviar link para a pessoa redefinir a senha"}
+                    aria-label={user.pending ? "Convite" : "Redefinir senha"}
                   >
-                    {user.pending ? "Convite" : "Redefinir senha"}
+                    {user.pending ? <MailIcon /> : <KeyIcon />}
                   </button>
                   <button
                     onClick={() => deleteUser(user)}
                     disabled={isSelf || busy}
-                    className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-40"
+                    className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                    title="Remover usuário"
+                    aria-label="Remover"
                   >
-                    Remover
+                    <TrashIcon />
                   </button>
                 </div>
               </div>
