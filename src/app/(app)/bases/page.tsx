@@ -1,9 +1,36 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { ufSigla } from "@/lib/uf";
 import PageHeader from "@/components/PageHeader";
 import NewBaseButton from "@/components/NewBaseButton";
 
 export const dynamic = "force-dynamic";
+
+// "Preenchida/completa" = TODAS estas colunas com valor. Ajuste a lista aqui se a
+// régua mudar (adicionar/remover colunas é só editar este array).
+const REQUIRED_FIELDS = [
+  "cidade",
+  "estado",
+  "telefonePrefeitura",
+  "emailInstitucional",
+  "nomePrefeito",
+  "whatsapp",
+  "siteOficial",
+] as const;
+
+type ReqRow = Record<(typeof REQUIRED_FIELDS)[number], string | null> & { baseId: string };
+
+const nonEmpty = (v: string | null) => !!(v && v.trim());
+const isComplete = (c: ReqRow) => REQUIRED_FIELDS.every((f) => nonEmpty(c[f]));
+const pctOf = (done: number, total: number) => (total ? Math.round((done / total) * 100) : 0);
+
+// Cores por conclusão: 0 vermelho · 1-49 amarelo · 50-99 laranja · 100 verde.
+function tier(pct: number) {
+  if (pct >= 100) return { label: "Concluído", borderL: "border-l-emerald-500", bar: "bg-emerald-500", text: "text-emerald-600", chip: "bg-emerald-50 text-emerald-700 ring-emerald-200" };
+  if (pct >= 50) return { label: "Quase lá", borderL: "border-l-orange-500", bar: "bg-orange-500", text: "text-orange-600", chip: "bg-orange-50 text-orange-700 ring-orange-200" };
+  if (pct > 0) return { label: "Em andamento", borderL: "border-l-amber-400", bar: "bg-amber-400", text: "text-amber-600", chip: "bg-amber-50 text-amber-700 ring-amber-200" };
+  return { label: "Não iniciado", borderL: "border-l-red-500", bar: "bg-red-500", text: "text-red-600", chip: "bg-red-50 text-red-700 ring-red-200" };
+}
 
 function DatabaseIcon() {
   return (
@@ -15,40 +42,39 @@ function DatabaseIcon() {
   );
 }
 
-type CrmStats = { emCrm: number; incorretos: number; atualizados: number };
+type StateAgg = { uf: string; total: number; done: number };
+type BaseAgg = { total: number; done: number; states: Map<string, StateAgg> };
 
 export default async function BasesPage() {
-  const bases = await prisma.base.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { contacts: { where: { deletedAt: null } } } },
+  const bases = await prisma.base.findMany({ orderBy: { createdAt: "desc" } });
+
+  const contacts = (await prisma.contact.findMany({
+    where: { deletedAt: null },
+    select: {
+      baseId: true,
+      cidade: true,
+      estado: true,
+      telefonePrefeitura: true,
+      emailInstitucional: true,
+      nomePrefeito: true,
+      whatsapp: true,
+      siteOficial: true,
     },
-  });
+  })) as ReqRow[];
 
-  const [crmLinked, incorretos, atualizados] = await Promise.all([
-    prisma.contact.groupBy({
-      by: ["baseId"],
-      where: { deletedAt: null, hubspotId: { not: null } },
-      _count: { _all: true },
-    }),
-    prisma.contact.groupBy({
-      by: ["baseId"],
-      where: { deletedAt: null, status: "telefone_incorreto" },
-      _count: { _all: true },
-    }),
-    prisma.contact.groupBy({
-      by: ["baseId"],
-      where: { deletedAt: null, status: "telefone_atualizado" },
-      _count: { _all: true },
-    }),
-  ]);
-
-  const crmMap = new Map<string, CrmStats>(
-    bases.map((b) => [b.id, { emCrm: 0, incorretos: 0, atualizados: 0 }])
-  );
-  for (const r of crmLinked) { const s = crmMap.get(r.baseId); if (s) s.emCrm = r._count._all; }
-  for (const r of incorretos) { const s = crmMap.get(r.baseId); if (s) s.incorretos = r._count._all; }
-  for (const r of atualizados) { const s = crmMap.get(r.baseId); if (s) s.atualizados = r._count._all; }
+  const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, states: new Map() }]));
+  for (const c of contacts) {
+    const b = agg.get(c.baseId);
+    if (!b) continue;
+    const ok = isComplete(c);
+    b.total += 1;
+    if (ok) b.done += 1;
+    const uf = ufSigla(c.estado) || "—";
+    const s = b.states.get(uf) ?? { uf, total: 0, done: 0 };
+    s.total += 1;
+    if (ok) s.done += 1;
+    b.states.set(uf, s);
+  }
 
   return (
     <>
@@ -69,14 +95,16 @@ export default async function BasesPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {bases.map((b) => {
               const isImport = b.source === "import";
-              const total = b._count.contacts;
-              const crm = crmMap.get(b.id) ?? { emCrm: 0, incorretos: 0, atualizados: 0 };
-              const hasCrmData = crm.emCrm > 0 || crm.incorretos > 0 || crm.atualizados > 0;
+              const a = agg.get(b.id) ?? { total: 0, done: 0, states: new Map() };
+              const pct = pctOf(a.done, a.total);
+              const t = tier(pct);
+              const states = [...a.states.values()].sort((x, y) => x.uf.localeCompare(y.uf));
+
               return (
                 <Link
                   key={b.id}
                   href={`/bases/${b.id}`}
-                  className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
+                  className={`group flex flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 shadow-sm transition hover:shadow-md`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
@@ -85,59 +113,50 @@ export default async function BasesPage() {
                       </span>
                       <h3 className="truncate font-semibold text-slate-800">{b.name}</h3>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-                        isImport ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
+                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${isImport ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
                       {isImport ? "importada" : "manual"}
                     </span>
                   </div>
 
-                  {b.description && (
-                    <p className="mt-3 line-clamp-2 text-sm text-slate-500">{b.description}</p>
-                  )}
+                  {b.description && <p className="mt-3 line-clamp-2 text-sm text-slate-500">{b.description}</p>}
 
-                  {/* Painel CRM */}
-                  {total > 0 && (
-                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
-                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        HubSpot CRM
+                  {/* Conclusão da base (prefeituras preenchidas) */}
+                  {a.total > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className={`text-2xl font-bold ${t.text}`}>{pct}%</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span>
+                      </div>
+                      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                      </div>
+                      <p className="mt-1.5 text-xs text-slate-400">
+                        {a.done.toLocaleString("pt-BR")} de {a.total.toLocaleString("pt-BR")} prefeituras preenchidas
                       </p>
-                      {hasCrmData ? (
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                          <span className="flex items-center gap-1.5 text-indigo-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                            <strong>{crm.emCrm.toLocaleString("pt-BR")}</strong> vinculados
-                          </span>
-                          {crm.incorretos > 0 && (
-                            <span className="flex items-center gap-1.5 text-red-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                              <strong>{crm.incorretos.toLocaleString("pt-BR")}</strong> tel. incorreto
-                            </span>
-                          )}
-                          {crm.atualizados > 0 && (
-                            <span className="flex items-center gap-1.5 text-emerald-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                              <strong>{crm.atualizados.toLocaleString("pt-BR")}</strong> atualizados
-                            </span>
-                          )}
+
+                      {states.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {states.map((s) => {
+                            const sp = pctOf(s.done, s.total);
+                            return (
+                              <span
+                                key={s.uf}
+                                title={`${s.uf}: ${s.done}/${s.total} (${sp}%)`}
+                                className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${tier(sp).chip}`}
+                              >
+                                {s.uf} {sp}%
+                              </span>
+                            );
+                          })}
                         </div>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-xs text-amber-600">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                          Aguardando verificação no CRM
-                        </span>
                       )}
                     </div>
                   )}
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                     <span className="text-sm text-slate-500">
-                      <strong className="font-semibold text-slate-800">
-                        {total.toLocaleString("pt-BR")}
-                      </strong>{" "}
-                      {total === 1 ? "contato" : "contatos"}
+                      <strong className="font-semibold text-slate-800">{a.total.toLocaleString("pt-BR")}</strong>{" "}
+                      {a.total === 1 ? "contato" : "contatos"}
                     </span>
                     <span className="flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2">
                       Abrir
