@@ -5,7 +5,7 @@ import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 
 type BaseOpt = { id: string; name: string; estados: string[] };
-type Row = { baseId: string; estado: string; corrigidos: string; preenchidos: string };
+type Row = { baseId: string; estado: string; prazo: string; corrigidos: string; preenchidos: string };
 
 export default function MetaModal({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
   const toast = useToast();
@@ -27,9 +27,10 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
         } else {
           setBases(data.bases || []);
           setRows(
-            (data.metas || []).map((m: { baseId: string; estado: string; corrigidos: number; preenchidos: number }) => ({
+            (data.metas || []).map((m: { baseId: string; estado: string; prazo?: string; corrigidos: number; preenchidos: number }) => ({
               baseId: m.baseId,
               estado: m.estado,
+              prazo: m.prazo === "mensal" ? "mensal" : "semanal",
               corrigidos: String(m.corrigidos ?? 0),
               preenchidos: String(m.preenchidos ?? 0),
             }))
@@ -53,7 +54,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
   }
   function addRow() {
     const first = bases[0];
-    setRows((prev) => [...prev, { baseId: first?.id || "", estado: "", corrigidos: "", preenchidos: "" }]);
+    setRows((prev) => [...prev, { baseId: first?.id || "", estado: "", prazo: "semanal", corrigidos: "", preenchidos: "" }]);
   }
   function removeRow(i: number) {
     setRows((prev) => prev.filter((_, idx) => idx !== i));
@@ -66,7 +67,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     try {
       const metas = rows
         .filter((r) => r.baseId && r.estado)
-        .map((r) => ({ baseId: r.baseId, estado: r.estado, corrigidos: r.corrigidos, preenchidos: r.preenchidos }));
+        .map((r) => ({ baseId: r.baseId, estado: r.estado, prazo: r.prazo, corrigidos: r.corrigidos, preenchidos: r.preenchidos }));
       const res = await fetch(apiPath(`/api/metas/${userId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -91,11 +92,11 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Meta de {userName}</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Defina a meta semanal por base e por estado.</p>
+            <p className="mt-0.5 text-sm text-slate-500">Defina a meta por base, estado e prazo (semanal ou mensal).</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" /></svg>
@@ -107,9 +108,10 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
             <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>
           ) : (
             <>
-              <div className="mb-2 grid grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+              <div className="mb-2 grid grid-cols-[1.3fr_0.7fr_0.85fr_0.8fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
                 <div>Base</div>
                 <div>Estado</div>
+                <div>Prazo</div>
                 <div>Corrigidos</div>
                 <div>Preenchidos</div>
                 <div />
@@ -117,7 +119,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
 
               <div className="space-y-2">
                 {rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_auto] items-center gap-2">
+                  <div key={i} className="grid grid-cols-[1.3fr_0.7fr_0.85fr_0.8fr_0.8fr_auto] items-center gap-2">
                     <select
                       value={r.baseId}
                       onChange={(e) => update(i, { baseId: e.target.value, estado: "" })}
@@ -138,6 +140,14 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                       {estadosDe(r.baseId).map((uf) => (
                         <option key={uf} value={uf}>{uf}</option>
                       ))}
+                    </select>
+                    <select
+                      value={r.prazo}
+                      onChange={(e) => update(i, { prazo: e.target.value })}
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500"
+                    >
+                      <option value="semanal">Semanal</option>
+                      <option value="mensal">Mensal</option>
                     </select>
                     <input
                       type="number"

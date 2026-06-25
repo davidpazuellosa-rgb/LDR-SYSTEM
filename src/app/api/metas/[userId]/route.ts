@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
   await ensureMetaTable();
 
   const [metas, bases, pares] = await Promise.all([
-    prisma.meta.findMany({ where: { userId }, select: { baseId: true, estado: true, corrigidos: true, preenchidos: true } }),
+    prisma.meta.findMany({ where: { userId }, select: { baseId: true, estado: true, prazo: true, corrigidos: true, preenchidos: true } }),
     prisma.base.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.contact.findMany({ where: { deletedAt: null }, select: { baseId: true, estado: true }, distinct: ["baseId", "estado"] }),
   ]);
@@ -41,12 +41,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ userId: 
   const body = await req.json().catch(() => ({}));
   const rawRows: unknown[] = Array.isArray(body?.metas) ? body.metas : [];
   const clean = rawRows
-    .map((r) => r as { baseId?: unknown; estado?: unknown; corrigidos?: unknown; preenchidos?: unknown })
+    .map((r) => r as { baseId?: unknown; estado?: unknown; prazo?: unknown; corrigidos?: unknown; preenchidos?: unknown })
     .filter((r) => typeof r.baseId === "string" && r.baseId && typeof r.estado === "string" && r.estado)
     .map((r) => ({
       userId,
       baseId: r.baseId as string,
       estado: r.estado as string,
+      prazo: r.prazo === "mensal" ? "mensal" : "semanal",
       corrigidos: Math.max(0, Math.min(1_000_000, Math.trunc(Number(r.corrigidos) || 0))),
       preenchidos: Math.max(0, Math.min(1_000_000, Math.trunc(Number(r.preenchidos) || 0))),
     }))

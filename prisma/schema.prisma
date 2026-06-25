@@ -135,6 +135,7 @@ model Meta {
   userId      String
   baseId      String
   estado      String
+  prazo       String @default("semanal") // semanal | mensal
   corrigidos  Int    @default(0)
   preenchidos Int    @default(0)
 

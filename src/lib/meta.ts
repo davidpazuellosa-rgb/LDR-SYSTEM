@@ -13,11 +13,14 @@ export async function ensureMetaTable() {
       "userId" TEXT NOT NULL,
       "baseId" TEXT NOT NULL,
       "estado" TEXT NOT NULL,
+      "prazo" TEXT NOT NULL DEFAULT 'semanal',
       "corrigidos" INTEGER NOT NULL DEFAULT 0,
       "preenchidos" INTEGER NOT NULL DEFAULT 0,
       CONSTRAINT "Meta_pkey" PRIMARY KEY ("id")
     );`
   );
+  // Para tabelas já criadas antes do campo "prazo" existir.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "prazo" TEXT NOT NULL DEFAULT 'semanal';`);
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "Meta_userId_baseId_estado_key" ON "Meta" ("userId", "baseId", "estado");`
   );
