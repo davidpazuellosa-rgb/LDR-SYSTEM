@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
-import { ROLES } from "@/lib/permissions";
+import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { makeInvite, isInvitePending, buildInviteLink } from "@/lib/invite";
+import { sendInviteEmail } from "@/lib/email";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -46,5 +47,7 @@ export async function POST(req: Request) {
   const { token, sentinel } = makeInvite(created.id);
   await prisma.user.update({ where: { id: created.id }, data: { passwordHash: sentinel } });
 
-  return NextResponse.json({ ...created, pending: true, inviteLink: buildInviteLink(req, token) });
+  const inviteLink = buildInviteLink(req, token);
+  const mail = await sendInviteEmail({ to: created.email, name: created.name, link: inviteLink, role: ROLE_LABELS[role] || role });
+  return NextResponse.json({ ...created, pending: true, inviteLink, emailSent: mail.sent });
 }

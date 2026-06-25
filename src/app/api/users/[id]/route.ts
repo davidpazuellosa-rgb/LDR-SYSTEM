@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
-import { ROLES } from "@/lib/permissions";
+import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { makeInvite, buildInviteLink } from "@/lib/invite";
+import { sendInviteEmail } from "@/lib/email";
 
 // Edita um usuário (admin): nome, cargo, ou gera um novo link de convite/redefinição.
 // O admin NUNCA define a senha — só envia o link para a pessoa definir a própria.
@@ -20,11 +21,13 @@ export async function PATCH(
   // Ação: (re)gerar link para a pessoa definir a senha. Coloca a conta em "pendente"
   // até ela definir uma nova senha pelo link.
   if (body?.action === "reinvite") {
-    const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, role: true } });
     if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     const { token, sentinel } = makeInvite(id);
     await prisma.user.update({ where: { id }, data: { passwordHash: sentinel } });
-    return NextResponse.json({ ok: true, inviteLink: buildInviteLink(req, token) });
+    const inviteLink = buildInviteLink(req, token);
+    const mail = await sendInviteEmail({ to: target.email, name: target.name, link: inviteLink, role: ROLE_LABELS[target.role] || target.role });
+    return NextResponse.json({ ok: true, inviteLink, emailSent: mail.sent });
   }
 
   const data: Record<string, string> = {};
