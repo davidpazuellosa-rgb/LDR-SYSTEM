@@ -9,6 +9,7 @@ import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { STATUS_META, STATUS_OK, STATUS_INCORRETO, STATUS_ATUALIZADO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
+import HistoricoModal from "@/components/HistoricoModal";
 
 type Contact = {
   id: string;
@@ -208,6 +209,7 @@ export default function ContactsTable({
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [headerLabels, setHeaderLabels] = useState<Record<string, string>>(initialHeaders);
   const [importing, setImporting] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
@@ -1632,7 +1634,23 @@ async function saveCell(id: string, key: string, value: string) {
           <svg className="h-[18px] w-[18px] text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 5H7l6 7-6 7h11" strokeLinecap="round" strokeLinejoin="round" /></svg>
           {selectedCount > 0 ? `${selectedCount} célula(s)` : `${visible.length} linha(s)`}
         </span>
+
+        <button
+          type="button"
+          onClick={() => setHistoricoOpen(true)}
+          title="Histórico de alterações desta planilha"
+          aria-label="Histórico de alterações"
+          className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+        >
+          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M3 12a9 9 0 1 0 3-6.7" strokeLinecap="round" />
+            <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
+
+      {historicoOpen && <HistoricoModal baseId={baseId} onClose={() => setHistoricoOpen(false)} />}
 
       {message && (
         <span className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</span>
