@@ -25,8 +25,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const [email, setEmail] = useState("admin@sasi.com");
-  const [password, setPassword] = useState("sasi1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,7 +158,7 @@ export default function LoginPage() {
                   autoComplete="username"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="admin@sasi.com"
+                  placeholder="seu.email@sasi.com.br"
                   className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-3 text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                 />
               </div>
