@@ -146,13 +146,27 @@ function WhatsappCheck({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex w-fit cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-600">
+    <label
+      className={`group flex w-fit cursor-pointer select-none items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+        checked
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+        className="sr-only"
       />
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        fill="currentColor"
+        className={`h-4 w-4 transition ${checked ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-500"}`}
+      >
+        <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.16c-.25.69-1.45 1.32-1.99 1.4-.51.08-1.15.11-1.86-.12-.43-.14-.98-.32-1.69-.62-2.97-1.28-4.91-4.27-5.06-4.47-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.59-.37.79-.37.2 0 .39 0 .57.01.18.01.43-.07.67.51.25.6.84 2.06.91 2.21.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.18-.31.4-.45.53-.15.15-.3.31-.13.6.17.3.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.36 1.45.3.15.47.12.64-.07.17-.2.74-.86.94-1.16.2-.3.4-.25.67-.15.27.1 1.72.81 2.01.96.3.15.49.22.57.35.07.13.07.74-.18 1.45Z" />
+      </svg>
       Tem WhatsApp
     </label>
   );
@@ -167,20 +181,20 @@ function SimNaoToggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="space-y-1">
-      <span className="block text-xs font-medium text-slate-600">Contato institucional</span>
-      <div className="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs font-medium">
+    <div className="space-y-1.5">
+      <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Contato institucional</span>
+      <div className="inline-flex items-center rounded-full bg-slate-100 p-0.5 text-xs font-medium">
         <button
           type="button"
           onClick={() => onChange(true)}
-          className={`px-3 py-1 transition ${value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+          className={`rounded-full px-3.5 py-1 transition ${value ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
         >
           Sim
         </button>
         <button
           type="button"
           onClick={() => onChange(false)}
-          className={`border-l border-slate-300 px-3 py-1 transition ${!value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+          className={`rounded-full px-3.5 py-1 transition ${!value ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
         >
           Não
         </button>
@@ -559,8 +573,8 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
         <>
           <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
-              <div className="min-w-[1030px]">
-                <div className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_220px_250px] border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="min-w-[1210px]">
+                <div className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_400px_250px] border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <div className="px-5 py-3">Prefeitura</div>
                   <div className="px-4 py-3">Proprietário</div>
                   <div className="px-4 py-3">Telefone atual</div>
@@ -586,7 +600,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                   return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_220px_250px] items-center bg-white transition hover:bg-slate-50/80"
+                        className="grid grid-cols-[minmax(280px,1.25fr)_minmax(170px,.75fr)_180px_400px_250px] items-center bg-white transition hover:bg-slate-50/80"
                       >
                         <div className="flex min-w-0 items-center gap-3 px-5 py-4">
                           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700">
@@ -606,30 +620,34 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                           {item.oldValue || "Sem telefone"}
                         </div>
 
-                        <div className="space-y-2 px-4 py-4">
-                          <input
-                            value={value}
-                            onChange={(event) => {
-                              setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
-                              setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
-                            }}
-                            onFocus={(event) => {
-                              if (!values[item.id]) {
-                                setValues((prev) => ({ ...prev, [item.id]: PHONE_PREFIX }));
-                                requestAnimationFrame(() => event.currentTarget.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length));
-                              }
-                            }}
-                            placeholder="+55 (DD) 00000-0000"
-                            className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                          />
-                          <WhatsappCheck
-                            checked={whatsappValues[item.id] === true}
-                            onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
-                          />
-                          <SimNaoToggle
-                            value={institucionalValues[item.id] !== false}
-                            onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
-                          />
+                        <div className="flex items-start gap-4 px-4 py-4">
+                          <div className="w-44 shrink-0">
+                            <input
+                              value={value}
+                              onChange={(event) => {
+                                setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
+                                setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
+                              }}
+                              onFocus={(event) => {
+                                if (!values[item.id]) {
+                                  setValues((prev) => ({ ...prev, [item.id]: PHONE_PREFIX }));
+                                  requestAnimationFrame(() => event.currentTarget.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length));
+                                }
+                              }}
+                              placeholder="+55 (DD) 00000-0000"
+                              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                            />
+                          </div>
+                          <div className="flex flex-1 flex-col gap-3 border-l border-slate-100 pl-4">
+                            <WhatsappCheck
+                              checked={whatsappValues[item.id] === true}
+                              onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
+                            />
+                            <SimNaoToggle
+                              value={institucionalValues[item.id] !== false}
+                              onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
+                            />
+                          </div>
                         </div>
 
                         <div className="flex items-center justify-end gap-2 px-4 py-4">
@@ -698,23 +716,27 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       <span className="text-slate-400">Telefone atual</span>
                       <span className="text-slate-400 line-through decoration-slate-300">{item.oldValue || "Sem telefone"}</span>
                     </div>
-                    <input
-                      value={value}
-                      onChange={(event) => {
-                        setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
-                        setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
-                      }}
-                      placeholder="+55 (DD) 00000-0000"
-                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                    />
-                    <WhatsappCheck
-                      checked={whatsappValues[item.id] === true}
-                      onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
-                    />
-                    <SimNaoToggle
-                      value={institucionalValues[item.id] !== false}
-                      onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
-                    />
+                    <div className="flex flex-col gap-3">
+                      <input
+                        value={value}
+                        onChange={(event) => {
+                          setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
+                          setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
+                        }}
+                        placeholder="+55 (DD) 00000-0000"
+                        className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                      />
+                      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                        <WhatsappCheck
+                          checked={whatsappValues[item.id] === true}
+                          onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
+                        />
+                        <SimNaoToggle
+                          value={institucionalValues[item.id] !== false}
+                          onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => resolve(item.id)}
