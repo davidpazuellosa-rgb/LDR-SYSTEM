@@ -113,6 +113,22 @@ export async function pullAlunoABordo(): Promise<PulledContact[]> {
 }
 
 let running = false;
+let ensuredUnique = false;
+
+// Impede duplicar contatos quando duas execuções (cron + sync manual) rodam
+// concorrentes em instâncias diferentes. Cria um índice único parcial em
+// (baseId, hubspotId) via SQL — produção não pode ser migrada por fora. Antes,
+// remove duplicatas pré-existentes mantendo a linha de menor id por par.
+async function ensureContactHubspotUnique() {
+  if (ensuredUnique) return;
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "Contact" c USING "Contact" d WHERE c."baseId" = d."baseId" AND c."hubspotId" = d."hubspotId" AND c."hubspotId" IS NOT NULL AND c.id > d.id;`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "Contact_baseId_hubspotId_key" ON "Contact" ("baseId", "hubspotId") WHERE "hubspotId" IS NOT NULL;`
+  );
+  ensuredUnique = true;
+}
 
 // Cria/atualiza a base local "Aluno a Bordo" a partir do HubSpot e gera as correções.
 export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: string; resumo?: Record<string, number> }> {
@@ -120,6 +136,7 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
   if (running) return { ok: false, detail: "já em execução" };
   running = true;
   try {
+    await ensureContactHubspotUnique();
     const owners = await fetchOwners();
     const pulled = await pullAlunoABordo();
     if (!pulled.length) return { ok: false, detail: "nenhum contato retornado das listas" };
@@ -151,7 +168,7 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
     const antigos = pulled.filter((c) => idByHub.has(c.hubspotId));
 
     if (novos.length) {
-      await prisma.contact.createMany({ data: novos.map(dataOf) });
+      await prisma.contact.createMany({ data: novos.map(dataOf), skipDuplicates: true });
     }
     // updates em lote (transação por blocos de 100)
     for (let i = 0; i < antigos.length; i += 100) {

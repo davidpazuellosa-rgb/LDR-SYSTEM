@@ -64,7 +64,7 @@ function asksAboutOtherUsers(text: string, viewer: Viewer) {
   const n = normalizeName(text);
   if (/\busuari/.test(n)) return true; // "usuário(s)"
   if (/(quem|quantos|quantas|quais|lista|liste)\b/.test(n) && /(usuari|ldr|admin|cargo|equipe|time|pessoa|funcionari|colaborador)/.test(n)) return true;
-  if (/(e-?mail|cargo|senha|telefone|numero|contato)\s+(de|do|da|dos|das)\s+\S/.test(n)) return true;
+  if (/(e-?mail|cargo|senha)\s+(de|do|da|dos|das)\s+\S/.test(n)) return true;
   // citou outro LDR conhecido que não é ele mesmo
   if (LDRS.some((l) => n.includes(normalizeName(l)) && normalizeName(l) !== normalizeName(viewer.name))) return true;
   return false;
