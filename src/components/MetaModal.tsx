@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 
-type Regiao = { regiao: string; estados: string[] };
-type BaseOpt = { id: string; name: string; regioes: Regiao[] };
-type FillRow = { baseId: string; regiao: string; estado: string; prazo: string; alvo: string };
+type RegiaoOpt = { regiao: string; baseId: string; estados: string[] };
+type TipoOpt = { tipo: string; regioes: RegiaoOpt[] };
+type FillRow = { tipo: string; regiao: string; estado: string; baseId: string; prazo: string; alvo: string };
 type CorrRow = { campanha: string; prazo: string; alvo: string };
 
 type MetaIn = {
@@ -25,7 +25,7 @@ const numCls = "w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm ou
 
 export default function MetaModal({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
   const toast = useToast();
-  const [bases, setBases] = useState<BaseOpt[]>([]);
+  const [tipos, setTipos] = useState<TipoOpt[]>([]);
   const [campanhas, setCampanhas] = useState<string[]>([]);
   const [fillRows, setFillRows] = useState<FillRow[]>([]);
   const [corrRows, setCorrRows] = useState<CorrRow[]>([]);
@@ -43,16 +43,18 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
         if (!res.ok) {
           setError(data.error || "Não foi possível carregar as metas.");
         } else {
-          setBases(data.bases || []);
+          const byId: Record<string, { name: string; tipo: string }> = data.basesById || {};
+          setTipos(data.tipos || []);
           setCampanhas(data.campanhas || []);
           const metas: MetaIn[] = data.metas || [];
           setFillRows(
             metas
               .filter((m) => (m.tipo || "preenchimento") !== "correcao")
               .map((m) => ({
-                baseId: m.baseId || "",
+                tipo: byId[m.baseId || ""]?.tipo || "",
                 regiao: m.regiao || "",
                 estado: m.estado || "",
+                baseId: m.baseId || "",
                 prazo: m.prazo === "mensal" ? "mensal" : "semanal",
                 alvo: String(m.alvo ?? 0),
               }))
@@ -78,9 +80,9 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     };
   }, [userId]);
 
-  const regioesDe = (baseId: string) => bases.find((b) => b.id === baseId)?.regioes || [];
-  const estadosDe = (baseId: string, regiao: string) =>
-    regioesDe(baseId).find((r) => r.regiao === regiao)?.estados || [];
+  const regioesDe = (tipo: string) => tipos.find((t) => t.tipo === tipo)?.regioes || [];
+  const estadosDe = (tipo: string, regiao: string) =>
+    regioesDe(tipo).find((r) => r.regiao === regiao)?.estados || [];
 
   function updFill(i: number, patch: Partial<FillRow>) {
     setFillRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -89,7 +91,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     setCorrRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
   function addFill() {
-    setFillRows((prev) => [...prev, { baseId: bases[0]?.id || "", regiao: "", estado: "", prazo: "semanal", alvo: "" }]);
+    setFillRows((prev) => [...prev, { tipo: tipos[0]?.tipo || "", regiao: "", estado: "", baseId: "", prazo: "semanal", alvo: "" }]);
   }
   function addCorr() {
     setCorrRows((prev) => [...prev, { campanha: campanhas[0] || "", prazo: "semanal", alvo: "" }]);
@@ -153,8 +155,8 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
               {/* ───── Preenchimento ───── */}
               <section>
                 <h3 className="mb-2 text-sm font-semibold text-slate-700">Preenchimento de contatos</h3>
-                <div className="mb-2 grid grid-cols-[1.2fr_1fr_0.7fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
-                  <div>Base</div>
+                <div className="mb-2 grid grid-cols-[1.3fr_1fr_0.7fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+                  <div>Tipo de órgão</div>
                   <div>Região</div>
                   <div>Estado</div>
                   <div>Prazo</div>
@@ -163,24 +165,38 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 </div>
                 <div className="space-y-2">
                   {fillRows.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[1.2fr_1fr_0.7fr_0.85fr_0.8fr_auto] items-center gap-2">
-                      <select value={r.baseId} onChange={(e) => updFill(i, { baseId: e.target.value, regiao: "", estado: "" })} className={selCls}>
+                    <div key={i} className="grid grid-cols-[1.3fr_1fr_0.7fr_0.85fr_0.8fr_auto] items-center gap-2">
+                      <select value={r.tipo} onChange={(e) => updFill(i, { tipo: e.target.value, regiao: "", estado: "", baseId: "" })} className={selCls}>
                         <option value="">Selecione…</option>
-                        {bases.map((b) => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
+                        {tipos.map((t) => (
+                          <option key={t.tipo} value={t.tipo}>{t.tipo}</option>
                         ))}
                       </select>
-                      <select value={r.regiao} onChange={(e) => updFill(i, { regiao: e.target.value, estado: "" })} disabled={!r.baseId} className={selCls}>
+                      <select
+                        value={r.regiao}
+                        onChange={(e) => {
+                          const rg = regioesDe(r.tipo).find((x) => x.regiao === e.target.value);
+                          updFill(i, { regiao: e.target.value, estado: "", baseId: rg?.baseId || "" });
+                        }}
+                        disabled={!r.tipo}
+                        className={selCls}
+                      >
                         <option value="">Região…</option>
-                        {regioesDe(r.baseId).map((rg) => (
+                        {regioesDe(r.tipo).map((rg) => (
                           <option key={rg.regiao} value={rg.regiao}>{rg.regiao}</option>
                         ))}
+                        {r.regiao && !regioesDe(r.tipo).some((x) => x.regiao === r.regiao) && (
+                          <option value={r.regiao}>{r.regiao}</option>
+                        )}
                       </select>
                       <select value={r.estado} onChange={(e) => updFill(i, { estado: e.target.value })} disabled={!r.regiao} className={selCls}>
                         <option value="">UF…</option>
-                        {estadosDe(r.baseId, r.regiao).map((uf) => (
+                        {estadosDe(r.tipo, r.regiao).map((uf) => (
                           <option key={uf} value={uf}>{uf}</option>
                         ))}
+                        {r.estado && !estadosDe(r.tipo, r.regiao).includes(r.estado) && (
+                          <option value={r.estado}>{r.estado}</option>
+                        )}
                       </select>
                       <select value={r.prazo} onChange={(e) => updFill(i, { prazo: e.target.value })} className={selCls}>
                         <option value="semanal">Semanal</option>
@@ -194,9 +210,9 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                   ))}
                   {fillRows.length === 0 && <p className="py-3 text-center text-sm text-slate-400">Nenhuma meta de preenchimento.</p>}
                 </div>
-                <button onClick={addFill} disabled={bases.length === 0} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">
+                <button onClick={addFill} disabled={tipos.length === 0} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
-                  Adicionar meta (base + região + estado)
+                  Adicionar meta (tipo + região + estado)
                 </button>
               </section>
 

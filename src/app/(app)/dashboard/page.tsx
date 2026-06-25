@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/permissions";
 import { ufSigla } from "@/lib/uf";
-import { isComplete } from "@/lib/completude";
+import { isComplete, tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
 import PageHeader from "@/components/PageHeader";
@@ -140,7 +140,7 @@ function MetaBar({ label, sub, feito, alvo }: { label: string; sub: string; feit
 }
 
 function fillLabel(m: Meta, baseName: (id: string | null) => string) {
-  return `${baseName(m.baseId)} · ${m.regiao} · ${m.estado}`;
+  return `${tipoOrgao(baseName(m.baseId))} · ${m.regiao} · ${m.estado}`;
 }
 
 // ===================== Visão do LDR =====================
