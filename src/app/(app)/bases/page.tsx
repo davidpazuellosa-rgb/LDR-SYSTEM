@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ufSigla } from "@/lib/uf";
 import PageHeader from "@/components/PageHeader";
 import NewBaseButton from "@/components/NewBaseButton";
 
@@ -42,8 +41,8 @@ function DatabaseIcon() {
   );
 }
 
-type StateAgg = { uf: string; total: number; done: number };
-type BaseAgg = { total: number; done: number; states: Map<string, StateAgg> };
+type RegiaoAgg = { regiao: string; total: number; done: number };
+type BaseAgg = { total: number; done: number; regioes: Map<string, RegiaoAgg> };
 
 export default async function BasesPage() {
   const bases = await prisma.base.findMany({ orderBy: { createdAt: "desc" } });
@@ -52,6 +51,7 @@ export default async function BasesPage() {
     where: { deletedAt: null },
     select: {
       baseId: true,
+      regiao: true,
       cidade: true,
       estado: true,
       telefonePrefeitura: true,
@@ -60,20 +60,20 @@ export default async function BasesPage() {
       whatsapp: true,
       siteOficial: true,
     },
-  })) as ReqRow[];
+  })) as (ReqRow & { regiao: string | null })[];
 
-  const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, states: new Map() }]));
+  const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, regioes: new Map() }]));
   for (const c of contacts) {
     const b = agg.get(c.baseId);
     if (!b) continue;
     const ok = isComplete(c);
     b.total += 1;
     if (ok) b.done += 1;
-    const uf = ufSigla(c.estado) || "—";
-    const s = b.states.get(uf) ?? { uf, total: 0, done: 0 };
+    const reg = (c.regiao && c.regiao.trim()) || "Sem região";
+    const s = b.regioes.get(reg) ?? { regiao: reg, total: 0, done: 0 };
     s.total += 1;
     if (ok) s.done += 1;
-    b.states.set(uf, s);
+    b.regioes.set(reg, s);
   }
 
   return (
@@ -95,10 +95,10 @@ export default async function BasesPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {bases.map((b) => {
               const isImport = b.source === "import";
-              const a = agg.get(b.id) ?? { total: 0, done: 0, states: new Map() };
+              const a = agg.get(b.id) ?? { total: 0, done: 0, regioes: new Map() };
               const pct = pctOf(a.done, a.total);
               const t = tier(pct);
-              const states = [...a.states.values()].sort((x, y) => x.uf.localeCompare(y.uf));
+              const regioes = [...a.regioes.values()].sort((x, y) => x.regiao.localeCompare(y.regiao));
 
               return (
                 <Link
@@ -134,17 +134,17 @@ export default async function BasesPage() {
                         {a.done.toLocaleString("pt-BR")} de {a.total.toLocaleString("pt-BR")} prefeituras preenchidas
                       </p>
 
-                      {states.length > 0 && (
+                      {regioes.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                          {states.map((s) => {
+                          {regioes.map((s) => {
                             const sp = pctOf(s.done, s.total);
                             return (
                               <span
-                                key={s.uf}
-                                title={`${s.uf}: ${s.done}/${s.total} (${sp}%)`}
+                                key={s.regiao}
+                                title={`${s.regiao}: ${s.done}/${s.total} (${sp}%)`}
                                 className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${tier(sp).chip}`}
                               >
-                                {s.uf} {sp}%
+                                {s.regiao} · {sp}%
                               </span>
                             );
                           })}
