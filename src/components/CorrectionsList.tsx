@@ -158,11 +158,119 @@ function WhatsappCheck({
   );
 }
 
+// Chave Sim/Não para "Contato institucional". Padrão: Sim (institucional).
+function SimNaoToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-xs font-medium text-slate-600">Contato institucional</span>
+      <div className="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs font-medium">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-3 py-1 transition ${value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+        >
+          Sim
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`border-l border-slate-300 px-3 py-1 transition ${!value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+        >
+          Não
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Quando "Contato institucional" = Não, pede nome + cargo da pessoa antes de corrigir.
+function PessoaModal({
+  titulo,
+  onClose,
+  onConfirm,
+}: {
+  titulo: string;
+  onClose: () => void;
+  onConfirm: (nome: string, cargo: string) => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [cargo, setCargo] = useState("");
+  const ready = nome.trim().length > 0 && cargo.trim().length > 0;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Dados do contato</h2>
+            <p className="mt-1 text-xs text-slate-400">{titulo}</p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Fechar"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-4 p-6">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-600">Nome da pessoa</span>
+            <input
+              value={nome}
+              onChange={(event) => setNome(event.target.value)}
+              autoFocus
+              placeholder="Ex.: Jorge"
+              className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-600">Cargo da pessoa</span>
+            <input
+              value={cargo}
+              onChange={(event) => setCargo(event.target.value)}
+              placeholder="Ex.: Secretário de Administração"
+              className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 transition hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(nome.trim(), cargo.trim())}
+            disabled={!ready}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Confirmar correção
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CorrectionsList({ items }: { items: CorrectionItem[] }) {
   const router = useRouter();
   const toast = useToast();
   const [values, setValues] = useState<Record<string, string>>({});
   const [whatsappValues, setWhatsappValues] = useState<Record<string, boolean>>({});
+  const [institucionalValues, setInstitucionalValues] = useState<Record<string, boolean>>({});
+  const [pessoaModal, setPessoaModal] = useState<{ id: string } | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanTarget | null>(null);
   const [scanJobs, setScanJobs] = useState<Record<string, ScanJob>>({});
@@ -211,7 +319,24 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   const countByRegiao = (name: string) =>
     items.filter((item) => (item.contact.campanha || "") === campanha && (item.contact.regiao || "") === name).length;
 
-  async function resolve(id: string) {
+  // Decide o caminho ao clicar em Corrigir: se NÃO for contato institucional,
+  // abre o formulário (nome + cargo) antes de enviar; senão envia direto.
+  function resolve(id: string) {
+    if (localDigits(values[id]).length < 10) {
+      toast.error("Digite um telefone válido com DDD.");
+      return;
+    }
+    if (institucionalValues[id] === false) {
+      setPessoaModal({ id });
+      return;
+    }
+    submitCorrection(id, { institucional: true });
+  }
+
+  async function submitCorrection(
+    id: string,
+    extra: { institucional: boolean; pessoaNome?: string; pessoaCargo?: string },
+  ) {
     const newValue = values[id];
     if (localDigits(newValue).length < 10) {
       toast.error("Digite um telefone válido com DDD.");
@@ -225,7 +350,13 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
       const res = await fetch(apiPath(`/api/corrections/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newValue, hasWhatsapp: whatsappValues[id] === true }),
+        body: JSON.stringify({
+          newValue,
+          hasWhatsapp: whatsappValues[id] === true,
+          institucional: extra.institucional,
+          pessoaNome: extra.pessoaNome,
+          pessoaCargo: extra.pessoaCargo,
+        }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -495,6 +626,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                             checked={whatsappValues[item.id] === true}
                             onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
                           />
+                          <SimNaoToggle
+                            value={institucionalValues[item.id] !== false}
+                            onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
+                          />
                         </div>
 
                         <div className="flex items-center justify-end gap-2 px-4 py-4">
@@ -576,6 +711,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       checked={whatsappValues[item.id] === true}
                       onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
                     />
+                    <SimNaoToggle
+                      value={institucionalValues[item.id] !== false}
+                      onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => resolve(item.id)}
@@ -617,6 +756,25 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
           }}
         />
       )}
+
+      {pessoaModal &&
+        (() => {
+          const item = items.find((i) => i.id === pessoaModal.id);
+          const titulo =
+            (item && ([item.contact.cidade, ufSigla(item.contact.estado)].filter(Boolean).join(" / ") || item.contact.cidade)) ||
+            "Contato";
+          return (
+            <PessoaModal
+              titulo={titulo}
+              onClose={() => setPessoaModal(null)}
+              onConfirm={(nome, cargo) => {
+                const id = pessoaModal.id;
+                setPessoaModal(null);
+                submitCorrection(id, { institucional: false, pessoaNome: nome, pessoaCargo: cargo });
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

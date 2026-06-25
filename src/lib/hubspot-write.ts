@@ -3,10 +3,33 @@
 
 const STAGE_TELEFONE_ATUALIZADO = "1320496031";
 
+type PushOptions = {
+  hasWhatsapp?: boolean;
+  institucional?: boolean;
+  pessoaNome?: string;
+  pessoaCargo?: string;
+};
+
+// Lê o firstname atual do contato, para concatenar com o nome digitado pelo LDR
+// (ex.: "Jorge - Prefeitura de Manaus"). Best-effort: se falhar, volta vazio.
+async function getFirstname(hubspotId: string, token: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${hubspotId}?properties=firstname`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+    );
+    if (!res.ok) return "";
+    const data = await res.json();
+    return String(data?.properties?.firstname || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 export async function pushCorrectionToHubspot(
   hubspotId: string,
   novoTelefone: string,
-  options?: { hasWhatsapp?: boolean }
+  options?: PushOptions
 ): Promise<{ ok: boolean; error?: string }> {
   const token = process.env.HUBSPOT_TOKEN;
   if (!token) return { ok: false, error: "sem token" };
@@ -20,6 +43,23 @@ export async function pushCorrectionToHubspot(
 
     if (options?.hasWhatsapp) {
       properties.tem_whatsapp = "Sim";
+    }
+
+    // Contato institucional (Sim/Não): a propriedade usa os valores "true"/"false".
+    if (typeof options?.institucional === "boolean") {
+      properties.contato_institucional = options.institucional ? "true" : "false";
+    }
+
+    // Quando NÃO é institucional, registra a pessoa: cargo (jobtitle) e nome
+    // concatenado ao nome que já estava no contato do HubSpot.
+    if (options?.institucional === false) {
+      if (options.pessoaCargo) {
+        properties.jobtitle = options.pessoaCargo;
+      }
+      if (options.pessoaNome) {
+        const atual = await getFirstname(hubspotId, token);
+        properties.firstname = atual ? `${options.pessoaNome} - ${atual}` : options.pessoaNome;
+      }
     }
 
     const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${hubspotId}`, {

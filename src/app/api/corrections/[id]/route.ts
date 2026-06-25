@@ -19,6 +19,11 @@ export async function PATCH(
   const body = await req.json().catch(() => ({}));
   const newValue = String(body?.newValue || "").trim();
   const hasWhatsapp = body?.hasWhatsapp === true;
+  // Contato institucional (Sim/Não). undefined = front não enviou (não mexe na propriedade).
+  const institucional =
+    body?.institucional === true ? true : body?.institucional === false ? false : undefined;
+  const pessoaNome = String(body?.pessoaNome || "").trim();
+  const pessoaCargo = String(body?.pessoaCargo || "").trim();
   if (!newValue) return NextResponse.json({ error: "Novo telefone obrigatório" }, { status: 400 });
 
   const correction = await prisma.correction.findUnique({ where: { id } });
@@ -62,7 +67,12 @@ export async function PATCH(
       select: { hubspotId: true },
     });
     if (contact?.hubspotId) {
-      hubspot = await pushCorrectionToHubspot(contact.hubspotId, newValue, { hasWhatsapp });
+      hubspot = await pushCorrectionToHubspot(contact.hubspotId, newValue, {
+        hasWhatsapp,
+        institucional,
+        pessoaNome,
+        pessoaCargo,
+      });
     } else {
       hubspot = { ok: false, error: "contato ainda sem hubspotId (aguardando sincronização)" };
     }
