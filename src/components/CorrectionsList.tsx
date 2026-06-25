@@ -152,6 +152,26 @@ function OpenIcon() {
   );
 }
 
+function WhatsappCheck({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex w-fit cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-600">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+      />
+      Tem WhatsApp
+    </label>
+  );
+}
+
 export default function CorrectionsList({ items }: { items: CorrectionItem[] }) {
   const router = useRouter();
   const toast = useToast();
@@ -474,7 +494,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                           {item.oldValue || "Sem telefone"}
                         </div>
 
-                        <div className="px-4 py-4">
+                        <div className="space-y-2 px-4 py-4">
                           <input
                             value={value}
                             onChange={(event) => {
@@ -489,6 +509,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                             }}
                             placeholder="+55 (DD) 00000-0000"
                             className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                          />
+                          <WhatsappCheck
+                            checked={whatsappValues[item.id] === true}
+                            onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
                           />
                         </div>
 
@@ -567,6 +591,10 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       }}
                       placeholder="+55 (DD) 00000-0000"
                       className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    />
+                    <WhatsappCheck
+                      checked={whatsappValues[item.id] === true}
+                      onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <button
