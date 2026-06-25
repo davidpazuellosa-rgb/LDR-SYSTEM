@@ -9,13 +9,17 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isLoginPage = nextUrl.pathname.startsWith("/login");
+      const path = nextUrl.pathname;
+      const isLoginPage = path.includes("/login");
+      // Página pública: a pessoa convidada define a própria senha sem estar logada.
+      const isConvitePage = path.includes("/definir-senha");
 
       if (isLoginPage) {
         // Já logado tentando ver o login -> manda pro dashboard
         if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
         return true;
       }
+      if (isConvitePage) return true;
       // Qualquer outra página exige login
       return isLoggedIn;
     },

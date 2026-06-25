@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
-import { ROLES } from "@/lib/permissions";
+import { ROLE_LABELS, ROLES } from "@/lib/permissions";
+import { makeInvite, buildInviteLink } from "@/lib/invite";
+import { sendInviteEmail } from "@/lib/email";
 
-// Edita um usuário: nome, cargo e/ou senha (admin).
+// Edita um usuário (admin): nome, cargo, ou gera um novo link de convite/redefinição.
+// O admin NUNCA define a senha — só envia o link para a pessoa definir a própria.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -14,22 +16,27 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const data: Record<string, string> = {};
+  const selfId = (session.user as { id?: string }).id;
 
+  // Ação: (re)gerar link para a pessoa definir a senha. Coloca a conta em "pendente"
+  // até ela definir uma nova senha pelo link.
+  if (body?.action === "reinvite") {
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, role: true } });
+    if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    const { token, sentinel } = makeInvite(id);
+    await prisma.user.update({ where: { id }, data: { passwordHash: sentinel } });
+    const inviteLink = buildInviteLink(req, token);
+    const mail = await sendInviteEmail({ to: target.email, name: target.name, link: inviteLink, role: ROLE_LABELS[target.role] || target.role });
+    return NextResponse.json({ ok: true, inviteLink, emailSent: mail.sent });
+  }
+
+  const data: Record<string, string> = {};
   if (typeof body?.name === "string") data.name = body.name.trim();
   if (body?.role && ROLES.includes(body.role)) {
-    // Impede o admin de rebaixar a si mesmo (evita ficar sem nenhum admin por engano).
-    const selfId = (session.user as { id?: string }).id;
     if (id === selfId && body.role !== "admin") {
       return NextResponse.json({ error: "Você não pode alterar o seu próprio cargo." }, { status: 400 });
     }
     data.role = body.role;
-  }
-  if (body?.password) {
-    if (String(body.password).length < 6) {
-      return NextResponse.json({ error: "A senha deve ter ao menos 6 caracteres." }, { status: 400 });
-    }
-    data.passwordHash = await bcrypt.hash(String(body.password), 10);
   }
 
   const user = await prisma.user.update({
