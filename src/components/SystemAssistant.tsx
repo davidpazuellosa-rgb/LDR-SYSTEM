@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiPath } from "@/lib/path";
 
 type Message = {
@@ -49,8 +49,15 @@ export default function SystemAssistant() {
     },
   ]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
+
+  // Rola sozinho para a última mensagem sempre que chega algo novo (ou ao abrir).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, loading, open]);
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
@@ -112,7 +119,7 @@ export default function SystemAssistant() {
             </button>
           </div>
 
-          <div className="max-h-[420px] min-h-[300px] space-y-3 overflow-y-auto bg-slate-50 px-4 py-4">
+          <div ref={scrollRef} className="max-h-[420px] min-h-[300px] space-y-3 overflow-y-auto bg-slate-50 px-4 py-4">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
