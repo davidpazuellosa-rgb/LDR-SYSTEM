@@ -45,7 +45,7 @@ type Meta = {
   prazo: string;
   alvo: number;
 };
-type Fill = { preenchidoPorId: string; concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null };
+type Fill = { concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null };
 type CorrDone = { resolvedById: string | null; resolvedAt: Date | null; campanha: string | null };
 
 const periodStart = (prazo: string, now: Date) => (prazo === "mensal" ? startOfMonth(now) : startOfWeek(now));
@@ -53,7 +53,10 @@ const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : "esta 
 
 // Produção realizada de uma meta no seu prazo.
 //  - correção: o que ESTE LDR resolveu na campanha, no período
-//  - preenchimento: linhas que ESTE LDR completou no território (base+região+estado), no período
+//  - preenchimento: linhas que ficaram completas no território da meta (base+região+
+//    estado) no período. Atribuição é por TERRITÓRIO — cada estado é de 1 LDR, então
+//    o que importa é a linha estar completa, não quem digitou. (ContactFill guarda o
+//    quando; o preenchidoPorId fica como auditoria de quem completou.)
 function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): number {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
@@ -64,7 +67,6 @@ function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): 
   }
   return fills.filter(
     (f) =>
-      f.preenchidoPorId === m.userId &&
       f.concluidoEm >= start &&
       f.baseId === m.baseId &&
       ((f.regiao && f.regiao.trim()) || "Sem região") === m.regiao &&
@@ -76,7 +78,7 @@ async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] 
   await ensureContactFillTable();
   const [contacts, fillRows, corrections] = await Promise.all([
     prisma.contact.findMany({ where: { deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } }),
-    prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
+    prisma.contactFill.findMany({ select: { contactId: true, concluidoEm: true } }),
     prisma.correction
       .findMany({
         where: { status: "resolved", resolvedAt: { not: null } },
@@ -89,7 +91,7 @@ async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] 
   const fills: Fill[] = [];
   for (const f of fillRows) {
     const c = terr.get(f.contactId);
-    if (c) fills.push({ preenchidoPorId: f.preenchidoPorId, concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
   }
   return { fills, corrections };
 }
