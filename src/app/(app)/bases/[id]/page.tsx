@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { can } from "@/lib/permissions";
+import { can, isAdmin } from "@/lib/permissions";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 
@@ -68,6 +68,7 @@ export default async function BaseDetailPage({
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}
           canExport={can(role, "data.export")}
+          canEditHeaders={isAdmin(role)}
         />
       </div>
     </>

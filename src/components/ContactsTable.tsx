@@ -180,6 +180,7 @@ export default function ContactsTable({
   canDelete = true,
   canImport = true,
   canExport = true,
+  canEditHeaders = false,
 }: {
   baseId: string;
   initialContacts: Contact[];
@@ -189,6 +190,7 @@ export default function ContactsTable({
   canDelete?: boolean;
   canImport?: boolean;
   canExport?: boolean;
+  canEditHeaders?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -580,6 +582,7 @@ function openColumnContextMenu(e: React.MouseEvent, colIndex: number) {
   e.preventDefault();
   e.stopPropagation();
   selectColumn(colIndex, e.shiftKey);
+  if (!canEditHeaders) return; // LDR só preenche: não altera a estrutura das colunas
   setPasteSpecialOpen(false);
   setMenu({ type: "column", x: e.clientX, y: e.clientY, col: colIndex });
 }
@@ -1689,25 +1692,31 @@ async function saveCell(id: string, key: string, value: string) {
                     className={`bg-slate-50 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
-                    <input
-                      defaultValue={label}
-                      title="Editar cabeçalho"
-                      aria-label={`Editar cabeçalho ${label}`}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.currentTarget.blur();
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          e.currentTarget.value = label;
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs font-medium uppercase text-slate-500 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
-                    />
+                    {canEditHeaders ? (
+                      <input
+                        defaultValue={label}
+                        title="Editar cabeçalho"
+                        aria-label={`Editar cabeçalho ${label}`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            e.currentTarget.value = label;
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs font-medium uppercase text-slate-500 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                      />
+                    ) : (
+                      <span className="block w-full px-1 py-1 text-xs font-medium uppercase text-slate-500" title={label}>
+                        {label}
+                      </span>
+                    )}
                   </th>
                 );
               })}

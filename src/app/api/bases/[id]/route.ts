@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/guard";
+import { requireAdmin, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
 
+// Alterar os cabeçalhos das colunas é restrito ao admin. O LDR só preenche os dados.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { deny } = await requirePermission("data.import");
+  const { deny } = await requireAdmin();
   if (deny) return deny;
 
   const { id } = await params;
