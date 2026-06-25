@@ -92,7 +92,17 @@ export default async function HistoricoCorrecoesPage() {
                             <span className="truncate text-slate-600">{h.resolvedBy.name || h.resolvedBy.email}</span>
                           </div>
                         ) : (
-                          <span className="text-slate-300">-</span>
+                          <div className="flex items-center gap-2" title="Resolvida automaticamente pela sincronização com o HubSpot">
+                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-400">
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                <path d="M3 12a9 9 0 0 1 15-6.7L21 8" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M21 3v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M21 12a9 9 0 0 1-15 6.7L3 16" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M3 21v-5h5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
+                            <span className="truncate text-slate-400">Sincronização HubSpot</span>
+                          </div>
                         )}
                       </td>
                       <td className="px-5 py-3 text-right text-xs text-slate-400">
