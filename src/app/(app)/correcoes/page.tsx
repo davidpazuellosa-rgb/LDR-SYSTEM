@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import CorrectionsList from "@/components/CorrectionsList";
 import CrmSync from "@/components/CrmSync";
+import AlunoSyncButton from "@/components/AlunoSyncButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,15 @@ export default async function CorrecoesPage() {
 
   return (
     <>
-      <PageHeader title="Correção de Contatos" action={<CrmSync />} />
+      <PageHeader
+        title="Correção de Contatos"
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            <CrmSync />
+            <AlunoSyncButton />
+          </div>
+        }
+      />
       <div className="space-y-8 p-8">
         <section>
           {pending.length === 0 ? (
