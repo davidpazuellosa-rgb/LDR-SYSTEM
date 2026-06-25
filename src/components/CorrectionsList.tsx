@@ -7,6 +7,7 @@ import { ufSigla } from "@/lib/uf";
 import ScanModal from "@/components/ScanModal";
 import { useToast } from "@/components/Toast";
 import { STATUS_META, STATUS_INCORRETO } from "@/lib/status";
+import { isCampanhaAtiva } from "@/lib/campanhas";
 
 type CorrectionItem = {
   id: string;
@@ -32,14 +33,6 @@ const PHONE_PREFIX = "+55 ";
 function uniq(values: (string | null | undefined)[]) {
   return Array.from(new Set(values.map((value) => (value || "").trim()).filter(Boolean))).sort();
 }
-
-// Campanhas ativas do sistema. As demais ("Cidade na Mão 2027/2029/2033…", 1 contato
-// cada) são ruído de dados e não devem aparecer no seletor de campanhas.
-const CAMPANHAS_ATIVAS = ["Cidade na Mão 2026", "Aluno a Bordo"];
-const normCampanha = (value: string | null | undefined) =>
-  (value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-const isCampanhaAtiva = (name: string) =>
-  CAMPANHAS_ATIVAS.some((c) => normCampanha(c) === normCampanha(name));
 
 function localDigits(value: string | undefined) {
   const digits = (value || "").replace(/\D/g, "");

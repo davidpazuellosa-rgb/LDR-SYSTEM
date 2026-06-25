@@ -4,13 +4,31 @@ import { useEffect, useState } from "react";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 
-type BaseOpt = { id: string; name: string; estados: string[] };
-type Row = { baseId: string; estado: string; prazo: string; corrigidos: string; preenchidos: string };
+type Regiao = { regiao: string; estados: string[] };
+type BaseOpt = { id: string; name: string; regioes: Regiao[] };
+type FillRow = { baseId: string; regiao: string; estado: string; prazo: string; alvo: string };
+type CorrRow = { campanha: string; prazo: string; alvo: string };
+
+type MetaIn = {
+  tipo?: string;
+  baseId?: string | null;
+  regiao?: string | null;
+  estado?: string | null;
+  campanha?: string | null;
+  prazo?: string;
+  alvo?: number;
+};
+
+const selCls =
+  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 disabled:bg-slate-50";
+const numCls = "w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500";
 
 export default function MetaModal({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
   const toast = useToast();
   const [bases, setBases] = useState<BaseOpt[]>([]);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [campanhas, setCampanhas] = useState<string[]>([]);
+  const [fillRows, setFillRows] = useState<FillRow[]>([]);
+  const [corrRows, setCorrRows] = useState<CorrRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,14 +44,27 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
           setError(data.error || "Não foi possível carregar as metas.");
         } else {
           setBases(data.bases || []);
-          setRows(
-            (data.metas || []).map((m: { baseId: string; estado: string; prazo?: string; corrigidos: number; preenchidos: number }) => ({
-              baseId: m.baseId,
-              estado: m.estado,
-              prazo: m.prazo === "mensal" ? "mensal" : "semanal",
-              corrigidos: String(m.corrigidos ?? 0),
-              preenchidos: String(m.preenchidos ?? 0),
-            }))
+          setCampanhas(data.campanhas || []);
+          const metas: MetaIn[] = data.metas || [];
+          setFillRows(
+            metas
+              .filter((m) => (m.tipo || "preenchimento") !== "correcao")
+              .map((m) => ({
+                baseId: m.baseId || "",
+                regiao: m.regiao || "",
+                estado: m.estado || "",
+                prazo: m.prazo === "mensal" ? "mensal" : "semanal",
+                alvo: String(m.alvo ?? 0),
+              }))
+          );
+          setCorrRows(
+            metas
+              .filter((m) => m.tipo === "correcao")
+              .map((m) => ({
+                campanha: m.campanha || "",
+                prazo: m.prazo === "mensal" ? "mensal" : "semanal",
+                alvo: String(m.alvo ?? 0),
+              }))
           );
         }
       } catch (e) {
@@ -47,17 +78,21 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     };
   }, [userId]);
 
-  const estadosDe = (baseId: string) => bases.find((b) => b.id === baseId)?.estados || [];
+  const regioesDe = (baseId: string) => bases.find((b) => b.id === baseId)?.regioes || [];
+  const estadosDe = (baseId: string, regiao: string) =>
+    regioesDe(baseId).find((r) => r.regiao === regiao)?.estados || [];
 
-  function update(i: number, patch: Partial<Row>) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  function updFill(i: number, patch: Partial<FillRow>) {
+    setFillRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
-  function addRow() {
-    const first = bases[0];
-    setRows((prev) => [...prev, { baseId: first?.id || "", estado: "", prazo: "semanal", corrigidos: "", preenchidos: "" }]);
+  function updCorr(i: number, patch: Partial<CorrRow>) {
+    setCorrRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
-  function removeRow(i: number) {
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
+  function addFill() {
+    setFillRows((prev) => [...prev, { baseId: bases[0]?.id || "", regiao: "", estado: "", prazo: "semanal", alvo: "" }]);
+  }
+  function addCorr() {
+    setCorrRows((prev) => [...prev, { campanha: campanhas[0] || "", prazo: "semanal", alvo: "" }]);
   }
 
   async function save() {
@@ -65,9 +100,14 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     setError(null);
     const loadingId = toast.loading("Salvando metas...", userName);
     try {
-      const metas = rows
-        .filter((r) => r.baseId && r.estado)
-        .map((r) => ({ baseId: r.baseId, estado: r.estado, prazo: r.prazo, corrigidos: r.corrigidos, preenchidos: r.preenchidos }));
+      const metas = [
+        ...fillRows
+          .filter((r) => r.baseId && r.regiao && r.estado)
+          .map((r) => ({ tipo: "preenchimento", baseId: r.baseId, regiao: r.regiao, estado: r.estado, prazo: r.prazo, alvo: r.alvo })),
+        ...corrRows
+          .filter((r) => r.campanha)
+          .map((r) => ({ tipo: "correcao", campanha: r.campanha, prazo: r.prazo, alvo: r.alvo })),
+      ];
       const res = await fetch(apiPath(`/api/metas/${userId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -96,93 +136,107 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Meta de {userName}</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Defina a meta por base, estado e prazo (semanal ou mensal).</p>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Duas submetas independentes: preenchimento (base → região → estado) e correção (por campanha).
+            </p>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" /></svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 space-y-7 overflow-y-auto px-6 py-4">
           {loading ? (
             <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>
           ) : (
             <>
-              <div className="mb-2 grid grid-cols-[1.3fr_0.7fr_0.85fr_0.8fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
-                <div>Base</div>
-                <div>Estado</div>
-                <div>Prazo</div>
-                <div>Corrigidos</div>
-                <div>Preenchidos</div>
-                <div />
-              </div>
+              {/* ───── Preenchimento ───── */}
+              <section>
+                <h3 className="mb-2 text-sm font-semibold text-slate-700">Preenchimento de contatos</h3>
+                <div className="mb-2 grid grid-cols-[1.2fr_1fr_0.7fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+                  <div>Base</div>
+                  <div>Região</div>
+                  <div>Estado</div>
+                  <div>Prazo</div>
+                  <div>Meta</div>
+                  <div />
+                </div>
+                <div className="space-y-2">
+                  {fillRows.map((r, i) => (
+                    <div key={i} className="grid grid-cols-[1.2fr_1fr_0.7fr_0.85fr_0.8fr_auto] items-center gap-2">
+                      <select value={r.baseId} onChange={(e) => updFill(i, { baseId: e.target.value, regiao: "", estado: "" })} className={selCls}>
+                        <option value="">Selecione…</option>
+                        {bases.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                      <select value={r.regiao} onChange={(e) => updFill(i, { regiao: e.target.value, estado: "" })} disabled={!r.baseId} className={selCls}>
+                        <option value="">Região…</option>
+                        {regioesDe(r.baseId).map((rg) => (
+                          <option key={rg.regiao} value={rg.regiao}>{rg.regiao}</option>
+                        ))}
+                      </select>
+                      <select value={r.estado} onChange={(e) => updFill(i, { estado: e.target.value })} disabled={!r.regiao} className={selCls}>
+                        <option value="">UF…</option>
+                        {estadosDe(r.baseId, r.regiao).map((uf) => (
+                          <option key={uf} value={uf}>{uf}</option>
+                        ))}
+                      </select>
+                      <select value={r.prazo} onChange={(e) => updFill(i, { prazo: e.target.value })} className={selCls}>
+                        <option value="semanal">Semanal</option>
+                        <option value="mensal">Mensal</option>
+                      </select>
+                      <input type="number" min={0} value={r.alvo} onChange={(e) => updFill(i, { alvo: e.target.value })} placeholder="0" className={numCls} />
+                      <button onClick={() => setFillRows((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover linha">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                  {fillRows.length === 0 && <p className="py-3 text-center text-sm text-slate-400">Nenhuma meta de preenchimento.</p>}
+                </div>
+                <button onClick={addFill} disabled={bases.length === 0} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
+                  Adicionar meta (base + região + estado)
+                </button>
+              </section>
 
-              <div className="space-y-2">
-                {rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1.3fr_0.7fr_0.85fr_0.8fr_0.8fr_auto] items-center gap-2">
-                    <select
-                      value={r.baseId}
-                      onChange={(e) => update(i, { baseId: e.target.value, estado: "" })}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500"
-                    >
-                      <option value="">Selecione…</option>
-                      {bases.map((b) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={r.estado}
-                      onChange={(e) => update(i, { estado: e.target.value })}
-                      disabled={!r.baseId}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 disabled:bg-slate-50"
-                    >
-                      <option value="">UF…</option>
-                      {estadosDe(r.baseId).map((uf) => (
-                        <option key={uf} value={uf}>{uf}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={r.prazo}
-                      onChange={(e) => update(i, { prazo: e.target.value })}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500"
-                    >
-                      <option value="semanal">Semanal</option>
-                      <option value="mensal">Mensal</option>
-                    </select>
-                    <input
-                      type="number"
-                      min={0}
-                      value={r.corrigidos}
-                      onChange={(e) => update(i, { corrigidos: e.target.value })}
-                      placeholder="0"
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      value={r.preenchidos}
-                      onChange={(e) => update(i, { preenchidos: e.target.value })}
-                      placeholder="0"
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500"
-                    />
-                    <button onClick={() => removeRow(i)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover linha">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                  </div>
-                ))}
-                {rows.length === 0 && <p className="py-4 text-center text-sm text-slate-400">Nenhuma meta definida ainda. Adicione abaixo.</p>}
-              </div>
+              {/* ───── Correção ───── */}
+              <section>
+                <h3 className="mb-2 text-sm font-semibold text-slate-700">Correção de contatos</h3>
+                <div className="mb-2 grid grid-cols-[2fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+                  <div>Campanha (HubSpot)</div>
+                  <div>Prazo</div>
+                  <div>Meta</div>
+                  <div />
+                </div>
+                <div className="space-y-2">
+                  {corrRows.map((r, i) => (
+                    <div key={i} className="grid grid-cols-[2fr_0.85fr_0.8fr_auto] items-center gap-2">
+                      <select value={r.campanha} onChange={(e) => updCorr(i, { campanha: e.target.value })} className={selCls}>
+                        <option value="">Selecione…</option>
+                        {campanhas.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <select value={r.prazo} onChange={(e) => updCorr(i, { prazo: e.target.value })} className={selCls}>
+                        <option value="semanal">Semanal</option>
+                        <option value="mensal">Mensal</option>
+                      </select>
+                      <input type="number" min={0} value={r.alvo} onChange={(e) => updCorr(i, { alvo: e.target.value })} placeholder="0" className={numCls} />
+                      <button onClick={() => setCorrRows((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover linha">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                  {corrRows.length === 0 && <p className="py-3 text-center text-sm text-slate-400">Nenhuma meta de correção.</p>}
+                </div>
+                <button onClick={addCorr} disabled={campanhas.length === 0} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
+                  Adicionar meta (campanha)
+                </button>
+              </section>
 
-              <button
-                onClick={addRow}
-                disabled={bases.length === 0}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
-                Adicionar meta (base + estado)
-              </button>
-
-              {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+              {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
             </>
           )}
         </div>

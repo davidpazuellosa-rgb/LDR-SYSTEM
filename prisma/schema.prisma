@@ -130,15 +130,20 @@ model Correction {
 // Metas por LDR (definidas pelo admin), por base e por estado.
 // A tabela é criada sob demanda via SQL (ensureMetaTable em src/lib/meta.ts),
 // porque o banco de produção não pode ser migrado por fora.
+// Cada LDR tem duas submetas independentes que somam a meta dele:
+//  - preenchimento: completar a linha da prefeitura (base + região + estado)
+//  - correcao: arrumar contatos errados de uma campanha do HubSpot
+// Por isso as dimensões são opcionais: cada linha usa só as do seu "tipo".
 model Meta {
-  id          String @id @default(cuid())
-  userId      String
-  baseId      String
-  estado      String
-  prazo       String @default("semanal") // semanal | mensal
-  corrigidos  Int    @default(0)
-  preenchidos Int    @default(0)
+  id       String  @id @default(cuid())
+  userId   String
+  tipo     String  @default("preenchimento") // preenchimento | correcao
+  baseId   String? // preenchimento
+  regiao   String? // preenchimento
+  estado   String? // preenchimento
+  campanha String? // correcao
+  prazo    String  @default("semanal") // semanal | mensal
+  alvo     Int     @default(0) // quantidade da meta no prazo
 
-  @@unique([userId, baseId, estado])
   @@index([userId])
 }
