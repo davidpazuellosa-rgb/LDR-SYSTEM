@@ -1,12 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
+import { ufSigla } from "@/lib/uf";
 
 export const dynamic = "force-dynamic";
-
-function cityInitials(city: string | null, state: string | null) {
-  const first = (city || "?").trim().charAt(0).toUpperCase();
-  return state ? `${first}${state}` : first;
-}
 
 function personInitials(name?: string | null, email?: string | null) {
   const src = (name || email || "?").trim();
@@ -64,26 +60,28 @@ export default async function HistoricoCorrecoesPage() {
                 <tbody className="divide-y divide-slate-100">
                   {history.map((h) => (
                     <tr key={h.id} className="transition hover:bg-slate-50/70">
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">
-                            {cityInitials(h.contact.cidade, h.contact.estado)}
+                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-xs font-semibold text-indigo-600">
+                            {ufSigla(h.contact.estado) || (h.contact.cidade || "?").trim().charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
                             <div className="truncate font-medium text-slate-800">{h.contact.cidade || "(sem cidade)"}</div>
-                            {h.contact.estado && <div className="text-xs text-slate-400">{h.contact.estado}</div>}
+                            {h.contact.estado && <div className="truncate text-xs text-slate-400">{h.contact.estado}</div>}
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-400 line-through decoration-slate-300">{h.oldValue || "-"}</td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-4 text-sm tabular-nums text-slate-400 line-through decoration-slate-300">{h.oldValue || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-4">
                         {h.newValue ? (
-                          <span className="font-medium text-emerald-700">{h.newValue}</span>
+                          <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-sm font-medium tabular-nums text-emerald-700 ring-1 ring-emerald-100">
+                            {h.newValue}
+                          </span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         {h.resolvedBy ? (
                           <div className="flex items-center gap-2">
                             <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">
@@ -105,7 +103,7 @@ export default async function HistoricoCorrecoesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right text-xs text-slate-400">
+                      <td className="px-5 py-4 text-right text-xs tabular-nums text-slate-400">
                         {h.resolvedAt
                           ? new Date(h.resolvedAt).toLocaleString("pt-BR", {
                               day: "2-digit",
