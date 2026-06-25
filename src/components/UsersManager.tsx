@@ -218,8 +218,8 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
         <div className="grid grid-cols-[1.4fr_1.6fr_1fr_0.9fr_auto] items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <div>Usuário</div>
           <div>E-mail</div>
-          <div>Cargo</div>
-          <div>Status</div>
+          <div className="text-center">Cargo</div>
+          <div className="text-center">Status</div>
           <div className="text-right">Ações</div>
         </div>
         <div className="divide-y divide-slate-100">
@@ -240,7 +240,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   </div>
                 </div>
                 <div className="truncate text-sm text-slate-600">{user.email}</div>
-                <div>
+                <div className="flex justify-center">
                   <select
                     value={asRole(user.role)}
                     disabled={isSelf || busy}
@@ -254,7 +254,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="flex justify-center">
                   {user.pending ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Convite pendente
