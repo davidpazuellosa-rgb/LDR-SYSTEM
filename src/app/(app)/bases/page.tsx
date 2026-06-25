@@ -210,8 +210,14 @@ export default async function BasesPage({
       <PageHeader
         title={tipo}
         action={
-          <Link href="/bases" className="text-sm text-indigo-600 hover:underline">
-            ← tipos de órgão
+          <Link
+            href="/bases"
+            className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+          >
+            <svg className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5m0 0 6-6m-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Tipos de órgão
           </Link>
         }
       />
