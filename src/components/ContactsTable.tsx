@@ -211,6 +211,8 @@ export default function ContactsTable({
   const [importing, setImporting] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [undoInfo, setUndoInfo] = useState<{ eventoId: string; resumo: string } | null>(null);
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1337,38 +1339,48 @@ async function saveCell(id: string, key: string, value: string) {
     }
   }
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
+    // Base já tem dados → pergunta Substituir/Mesclar. Base vazia → importa direto.
+    if (contacts.length > 0) {
+      setPendingFile(file);
+      return;
+    }
+    doImport(file, "merge");
+  }
+
+  async function doImport(file: File, mode: "merge" | "replace") {
+    setPendingFile(null);
     setImporting(true);
     setMessage(null);
-    const loadingId = toast.loading("Importando planilha…", "Lendo e gravando os contatos.");
+    setUndoInfo(null);
+    const loadingId = toast.loading(
+      mode === "replace" ? "Substituindo planilha…" : "Importando planilha…",
+      "Lendo e gravando os contatos.",
+    );
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(apiPath(`/api/bases/${baseId}/import`), {
-      method: "POST",
-      body: fd,
-    });
+    fd.append("mode", mode);
+    const res = await fetch(apiPath(`/api/bases/${baseId}/import`), { method: "POST", body: fd });
     setImporting(false);
-    if (fileRef.current) fileRef.current.value = "";
     const data = await res.json();
     toast.dismiss(loadingId);
     if (res.ok) {
-      const skipped = (data.skippedExisting || 0) + (data.skippedInFile || 0) + (data.skippedWithoutKey || 0);
-      const details = [
-        `${data.imported} novo(s)`,
-        `${skipped} duplicado(s)/ignorado(s)`,
-        `${data.invalid} com telefone inválido`,
-      ];
-      if (data.unknownColumns?.length) details.push(`${data.unknownColumns.length} coluna(s) não reconhecida(s)`);
-      toast.success("Importação concluída", details.join(" · "));
-      setMessage(
-        `Importação: ${data.imported} novo(s), ${skipped} ignorado(s). ${
-          data.unknownColumns?.length ? `Colunas não reconhecidas: ${data.unknownColumns.join(", ")}.` : ""
-        }`
-      );
+      const parts: string[] = [];
+      if (data.imported) parts.push(`${data.imported} novo(s)`);
+      if (data.completados) parts.push(`${data.completados} completado(s)`);
+      if (data.substituidos) parts.push(`${data.substituidos} substituído(s)`);
+      if (data.invalid) parts.push(`${data.invalid} com telefone inválido`);
+      if (data.skippedNoChange) parts.push(`${data.skippedNoChange} sem mudança`);
+      if (data.unknownColumns?.length) parts.push(`${data.unknownColumns.length} coluna(s) não reconhecida(s)`);
+      const resumo = parts.join(" · ") || "Nada a importar";
+      toast.success(mode === "replace" ? "Substituição concluída" : "Importação concluída", resumo);
+      setMessage(resumo);
+      if (data.eventoId) setUndoInfo({ eventoId: data.eventoId, resumo });
       router.refresh();
-      if (data.imported > 0) {
+      if (data.imported > 0 || data.completados > 0) {
         // Dispara verificação CRM em background; o card da base atualiza ao terminar
         const syncId = toast.loading("Verificando no HubSpot CRM…", "Buscando contatos com telefone incorreto.");
         fetch(apiPath("/api/crm/sync?force=1"), { method: "POST" })
@@ -1387,8 +1399,80 @@ async function saveCell(id: string, key: string, value: string) {
     }
   }
 
+  async function desfazerImport() {
+    if (!undoInfo) return;
+    const loadingId = toast.loading("Desfazendo…");
+    const res = await fetch(apiPath(`/api/bases/${baseId}/desfazer`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventoId: undoInfo.eventoId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    toast.dismiss(loadingId);
+    if (res.ok) {
+      toast.success("Ação desfeita.", "A planilha voltou ao estado anterior.");
+      setUndoInfo(null);
+      setMessage(null);
+      router.refresh();
+    } else {
+      toast.error("Não foi possível desfazer.", data.error || `Erro ${res.status}.`);
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {undoInfo && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+          <span>Importação concluída · {undoInfo.resumo}</span>
+          <button
+            onClick={desfazerImport}
+            className="rounded-md border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Desfazer
+          </button>
+        </div>
+      )}
+
+      {pendingFile && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-1 text-lg font-semibold text-slate-800">Substituir a planilha atual?</h2>
+            <p className="mb-4 text-sm text-slate-500">
+              Esta base já tem dados. Escolha como importar{" "}
+              <strong className="text-slate-700">{pendingFile.name}</strong>:
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => doImport(pendingFile, "merge")}
+                className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                <div className="font-semibold text-slate-800">Não — mesclar (recomendado)</div>
+                <div className="text-xs text-slate-500">
+                  Mantém o que já existe, preenche só os campos vazios e adiciona os contatos novos. Não duplica.
+                </div>
+              </button>
+              <button
+                onClick={() => doImport(pendingFile, "replace")}
+                className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-rose-300 hover:bg-rose-50"
+              >
+                <div className="font-semibold text-slate-800">Sim — substituir tudo</div>
+                <div className="text-xs text-slate-500">
+                  Troca todos os contatos e os rótulos de coluna pela nova planilha. É reversível (dá pra desfazer).
+                </div>
+              </button>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setPendingFile(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1) Filtros de status + ações — ACIMA das abas de estado */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">

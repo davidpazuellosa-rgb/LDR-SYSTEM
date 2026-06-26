@@ -160,3 +160,22 @@ model Meta {
 
   @@index([userId])
 }
+
+// Histórico IMUTÁVEL de ações grandes numa base (importação, substituição…).
+// Append-only: cada ação vira um registro com quem fez, quando e um snapshot
+// que permite DESFAZER. Tabela criada sob demanda (ensureBaseEventoTable) —
+// o banco de produção não roda migration por fora.
+model BaseEvento {
+  id          String    @id @default(cuid())
+  baseId      String
+  tipo        String    // import_merge | import_replace
+  usuarioId   String?
+  usuarioNome String?
+  detalhes    Json? // contadores (criados, completados, substituídos…)
+  snapshot    Json? // dados para desfazer a ação
+  desfeitoEm  DateTime?
+  criadoEm    DateTime  @default(now())
+
+  @@index([baseId])
+  @@index([criadoEm])
+}

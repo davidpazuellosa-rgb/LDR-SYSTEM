@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guard";
-import { parseSpreadsheetWithMeta, looksLikeValidPhone, validateSpreadsheetFile } from "@/lib/import";
+import { parseSpreadsheetWithMeta, looksLikeValidPhone, validateSpreadsheetFile, type ImportedRow } from "@/lib/import";
 import { PHONE_FIELD } from "@/lib/contact-fields";
+import {
+  ensureBaseEventoTable,
+  type MergeSnapshot,
+  type ReplaceSnapshot,
+} from "@/lib/base-eventos";
 
 type DedupeContact = {
   codigoIbge?: string | null;
@@ -55,6 +61,9 @@ export async function POST(
 
   const form = await req.formData();
   const file = form.get("file") as File | null;
+  // "merge" (padrão): completa campos vazios + adiciona novos.
+  // "replace": substitui tudo (apaga reversível + reseta colunas) e importa do zero.
+  const mode = String(form.get("mode") || "merge") === "replace" ? "replace" : "merge";
   if (!file) return NextResponse.json({ error: "Arquivo não enviado" }, { status: 400 });
 
   const fileError = validateSpreadsheetFile(file);
@@ -83,88 +92,159 @@ export async function POST(
     );
   }
 
-  const existingContacts = await prisma.contact.findMany({
-    where: { baseId: id, deletedAt: null },
-    select: {
-      codigoIbge: true,
-      cidade: true,
-      estado: true,
-      emailInstitucional: true,
-      telefonePrefeitura: true,
-    },
-  });
-  const existingKeys = new Set(existingContacts.map(dedupeKey).filter(Boolean));
-  const importedKeys = new Set<string>();
-  const newRows = [];
-  let skippedExisting = 0;
-  let skippedInFile = 0;
-  let skippedWithoutKey = 0;
-
-  for (const row of rows) {
-    const key = dedupeKey(row);
-    if (!key) {
-      skippedWithoutKey++;
-      continue;
-    }
-
-    if (existingKeys.has(key)) {
-      skippedExisting++;
-      continue;
-    }
-
-    if (importedKeys.has(key)) {
-      skippedInFile++;
-      continue;
-    }
-
-    importedKeys.add(key);
-    newRows.push(row);
-  }
-
-  let invalidCount = 0;
   // @ts-expect-error id custom na sessão
   const userId: string | null = session.user.id ?? null;
 
-  const created = await prisma.$transaction(
-    newRows.map((r) => {
-      const phone = r[PHONE_FIELD];
-      const validPhone = looksLikeValidPhone(phone);
-      if (!validPhone) invalidCount++;
-      return prisma.contact.create({
-        data: {
-          baseId: id,
+  // Cria os contatos de uma lista de linhas + a fila de correção dos telefones inválidos.
+  async function createRows(newRows: ImportedRow[]) {
+    let invalid = 0;
+    const created = await prisma.$transaction(
+      newRows.map((r) => {
+        const validPhone = looksLikeValidPhone(r[PHONE_FIELD]);
+        if (!validPhone) invalid++;
+        return prisma.contact.create({
+          data: { baseId: id, createdById: userId, ...r, status: validPhone ? "ok" : "telefone_incorreto" },
+        });
+      })
+    );
+    const invalidContacts = created.filter((c) => c.status === "telefone_incorreto");
+    if (invalidContacts.length > 0) {
+      await prisma.correction.createMany({
+        data: invalidContacts.map((c) => ({
+          contactId: c.id,
+          field: "telefonePrefeitura",
+          oldValue: c.telefonePrefeitura,
+          reason: "Telefone inválido detectado na importação",
+          status: "pending",
           createdById: userId,
-          ...r,
-          status: validPhone ? "ok" : "telefone_incorreto",
-        },
+        })),
       });
-    })
-  );
+    }
+    return { created, invalid };
+  }
 
-  // Cria entradas na fila de correção para cada contato importado com telefone inválido
-  const invalidContacts = created.filter((c) => c.status === "telefone_incorreto");
-  if (invalidContacts.length > 0) {
-    await prisma.correction.createMany({
-      data: invalidContacts.map((c) => ({
-        contactId: c.id,
-        field: "telefonePrefeitura",
-        oldValue: c.telefonePrefeitura,
-        reason: "Telefone inválido detectado na importação",
-        status: "pending",
-        createdById: userId,
-      })),
-    });
+  let skippedWithoutKey = 0;
+  let skippedInFile = 0;
+  let skippedNoChange = 0;
+  let snapshot: MergeSnapshot | ReplaceSnapshot;
+  let detalhes: Record<string, number>;
+  let imported = 0;
+  let completados = 0;
+  let substituidos = 0;
+  let invalidCount = 0;
+
+  if (mode === "replace") {
+    // Substituir: soft-delete (reversível) dos contatos atuais + reset dos rótulos de coluna.
+    const existing = await prisma.contact.findMany({ where: { baseId: id, deletedAt: null }, select: { id: true } });
+    const deletedIds = existing.map((c) => c.id);
+    const oldHeaders = (base.headers as Record<string, string> | null) || {};
+    if (deletedIds.length > 0) {
+      await prisma.contact.updateMany({ where: { id: { in: deletedIds } }, data: { deletedAt: new Date() } });
+    }
+    await prisma.base.update({ where: { id }, data: { headers: {} } });
+
+    const seenInFile = new Set<string>();
+    const newRows: ImportedRow[] = [];
+    for (const row of rows) {
+      const key = dedupeKey(row);
+      if (!key) { skippedWithoutKey++; continue; }
+      if (seenInFile.has(key)) { skippedInFile++; continue; }
+      seenInFile.add(key);
+      newRows.push(row);
+    }
+    const { created, invalid } = await createRows(newRows);
+    imported = created.length;
+    substituidos = deletedIds.length;
+    invalidCount = invalid;
+    snapshot = { kind: "replace", deletedIds, createdIds: created.map((c) => c.id), oldHeaders };
+    detalhes = { substituidos, criados: imported, invalidos: invalid, semChave: skippedWithoutKey, duplicadosNoArquivo: skippedInFile };
+  } else {
+    // Mesclar: completa só campos vazios dos existentes + adiciona os novos.
+    const existing = await prisma.contact.findMany({ where: { baseId: id, deletedAt: null } });
+    const byKey = new Map<string, (typeof existing)[number]>();
+    for (const c of existing) {
+      const k = dedupeKey(c);
+      if (k && !byKey.has(k)) byKey.set(k, c);
+    }
+
+    const seenInFile = new Set<string>();
+    const toCreate: ImportedRow[] = [];
+    const fills: { id: string; data: Record<string, string>; fields: string[] }[] = [];
+    for (const row of rows) {
+      const key = dedupeKey(row);
+      if (!key) { skippedWithoutKey++; continue; }
+      if (seenInFile.has(key)) { skippedInFile++; continue; }
+      seenInFile.add(key);
+      const match = byKey.get(key);
+      if (!match) { toCreate.push(row); continue; }
+      const rec = match as unknown as Record<string, string | null>;
+      const data: Record<string, string> = {};
+      const fields: string[] = [];
+      for (const [field, value] of Object.entries(row)) {
+        if (!value || !value.trim()) continue;
+        const cur = rec[field];
+        if (cur === null || cur === undefined || String(cur).trim() === "") {
+          data[field] = value;
+          fields.push(field);
+        }
+      }
+      if (fields.length > 0) fills.push({ id: match.id, data, fields });
+      else skippedNoChange++;
+    }
+
+    const { created, invalid } = await createRows(toCreate);
+    if (fills.length > 0) {
+      await prisma.$transaction(fills.map((f) => prisma.contact.update({ where: { id: f.id }, data: { ...f.data } })));
+    }
+    imported = created.length;
+    completados = fills.length;
+    invalidCount = invalid;
+    snapshot = {
+      kind: "merge",
+      createdIds: created.map((c) => c.id),
+      fills: fills.map((f) => ({ contactId: f.id, fields: f.fields })),
+    };
+    detalhes = {
+      criados: imported,
+      completados,
+      invalidos: invalid,
+      semChave: skippedWithoutKey,
+      duplicadosNoArquivo: skippedInFile,
+      semMudanca: skippedNoChange,
+    };
   }
 
   await prisma.base.update({ where: { id }, data: { source: "import" } });
 
+  // Registra o evento imutável no histórico (quem fez + snapshot para desfazer).
+  await ensureBaseEventoTable();
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } })
+    : null;
+  const evento = await prisma.baseEvento.create({
+    data: {
+      baseId: id,
+      tipo: mode === "replace" ? "import_replace" : "import_merge",
+      usuarioId: userId,
+      usuarioNome: user?.name ?? user?.email ?? null,
+      detalhes: detalhes as Prisma.InputJsonValue,
+      snapshot: snapshot as unknown as Prisma.InputJsonValue,
+    },
+    select: { id: true },
+  });
+
   return NextResponse.json({
-    imported: newRows.length,
+    mode,
+    eventoId: evento.id,
+    imported,
+    completados,
+    substituidos,
     received: rows.length,
     invalid: invalidCount,
-    skippedExisting,
+    skippedExisting: 0,
     skippedInFile,
     skippedWithoutKey,
+    skippedNoChange,
     unknownColumns: parsed.unknownColumns,
     matchedColumns: parsed.matchedColumns,
   });
