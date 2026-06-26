@@ -36,9 +36,33 @@ export function tier(pct: number) {
 
 // Tipo de órgão (nível 1 da página de bases). Derivado do nome por enquanto —
 // quando surgir Secretaria de Saúde, SENAI etc., é só adicionar aqui (ou virar campo).
+// Órgãos novos seguem o padrão de nome "{Órgão} - {Região}".
 export function tipoOrgao(name: string): string {
   const n = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   if (n.includes("aluno a bordo")) return "Secretaria de Educação";
   if (n.includes("cidade na mao")) return "Prefeitura";
+  const i = name.indexOf(" - ");
+  if (i > 0) return name.slice(0, i).trim();
   return "Órgão";
+}
+
+// As 5 macrorregiões do Brasil. Cada órgão tem uma "planilha" (base) por região.
+export const REGIOES_BRASIL = ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"] as const;
+export type Regiao = (typeof REGIOES_BRASIL)[number];
+
+// Normaliza qualquer texto ("Região Nordeste", "nordeste", "CENTRO OESTE") para uma das 5 regiões.
+export function regiaoCanonica(value?: string | null): Regiao | null {
+  const n = (value || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/^\s*regiao\s+/, "")
+    .trim();
+  if (!n) return null;
+  if (n.includes("nordeste")) return "Nordeste";
+  if (n.includes("sudeste")) return "Sudeste";
+  if (n.includes("centro") && n.includes("oeste")) return "Centro-Oeste";
+  if (n.includes("norte")) return "Norte";
+  if (n.includes("sul")) return "Sul";
+  return null;
 }
