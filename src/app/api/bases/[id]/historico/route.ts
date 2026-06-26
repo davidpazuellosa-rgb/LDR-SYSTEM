@@ -41,5 +41,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     };
   });
 
-  return NextResponse.json({ itens });
+  // no-store: o histórico muda a cada edição; o navegador não pode servir versão antiga.
+  return NextResponse.json({ itens }, { headers: { "Cache-Control": "no-store" } });
 }

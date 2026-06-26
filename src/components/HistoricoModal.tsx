@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import { useToast } from "@/components/Toast";
@@ -35,25 +35,27 @@ export default function HistoricoModal({
   const [error, setError] = useState<string | null>(null);
   const [reverting, setReverting] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch(apiPath(`/api/bases/${baseId}/historico`));
-        const data = await res.json().catch(() => ({}));
-        if (!alive) return;
-        if (!res.ok) setError(data.error || "Não foi possível carregar o histórico.");
-        else setItens(data.itens || []);
-      } catch (e) {
-        if (alive) setError((e as Error).message);
-      } finally {
-        if (alive) setLoading(false);
+  // Sempre busca FRESCO (no-store): o histórico é uma janela deslizante das últimas 7
+  // e muda a cada edição. Rebuscamos ao abrir e depois de reverter (para repor o 7º).
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}/historico`), { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data.error || "Não foi possível carregar o histórico.");
+      else {
+        setError(null);
+        setItens(data.itens || []);
       }
-    })();
-    return () => {
-      alive = false;
-    };
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [baseId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function reverter(eventoId: string) {
     setReverting(eventoId);
@@ -69,8 +71,9 @@ export default function HistoricoModal({
         return;
       }
       toast.success("Alteração revertida.", "O valor anterior foi restaurado.");
-      setItens((prev) => prev.filter((it) => it.eventoId !== eventoId));
       if (data.restored && onReverted) onReverted(data.restored.contactId, data.restored.data);
+      // Rebusca: tira a revertida e repõe a próxima mais antiga (mantém a janela de 7).
+      await load();
     } catch (e) {
       toast.error("Não foi possível reverter.", (e as Error).message);
     } finally {
