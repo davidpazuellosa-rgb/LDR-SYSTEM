@@ -60,7 +60,7 @@ export default async function BaseDetailPage({
   const backHref = regiao ? `/bases?tipo=${encodeURIComponent(tipoOrgao(base.name))}` : "/bases";
 
   return (
-    <>
+    <div className="flex h-full flex-col">
       <PageHeader
         title={regiao ? `${base.name} · ${regiao}` : base.name}
         action={
@@ -75,7 +75,7 @@ export default async function BaseDetailPage({
           </Link>
         }
       />
-      <div className="flex h-full flex-col px-8 pt-8 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col px-8 pb-3 pt-2">
         <ContactsTable
           baseId={base.id}
           initialContacts={contacts}
@@ -88,6 +88,6 @@ export default async function BaseDetailPage({
           canEditHeaders={isAdmin(role)}
         />
       </div>
-    </>
+    </div>
   );
 }
