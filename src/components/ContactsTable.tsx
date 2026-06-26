@@ -2001,14 +2001,15 @@ async function saveCell(id: string, key: string, value: string) {
                         <div
                           data-grid-cell={`${rowIndex}:${colIndex}`}
                           style={{
-                            minWidth: col.width,
+                            width: col.width,
+                            maxWidth: col.width,
                             fontWeight: f.b ? 700 : undefined,
                             fontStyle: f.i ? "italic" : undefined,
                             textDecoration: f.s ? "line-through" : undefined,
                             color: f.color || undefined,
                             textAlign: f.align || undefined,
                           }}
-                          className={`w-full select-none overflow-hidden text-ellipsis whitespace-nowrap rounded border border-transparent px-2 ${padY} ${
+                          className={`select-none whitespace-normal break-words rounded border border-transparent px-2 ${padY} ${
                             !f.color && col.key === "telefonePrefeitura" && c.status === STATUS_INCORRETO
                               ? "text-amber-700"
                               : "text-slate-700"
