@@ -11,7 +11,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: file:./ci.db
+      # O schema é PostgreSQL. Lint/typecheck/testes(unitários)/build NÃO conectam no
+      # banco, então uma URL postgres "dummy" basta para o prisma generate (postinstall).
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
       AUTH_SECRET: ci-secret-not-used-in-production
       HUBSPOT_TOKEN: ""
       GROQ_API_KEY: ""
@@ -28,9 +31,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Prepare database
-        run: npm run db:push
 
       - name: Lint
         run: npm run lint
