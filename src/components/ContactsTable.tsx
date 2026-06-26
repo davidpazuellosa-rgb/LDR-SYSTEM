@@ -2076,26 +2076,26 @@ async function saveCell(id: string, key: string, value: string) {
         </table>
       </div>
 
-      {/* Abas por estado (UF) — rodapé fino e fixo, estilo Google Sheets */}
+      {/* Abas por estado (UF) — rodapé fixo e destacado, estilo Google Sheets */}
       {estados.length > 0 && (
-        <div className="-mt-2 flex shrink-0 items-center gap-0.5 overflow-x-auto rounded-b-xl border-t border-slate-200 bg-slate-50 px-2 py-0.5">
+        <div className="-mt-2 flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-b-xl border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-2px_6px_rgba(15,23,42,0.05)]">
           <button
             onClick={() => setTab(ALL)}
-            className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-              tab === ALL ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-700"
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+              tab === ALL ? "bg-indigo-100 text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             }`}
           >
-            Todas <span className="text-[11px] text-slate-400">({filteredTotal})</span>
+            Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
           </button>
           {estados.map(([uf, n]) => (
             <button
               key={uf}
               onClick={() => setTab(uf)}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                tab === uf ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-700"
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                tab === uf ? "bg-indigo-100 text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               }`}
             >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-[11px] text-slate-400">({n})</span>
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
             </button>
           ))}
         </div>
