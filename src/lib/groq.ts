@@ -292,28 +292,32 @@ function groqKeys(): string[] {
 
 // As 4 frentes de busca: cada uma é uma ESTRATÉGIA diferente de achar contato,
 // e nenhuma pode devolver o número atual (que está incorreto).
-type ScanFocus = { foco: string; instrucao: string; tipo: string };
+type ScanFocus = { foco: string; curto: string; instrucao: string; tipo: string };
 const SCAN_FOCI: ScanFocus[] = [
   {
     foco: "Telefones oficiais da prefeitura/órgão",
+    curto: "prefeitura",
     instrucao:
       "Procure telefones oficiais da prefeitura/órgão em fontes variadas (site oficial, página de contato, portal da transparência, diário oficial, câmara municipal). Devem ser DIFERENTES do telefone atual conhecido — ele está INCORRETO.",
     tipo: "geral",
   },
   {
     foco: "Ouvidoria",
+    curto: "ouvidoria",
     instrucao:
       "Procure contatos da OUVIDORIA da cidade/órgão (ouvidoria municipal, SIC — Serviço de Informação ao Cidadão, atendimento ao cidadão).",
     tipo: "ouvidoria",
   },
   {
     foco: "Pessoas da gestão",
+    curto: "gestão",
     instrucao:
       "Procure contatos de PESSOAS ligadas à gestão da cidade/órgão: prefeito(a), vice, secretários(as), chefe de gabinete, diretores ou servidores que trabalham no órgão, com telefone público.",
     tipo: "pessoa",
   },
   {
     foco: "Varredura geral",
+    curto: "geral",
     instrucao:
       "Faça uma varredura GERAL por qualquer contato público possível: redes sociais (Instagram, Facebook), Wikipédia, notícias, listas e qualquer página pública relacionada à cidade/órgão.",
     tipo: "outro",
@@ -408,11 +412,18 @@ export async function scanOrgContacts(org: OrgInput): Promise<ScanResult> {
   });
 
   const contatos = await validateScannedContacts(unicos, org);
-  return {
-    ok: true,
-    contatos,
-    resumo: contatos.length
-      ? `${contatos.length} contato(s) em ${SCAN_FOCI.length} frentes (prefeitura, ouvidoria, gestão e busca geral).`
-      : "Nenhum contato retornado.",
-  };
+
+  // Diagnóstico por frente: quantos cada uma trouxe (ou se deu erro), e quantos foram
+  // removidos por repetição/número atual/validação — pra saber se "veio pouco" é porque
+  // não achou ou porque o filtro juntou/descartou.
+  const partes = SCAN_FOCI.map((f, i) => {
+    const s = settled[i];
+    return s.status === "rejected" ? `${f.curto}: erro` : `${f.curto} ${s.value.length}`;
+  });
+  const removidos = encontrados.length - contatos.length;
+  const resumo = `${contatos.length} contato(s) · ${partes.join(" · ")}${
+    removidos > 0 ? ` · ${removidos} repetido(s)/inválido(s)` : ""
+  }`;
+
+  return { ok: true, contatos, resumo };
 }

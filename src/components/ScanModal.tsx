@@ -229,6 +229,7 @@ export default function ScanModal({
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                     {contatos.length} resultado(s) encontrado(s)
                   </p>
+                  {scan?.resumo && <p className="text-xs text-slate-400">Frentes — {scan.resumo}</p>}
                   {[...contatos]
                     .sort((a, b) => (KIND_ORDER[phoneKind(a)] ?? 9) - (KIND_ORDER[phoneKind(b)] ?? 9))
                     .map((contact, index) => {
