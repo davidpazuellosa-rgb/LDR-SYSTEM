@@ -1592,36 +1592,7 @@ async function saveCell(id: string, key: string, value: string) {
         </div>
       </div>
 
-      {/* 2) Paginação por estado (UF) */}
-      {estados.length > 0 && (
-        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-2">
-          <button
-            onClick={() => setTab(ALL)}
-            className={`rounded-t-lg px-3 py-2 text-sm font-medium transition ${
-              tab === ALL
-                ? "border-b-2 border-indigo-600 text-indigo-700"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
-          </button>
-          {estados.map(([uf, n]) => (
-            <button
-              key={uf}
-              onClick={() => setTab(uf)}
-              className={`rounded-t-lg px-3 py-2 text-sm font-medium transition ${
-                tab === uf
-                  ? "border-b-2 border-indigo-600 text-indigo-700"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 3) Barra de funcionalidades da planilha (estilo Google Sheets) */}
+      {/* 2) Barra de funcionalidades da planilha (estilo Google Sheets) */}
       <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
         {/* Buscar na planilha */}
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
@@ -2098,6 +2069,35 @@ async function saveCell(id: string, key: string, value: string) {
           </tbody>
         </table>
       </div>
+
+      {/* Abas por estado (UF) — no rodapé, estilo Google Sheets/Excel */}
+      {estados.length > 0 && (
+        <div className="flex shrink-0 gap-1 overflow-x-auto border-t border-slate-200 px-2 pt-1">
+          <button
+            onClick={() => setTab(ALL)}
+            className={`rounded-b-lg px-3 py-2 text-sm font-medium transition ${
+              tab === ALL
+                ? "border-t-2 border-indigo-600 text-indigo-700"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
+          </button>
+          {estados.map(([uf, n]) => (
+            <button
+              key={uf}
+              onClick={() => setTab(uf)}
+              className={`rounded-b-lg px-3 py-2 text-sm font-medium transition ${
+                tab === uf
+                  ? "border-t-2 border-indigo-600 text-indigo-700"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Menu de contexto (botão direito) */}
       {menu && (
