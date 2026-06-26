@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/permissions";
 import { ufSigla } from "@/lib/uf";
-import { tipoOrgao } from "@/lib/completude";
+import { tipoOrgao, isComplete } from "@/lib/completude";
+import { STATUS_INCORRETO, STATUS_ATUALIZADO } from "@/lib/status";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import {
@@ -40,6 +41,18 @@ function pct(feito: number, alvo: number) {
   return Math.min(100, Math.round((feito / alvo) * 100));
 }
 
+function Delta({ cur, prev }: { cur: number; prev: number | null }) {
+  if (prev === null) return <span className="text-xs text-slate-400">sem comparativo</span>;
+  if (prev === 0) return <span className="text-xs text-slate-400">{cur > 0 ? "novo no período" : "—"}</span>;
+  const d = Math.round(((cur - prev) / prev) * 100);
+  const up = d >= 0;
+  return (
+    <span className={`text-xs font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
+      {up ? "▲" : "▼"} {Math.abs(d)}% <span className="font-normal text-slate-400">vs. período anterior</span>
+    </span>
+  );
+}
+
 export default async function RelatoriosPage({
   searchParams,
 }: {
@@ -63,15 +76,23 @@ export default async function RelatoriosPage({
   const s14 = startOfDay(now);
   s14.setDate(s14.getDate() - 13);
 
-  const [ldrs, metas, contacts, fillRows, corrRows] = await Promise.all([
+  const [ldrs, metas, contacts, fillRows, corrRows, pendRows] = await Promise.all([
     prisma.user.findMany({ where: { role: "ldr" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.meta.findMany() as Promise<Meta[]>,
-    prisma.contact.findMany({ where: { deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } }),
+    prisma.contact.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true, baseId: true, regiao: true, estado: true, status: true,
+        cidade: true, telefonePrefeitura: true, emailInstitucional: true,
+        nomePrefeito: true, whatsapp: true, siteOficial: true,
+      },
+    }),
     prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction.findMany({
       where: { status: "resolved", resolvedAt: { not: null } },
       select: { resolvedById: true, resolvedAt: true, contact: { select: { campanha: true } } },
     }),
+    prisma.correction.findMany({ where: { status: "pending" }, select: { createdAt: true } }),
   ]);
 
   const nomeDe = (id: string) => {
@@ -146,6 +167,65 @@ export default async function RelatoriosPage({
     atrasado: metasView.filter((m) => m.status === "atrasado").length,
   };
 
+  // ---- KPIs de FLUXO com variação vs período anterior (mesma duração decorrida) ----
+  const elapsed = now.getTime() - start.getTime();
+  const prevStart =
+    periodo === "semana"
+      ? new Date(start.getTime() - 7 * 86400000)
+      : periodo === "mes"
+        ? startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+        : null;
+  const prevEnd = prevStart ? new Date(prevStart.getTime() + elapsed) : null;
+
+  const naJanela = (d: Date | null, a: Date, b: Date) => !!d && d >= a && d < b;
+  const corrCur = corrRows.filter((c) => naJanela(c.resolvedAt, start, new Date(now.getTime() + 1))).length;
+  const fillCur = fillRows.filter((f) => naJanela(f.concluidoEm, start, new Date(now.getTime() + 1))).length;
+  const corrPrev = prevStart && prevEnd ? corrRows.filter((c) => naJanela(c.resolvedAt, prevStart, prevEnd)).length : null;
+  const fillPrev = prevStart && prevEnd ? fillRows.filter((f) => naJanela(f.concluidoEm, prevStart, prevEnd)).length : null;
+  const [novosCur, novosPrev] = await Promise.all([
+    prisma.contact.count({ where: { deletedAt: null, createdAt: { gte: start, lte: now } } }),
+    prevStart && prevEnd
+      ? prisma.contact.count({ where: { deletedAt: null, createdAt: { gte: prevStart, lt: prevEnd } } })
+      : Promise.resolve(null),
+  ]);
+
+  const kpis = [
+    { label: "Telefones corrigidos", value: corrCur, prev: corrPrev },
+    { label: "Prefeituras preenchidas", value: fillCur, prev: fillPrev },
+    { label: "Contatos novos", value: novosCur, prev: novosPrev },
+  ];
+
+  // ---- Funil de saneamento ----
+  const temTelefone = contacts.filter((c) => (c.telefonePrefeitura || "").trim()).length;
+  const nIncorreto = contacts.filter((c) => c.status === STATUS_INCORRETO).length;
+  const nAtualizado = contacts.filter((c) => c.status === STATUS_ATUALIZADO).length;
+  const funil = [
+    { label: "Total de contatos", value: contacts.length, cor: "bg-slate-400" },
+    { label: "Com telefone", value: temTelefone, cor: "bg-sky-500" },
+    { label: "Sinalizados pelo CRM", value: nIncorreto + nAtualizado, cor: "bg-amber-500" },
+    { label: "Já atualizados", value: nAtualizado, cor: "bg-emerald-500" },
+  ];
+  const funilMax = Math.max(1, contacts.length);
+
+  // ---- Completude por base (% de linhas com a régua completa) ----
+  const completudePorBase = bases
+    .map((b) => {
+      const doBase = contacts.filter((c) => c.baseId === b.id);
+      const completos = doBase.filter((c) => isComplete(c as Parameters<typeof isComplete>[0])).length;
+      return { id: b.id, nome: b.name, total: doBase.length, completos, p: doBase.length ? Math.round((completos / doBase.length) * 100) : 0 };
+    })
+    .filter((b) => b.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // ---- Backlog da fila de correção (por idade) ----
+  const ageDays = (d: Date) => (now.getTime() - new Date(d).getTime()) / 86400000;
+  const backlog = {
+    total: pendRows.length,
+    novos: pendRows.filter((p) => ageDays(p.createdAt) <= 7).length,
+    medios: pendRows.filter((p) => ageDays(p.createdAt) > 7 && ageDays(p.createdAt) <= 30).length,
+    antigos: pendRows.filter((p) => ageDays(p.createdAt) > 30).length,
+  };
+
   // Pontos do gráfico de linha (área) em viewBox 100x100.
   const W = 100;
   const H = 100;
@@ -182,6 +262,17 @@ export default async function RelatoriosPage({
           <PeriodoTab value="tudo" label="Tudo" />
           <span className="ml-2 text-xs text-slate-400">Produtividade considera {PERIODO_LABEL[periodo]}; metas usam o prazo de cada meta.</span>
         </div>
+
+        {/* KPIs de fluxo com variação vs período anterior */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {kpis.map((k) => (
+            <div key={k.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-3xl font-bold text-slate-800">{k.value.toLocaleString("pt-BR")}</div>
+              <div className="mt-1 text-sm text-slate-600">{k.label}</div>
+              <div className="mt-1"><Delta cur={k.value} prev={k.prev} /></div>
+            </div>
+          ))}
+        </section>
 
         {/* Semáforo de metas (resumo) */}
         <section className="grid grid-cols-3 gap-4">
@@ -279,6 +370,76 @@ export default async function RelatoriosPage({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* Funil de saneamento + Backlog */}
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-1 font-semibold text-slate-800">Funil de saneamento</h2>
+            <p className="mb-4 text-xs text-slate-400">Onde os contatos estão no fluxo (toda a base)</p>
+            <div className="space-y-3">
+              {funil.map((f) => (
+                <div key={f.label}>
+                  <div className="mb-1 flex items-baseline justify-between text-sm">
+                    <span className="text-slate-600">{f.label}</span>
+                    <span className="font-semibold text-slate-700">{f.value.toLocaleString("pt-BR")}</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${f.cor}`} style={{ width: `${Math.max(2, (f.value / funilMax) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-1 font-semibold text-slate-800">Backlog da fila de correção</h2>
+            <p className="mb-4 text-xs text-slate-400">Pendências por idade</p>
+            <div className="mb-4">
+              <span className="text-3xl font-bold text-slate-800">{backlog.total.toLocaleString("pt-BR")}</span>
+              <span className="ml-2 text-sm text-slate-400">pendentes no total</span>
+            </div>
+            <div className="space-y-3">
+              {([
+                { label: "Até 7 dias", value: backlog.novos, cor: "bg-emerald-500" },
+                { label: "8 a 30 dias", value: backlog.medios, cor: "bg-amber-500" },
+                { label: "Mais de 30 dias", value: backlog.antigos, cor: "bg-red-500" },
+              ] as const).map((b) => (
+                <div key={b.label}>
+                  <div className="mb-1 flex items-baseline justify-between text-sm">
+                    <span className="text-slate-600">{b.label}</span>
+                    <span className="font-semibold text-slate-700">{b.value.toLocaleString("pt-BR")}</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${b.cor}`} style={{ width: `${Math.max(2, (b.value / Math.max(1, backlog.total)) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Completude por base */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 font-semibold text-slate-800">Completude por base</h2>
+          <p className="mb-4 text-xs text-slate-400">% de prefeituras com todos os campos da régua preenchidos</p>
+          {completudePorBase.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400">Nenhuma base com contatos.</p>
+          ) : (
+            <div className="space-y-3">
+              {completudePorBase.map((b) => (
+                <div key={b.id}>
+                  <div className="mb-1 flex items-baseline justify-between text-sm">
+                    <span className="min-w-0 truncate text-slate-700">{b.nome}</span>
+                    <span className="shrink-0 text-slate-500">{b.completos.toLocaleString("pt-BR")} / {b.total.toLocaleString("pt-BR")} ({b.p}%)</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${b.p >= 80 ? "bg-emerald-500" : b.p >= 40 ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${Math.max(2, b.p)}%` }} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
