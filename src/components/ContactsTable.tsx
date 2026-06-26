@@ -241,6 +241,21 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+  // Zoom da grade (escala do conteúdo) — guardado no navegador. Default 70%.
+  const [zoom, setZoom] = useState(0.7);
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("gridzoom"));
+    if (saved > 0) setZoom(saved);
+  }, []);
+  function changeZoom(v: number) {
+    setZoom(v);
+    try {
+      localStorage.setItem("gridzoom", String(v));
+    } catch {
+      // localStorage indisponível — ignora
+    }
+  }
+
   // Largura das colunas — ajustável (arrastar a borda / duplo-clique p/ ajustar)
   // e guardada por base no navegador (localStorage), sem mexer no banco.
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
@@ -1720,6 +1735,21 @@ async function saveCell(id: string, key: string, value: string) {
           <option value="ampla">Ampla</option>
         </select>
 
+        {/* Zoom da planilha */}
+        <select
+          value={zoom}
+          onChange={(e) => changeZoom(Number(e.target.value))}
+          title="Zoom da planilha"
+          className="h-9 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-600 outline-none hover:bg-slate-50"
+        >
+          <option value={0.5}>Zoom 50%</option>
+          <option value={0.6}>Zoom 60%</option>
+          <option value={0.7}>Zoom 70%</option>
+          <option value={0.85}>Zoom 85%</option>
+          <option value={1}>Zoom 100%</option>
+          <option value={1.2}>Zoom 120%</option>
+        </select>
+
         <ToolDivider />
 
         {/* Σ contador da seleção */}
@@ -1803,7 +1833,7 @@ async function saveCell(id: string, key: string, value: string) {
         className="min-h-0 flex-1 overflow-auto rounded-2xl bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300"
       >
         <table
-          style={{ zoom: 0.7 }}
+          style={{ zoom }}
           className="text-sm [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-300"
         >
           <thead className="sticky top-0 z-30">
@@ -2077,30 +2107,26 @@ async function saveCell(id: string, key: string, value: string) {
         </table>
       </div>
 
-      {/* Abas por estado (UF) — no rodapé, estilo Google Sheets/Excel */}
+      {/* Abas por estado (UF) — rodapé fino e fixo, estilo Google Sheets */}
       {estados.length > 0 && (
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-t border-slate-200 px-2 pt-1">
+        <div className="-mt-2 flex shrink-0 items-center gap-0.5 overflow-x-auto rounded-b-xl border-t border-slate-200 bg-slate-50 px-2 py-0.5">
           <button
             onClick={() => setTab(ALL)}
-            className={`rounded-b-lg px-3 py-2 text-sm font-medium transition ${
-              tab === ALL
-                ? "border-t-2 border-indigo-600 text-indigo-700"
-                : "text-slate-500 hover:text-slate-700"
+            className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+              tab === ALL ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-700"
             }`}
           >
-            Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
+            Todas <span className="text-[11px] text-slate-400">({filteredTotal})</span>
           </button>
           {estados.map(([uf, n]) => (
             <button
               key={uf}
               onClick={() => setTab(uf)}
-              className={`rounded-b-lg px-3 py-2 text-sm font-medium transition ${
-                tab === uf
-                  ? "border-t-2 border-indigo-600 text-indigo-700"
-                  : "text-slate-500 hover:text-slate-700"
+              className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                tab === uf ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-700"
               }`}
             >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-[11px] text-slate-400">({n})</span>
             </button>
           ))}
         </div>
