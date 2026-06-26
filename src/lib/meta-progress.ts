@@ -30,7 +30,19 @@ export function startOfWeek(d: Date) {
 export function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
-export const periodStart = (prazo: string, now: Date) => (prazo === "mensal" ? startOfMonth(now) : startOfWeek(now));
+export const periodStart = (prazo: string, now: Date) =>
+  prazo === "mensal" ? startOfMonth(now) : prazo === "diaria" ? startOfDay(now) : startOfWeek(now);
+
+// Fim (exclusivo) do período atual da meta — usado para "ritmo esperado" e janelas.
+export function periodEnd(prazo: string, now: Date): Date {
+  if (prazo === "mensal") return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  if (prazo === "diaria") {
+    const d = startOfDay(now);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+  return new Date(startOfWeek(now).getTime() + 7 * 86400000);
+}
 
 export const regiaoKey = (regiao: string | null) => (regiao && regiao.trim()) || "Sem região";
 

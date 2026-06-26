@@ -55,7 +55,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 regiao: m.regiao || "",
                 estado: m.estado || "",
                 baseId: m.baseId || "",
-                prazo: m.prazo === "mensal" ? "mensal" : "semanal",
+                prazo: m.prazo === "mensal" ? "mensal" : m.prazo === "diaria" ? "diaria" : "semanal",
                 alvo: String(m.alvo ?? 0),
               }))
           );
@@ -64,7 +64,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
               .filter((m) => m.tipo === "correcao")
               .map((m) => ({
                 campanha: m.campanha || "",
-                prazo: m.prazo === "mensal" ? "mensal" : "semanal",
+                prazo: m.prazo === "mensal" ? "mensal" : m.prazo === "diaria" ? "diaria" : "semanal",
                 alvo: String(m.alvo ?? 0),
               }))
           );
@@ -199,6 +199,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                         )}
                       </select>
                       <select value={r.prazo} onChange={(e) => updFill(i, { prazo: e.target.value })} className={selCls}>
+                        <option value="diaria">Diária</option>
                         <option value="semanal">Semanal</option>
                         <option value="mensal">Mensal</option>
                       </select>
@@ -235,6 +236,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                         ))}
                       </select>
                       <select value={r.prazo} onChange={(e) => updCorr(i, { prazo: e.target.value })} className={selCls}>
+                        <option value="diaria">Diária</option>
                         <option value="semanal">Semanal</option>
                         <option value="mensal">Mensal</option>
                       </select>

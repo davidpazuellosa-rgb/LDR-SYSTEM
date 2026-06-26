@@ -6,6 +6,7 @@ import { ufSigla } from "@/lib/uf";
 import {
   metaFeito,
   periodStart,
+  periodEnd,
   startOfDay,
   startOfMonth,
   startOfWeek,
@@ -191,7 +192,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
       const feito = metaFeito(m, now, fillsTerr, corrections);
       const p = pct(feito, m.alvo);
       const ini = periodStart(m.prazo, now);
-      const fim = m.prazo === "mensal" ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(ini.getTime() + 7 * 86400000);
+      const fim = periodEnd(m.prazo, now);
       const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
       const esperado = Math.round(m.alvo * decorrido);
       const status: StatusMeta = p >= 100 ? "ok" : feito >= esperado ? "ok" : feito >= esperado * 0.6 ? "risco" : "atrasado";

@@ -20,7 +20,7 @@ export function sanitizeMetas(rawRows: unknown, userId: string): MetaInput[] {
     .map((r) => (r ?? {}) as Record<string, unknown>)
     .map((r): MetaInput => {
       const tipo = r.tipo === "correcao" ? "correcao" : "preenchimento";
-      const prazo = r.prazo === "mensal" ? "mensal" : "semanal";
+      const prazo = r.prazo === "mensal" ? "mensal" : r.prazo === "diaria" ? "diaria" : "semanal";
       const alvo = Math.max(0, Math.min(1_000_000, Math.trunc(Number(r.alvo) || 0)));
       if (tipo === "correcao") {
         return { userId, tipo, baseId: null, regiao: null, estado: null, campanha: str(r.campanha), prazo, alvo };

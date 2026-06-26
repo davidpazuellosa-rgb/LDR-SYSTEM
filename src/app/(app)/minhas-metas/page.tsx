@@ -14,7 +14,7 @@ const STATUS = {
   atrasado: { label: "Atrasado", chip: "bg-rose-50 text-rose-600", bar: "bg-rose-500" },
 } as const;
 
-const prazoLabel = (p: string) => (p === "mensal" ? "este mês" : "esta semana");
+const prazoLabel = (p: string) => (p === "mensal" ? "este mês" : p === "diaria" ? "hoje" : "esta semana");
 
 function Bullet({ a }: { a: Awaited<ReturnType<typeof buildMinhasMetas>>["ativas"][number] }) {
   const s = STATUS[a.status];

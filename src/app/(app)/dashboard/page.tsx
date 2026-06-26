@@ -18,7 +18,7 @@ function fmtDateTime(value: Date | null) {
   if (!value) return "";
   return new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
-const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : "esta semana");
+const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : prazo === "diaria" ? "hoje" : "esta semana");
 
 async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] }> {
   await ensureContactFillTable();
