@@ -1939,10 +1939,10 @@ async function saveCell(id: string, key: string, value: string) {
                     return (
                     <td
                       key={col.key}
-                      className={`px-1 ${padY} ${
+                      className={`relative px-1 ${padY} ${
                         selectedCell
                           ? isActiveCell
-                            ? "bg-indigo-50 ring-2 ring-inset ring-indigo-500"
+                            ? "bg-indigo-50 ring-[3px] ring-inset ring-indigo-500"
                             : "bg-indigo-50 ring-1 ring-inset ring-indigo-300"
                           : ""
                       } ${frozen && colIndex === 0 ? "sticky z-10" : ""}`}
@@ -2070,6 +2070,18 @@ async function saveCell(id: string, key: string, value: string) {
                         >
                           {value || " "}
                         </div>
+                      )}
+                      {isActiveCell && !editing && (
+                        <span
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsDragging(true);
+                            gridRef.current?.focus();
+                          }}
+                          title="Arraste para selecionar mais células"
+                          className="absolute -bottom-[3px] -right-[3px] z-20 h-2.5 w-2.5 cursor-crosshair rounded-full border-2 border-white bg-indigo-600"
+                        />
                       )}
                     </td>
                     );
