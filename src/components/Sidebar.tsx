@@ -99,7 +99,7 @@ export default function Sidebar({
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
-    { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: badges.pending },
+    { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
