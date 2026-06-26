@@ -161,12 +161,12 @@ export default function Sidebar({
                   <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] bg-indigo-400" />
                 )}
                 {collapsed && item.dot && (
-                  <span className={`absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] ${item.dot} ${item.pulse ? "animate-pulse" : ""}`} />
+                  <span className={`absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] ${item.pulse ? "meta-nova-pulse" : item.dot}`} />
                 )}
               </span>
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && item.pulse && <span className="text-[10px] font-semibold text-indigo-300">nova</span>}
-              {!collapsed && item.dot && <span className={`h-2 w-2 shrink-0 rounded-full ${item.dot} ${item.pulse ? "animate-pulse ring-2 ring-indigo-400/40" : ""}`} />}
+              {!collapsed && item.pulse && <span className="text-[10px] font-semibold text-emerald-300">nova</span>}
+              {!collapsed && item.dot && <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.pulse ? "meta-nova-pulse" : item.dot}`} />}
               {!collapsed && item.badge > 0 && (
                 <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-indigo-500 px-1.5 text-[11px] font-semibold text-white">
                   {item.badge > 99 ? "99+" : item.badge}
