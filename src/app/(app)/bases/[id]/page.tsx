@@ -67,17 +67,7 @@ export default async function BaseDetailPage({
       <PageHeader
         title={regiao ? `${base.name} · ${regiao}` : base.name}
         action={
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              {concluidos.toLocaleString("pt-BR")} concluídos
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              {aPreencher.toLocaleString("pt-BR")} a preencher
-            </span>
+          <div className="flex items-center">
             <Link
               href={backHref}
               className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
@@ -87,6 +77,18 @@ export default async function BaseDetailPage({
               </svg>
               Voltar
             </Link>
+            <div className="ml-6 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {concluidos.toLocaleString("pt-BR")} concluídos
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                {aPreencher.toLocaleString("pt-BR")} a preencher
+              </span>
+            </div>
           </div>
         }
       />
