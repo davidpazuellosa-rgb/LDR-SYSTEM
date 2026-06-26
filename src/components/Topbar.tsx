@@ -136,14 +136,15 @@ export default function Topbar({
         <form action={logout}>
           <button
             type="submit"
-            aria-label="Sair"
-            title="Sair"
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+            aria-label="Sair e trocar de conta"
+            title="Sair e entrar com outra conta do LDR"
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M15 12H4m0 0 4-4m-4 4 4 4" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+            <span className="hidden sm:inline">Trocar de conta</span>
           </button>
         </form>
       </div>
