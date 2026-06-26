@@ -1864,7 +1864,7 @@ async function saveCell(id: string, key: string, value: string) {
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
                     title={`Selecionar coluna ${colLetter(i)}`}
                     className={`relative cursor-pointer px-1 py-1 ${
-                      activeCol ? "bg-emerald-800 text-white" : "bg-emerald-700 text-white hover:bg-emerald-800"
+                      activeCol ? "bg-emerald-300 text-emerald-900" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ width: colW(col), minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
@@ -1939,7 +1939,7 @@ async function saveCell(id: string, key: string, value: string) {
               visible.map((c, rowIndex) => {
                 const rowActive = !!selBounds && rowIndex >= selBounds.startRow && rowIndex <= selBounds.endRow;
                 return (
-                <tr key={c.id} className={`${rowIndex % 2 === 1 ? "bg-sky-50/70" : "bg-white"} hover:bg-slate-50`}>
+                <tr key={c.id} className={rowIndex % 2 === 1 ? "bg-sky-50/70" : "bg-white"}>
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
                     onMouseDown={(e) => {
@@ -1950,7 +1950,7 @@ async function saveCell(id: string, key: string, value: string) {
                     title="Selecionar linha inteira"
                     className={`sticky left-0 z-10 w-12 min-w-[3rem] cursor-pointer select-none border-r border-slate-300 px-1 text-center text-xs ${padY} ${
                       rowActive
-                        ? "bg-emerald-800 font-semibold text-white"
+                        ? "bg-emerald-300 font-semibold text-emerald-900"
                         : "bg-emerald-700 text-white hover:bg-emerald-800"
                     }`}
                   >
