@@ -1,8 +1,13 @@
 import { auth } from "@/auth";
+import { isAdmin } from "@/lib/permissions";
 import { buildMinhasMetas } from "@/lib/minhas-metas";
+import { buildRelatorio } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
+import MetasEquipe from "@/components/MetasEquipe";
 
 export const dynamic = "force-dynamic";
+
+type MetasEquipeItem = { id: string; rotulo: string; tipo: string; feito: number; alvo: number; p: number; status: "ok" | "risco" | "atrasado" };
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -38,7 +43,30 @@ function Bullet({ a }: { a: Awaited<ReturnType<typeof buildMinhasMetas>>["ativas
 
 export default async function MinhasMetasPage() {
   const session = await auth();
-  const userId = (session?.user as { id?: string } | undefined)?.id || "";
+  const u = (session?.user || {}) as { id?: string; role?: string };
+
+  // Admin: "Metas da Equipe" — vê e cria as metas de todos os LDRs.
+  if (isAdmin(u.role)) {
+    const r = await buildRelatorio({ periodo: "semana" });
+    const byUser = new Map<string, MetasEquipeItem[]>();
+    for (const m of r.metasView) {
+      const arr = byUser.get(m.userId) || [];
+      arr.push({ id: m.id, rotulo: m.rotulo, tipo: m.tipo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status });
+      byUser.set(m.userId, arr);
+    }
+    const ldrs = r.ldrs.map((x) => ({ id: x.id, nome: x.name || x.email, metas: byUser.get(x.id) || [] }));
+    return (
+      <>
+        <PageHeader title="Metas da Equipe" />
+        <main className="mx-auto max-w-[1100px] p-6">
+          <MetasEquipe ldrs={ldrs} />
+        </main>
+      </>
+    );
+  }
+
+  // LDR: "Minhas Metas" — as próprias metas.
+  const userId = u.id || "";
   const { ativas, historico, conquistas } = await buildMinhasMetas(userId);
 
   const fill = ativas.filter((a) => a.tipo !== "correcao");

@@ -112,7 +112,7 @@ export default function Sidebar({
 
   const nav: { href: string; label: string; icon: string; badge: number; dot?: string; pulse?: boolean }[] = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
-    { href: "/minhas-metas", label: "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (badges.metaNova ? "bg-indigo-400" : ""), pulse: badges.metaNova },
+    { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (badges.metaNova ? "bg-indigo-400" : ""), pulse: badges.metaNova },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
