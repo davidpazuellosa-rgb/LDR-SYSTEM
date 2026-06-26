@@ -1913,10 +1913,10 @@ async function saveCell(id: string, key: string, value: string) {
                             e.currentTarget.blur();
                           }
                         }}
-                        className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs font-medium uppercase text-slate-500 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                        className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
                       />
                     ) : (
-                      <span className="block w-full px-1 py-1 text-xs font-medium uppercase text-slate-500" title={label}>
+                      <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={label}>
                         {label}
                       </span>
                     )}
