@@ -2137,16 +2137,16 @@ async function saveCell(id: string, key: string, value: string) {
           pouco mais alta e com borda (presa à planilha); as demais ficam cinzas
           e recuadas, separadas por tracinhos. */}
       {estados.length > 0 && (
-        <div className="-mt-2 flex shrink-0 items-end overflow-x-auto rounded-b-xl border-t border-slate-300 bg-slate-100 px-2 shadow-[0_-2px_6px_rgba(15,23,42,0.05)]">
+        <div className="-mt-2 flex shrink-0 items-end overflow-x-auto rounded-b-xl border-t border-slate-400/70 bg-slate-300 px-2 shadow-[0_-2px_8px_rgba(15,23,42,0.10)]">
           <button
             onClick={() => setTab(ALL)}
             className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
               tab === ALL
-                ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
-                : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
+                ? "rounded-b-md border border-t-0 border-slate-400 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800 shadow-sm"
+                : "border-r border-slate-400/60 pb-1.5 pt-1.5 font-medium text-slate-600 hover:bg-white/60 hover:text-slate-900"
             }`}
           >
-            Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
+            Todas <span className="text-xs text-slate-500">({filteredTotal})</span>
           </button>
           {estados.map(([uf, n]) => (
             <button
@@ -2158,7 +2158,7 @@ async function saveCell(id: string, key: string, value: string) {
                   : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
               }`}
             >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({n})</span>
             </button>
           ))}
         </div>
