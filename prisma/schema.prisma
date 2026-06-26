@@ -179,3 +179,19 @@ model BaseEvento {
   @@index([baseId])
   @@index([criadoEm])
 }
+
+// Sugestões de melhoria enviadas pelos usuários (botão flutuante). Só o admin lê,
+// na página "Sugestões de Melhoria". Tabela criada sob demanda (ensureSuggestionTable)
+// — o banco de produção não roda migration por fora.
+model Suggestion {
+  id          String   @id @default(cuid())
+  usuarioId   String?
+  usuarioNome String?
+  texto       String // transcrição e/ou texto digitado
+  audio       String? // nota de voz em data URL base64 (opcional)
+  status      String   @default("nova") // nova | resolvida
+  criadoEm    DateTime @default(now())
+
+  @@index([status])
+  @@index([criadoEm])
+}

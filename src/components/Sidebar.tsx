@@ -62,6 +62,13 @@ function Icon({ name }: { name: string }) {
           <path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 20a5.5 5.5 0 0 0-2.3-4.5" strokeLinecap="round" />
         </svg>
       );
+    case "bulb":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M9 18h6M10 21h4" strokeLinecap="round" />
+          <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2H14.5c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3Z" strokeLinejoin="round" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -87,6 +94,7 @@ export default function Sidebar({
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/hubspot", label: "HubSpot CRM", icon: "link", badge: 0 }] : []),
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
+    ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: 0 }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
   ];
 
