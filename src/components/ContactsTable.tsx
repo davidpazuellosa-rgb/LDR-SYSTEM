@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
-import { STATUS_META, STATUS_OK, STATUS_INCORRETO, STATUS_ATUALIZADO } from "@/lib/status";
+import { STATUS_META, STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -341,7 +341,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
 
   // Filtro por situação do telefone (nomenclatura do CRM).
-  const [phoneFilter, setPhoneFilter] = useState<string>("all");
+  const [phoneFilter] = useState<string>("all");
   const matchesPhone = useCallback(
     (c: Contact) => (phoneFilter === "all" ? true : c.status === phoneFilter),
     [phoneFilter],
@@ -386,16 +386,6 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   );
 
   // Contagem GLOBAL por status (soma de todos os estados da base).
-  const counts = useMemo(() => {
-    const by = (s: string) => contacts.filter((c) => c.status === s).length;
-    return {
-      all: contacts.length,
-      [STATUS_INCORRETO]: by(STATUS_INCORRETO),
-      [STATUS_ATUALIZADO]: by(STATUS_ATUALIZADO),
-      [STATUS_OK]: by(STATUS_OK),
-    } as Record<string, number>;
-  }, [contacts]);
-
   // Chave de associação: muda só quando contatos são adicionados/removidos.
   const membershipKey = useMemo(() => contacts.map((c) => c.id).join("|"), [contacts]);
 
@@ -1553,37 +1543,7 @@ async function saveCell(id: string, key: string, value: string) {
         </div>
       )}
 
-      {/* 1) Filtros de status + ações — ACIMA das abas de estado */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {[
-            { key: "all", label: "Todos", count: counts.all, dot: "bg-slate-400", active: "border-indigo-600 bg-indigo-50 text-indigo-700" },
-            { key: STATUS_INCORRETO, label: STATUS_META[STATUS_INCORRETO].label, count: counts[STATUS_INCORRETO], dot: STATUS_META[STATUS_INCORRETO].dot, active: STATUS_META[STATUS_INCORRETO].active },
-            { key: STATUS_ATUALIZADO, label: STATUS_META[STATUS_ATUALIZADO].label, count: counts[STATUS_ATUALIZADO], dot: STATUS_META[STATUS_ATUALIZADO].dot, active: STATUS_META[STATUS_ATUALIZADO].active },
-            { key: STATUS_OK, label: STATUS_META[STATUS_OK].label, count: counts[STATUS_OK], dot: STATUS_META[STATUS_OK].dot, active: STATUS_META[STATUS_OK].active },
-          ].map((f) => {
-            const active = phoneFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setPhoneFilter(f.key)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                  active ? f.active : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <span className={`h-2 w-2 rounded-full ${f.dot}`} />
-                {f.label}
-                <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/70" : "bg-slate-100"}`}>
-                  {f.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-      </div>
-
-      {/* 2) Barra de funcionalidades da planilha (estilo Google Sheets) */}
+      {/* 1) Barra de funcionalidades da planilha (estilo Google Sheets) */}
       <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
         {/* Buscar na planilha */}
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
