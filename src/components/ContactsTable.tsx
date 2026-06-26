@@ -1560,36 +1560,6 @@ async function saveCell(id: string, key: string, value: string) {
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {canExport && (
-            <a
-              href={apiPath(`/api/bases/${baseId}/export`)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Exportar
-            </a>
-          )}
-          {canImport && (
-            <>
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={importing}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 15V3m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                {importing ? "Importando..." : "Importar"}
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </>
-          )}
-        </div>
       </div>
 
       {/* 2) Barra de funcionalidades da planilha (estilo Google Sheets) */}
@@ -1758,19 +1728,53 @@ async function saveCell(id: string, key: string, value: string) {
           {selectedCount > 0 ? `${selectedCount} célula(s)` : `${visible.length} linha(s)`}
         </span>
 
-        <button
-          type="button"
-          onClick={() => setHistoricoOpen(true)}
-          title="Histórico de alterações desta planilha"
-          aria-label="Histórico de alterações"
-          className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-        >
-          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M3 12a9 9 0 1 0 3-6.7" strokeLinecap="round" />
-            <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        {/* Histórico · Importar · Exportar — ações destacadas à direita */}
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setHistoricoOpen(true)}
+            title="Histórico de alterações desta planilha"
+            aria-label="Histórico de alterações"
+            className="grid h-9 w-9 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 12a9 9 0 1 0 3-6.7" strokeLinecap="round" />
+              <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {canImport && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={importing}
+              title="Importar planilha (CSV/Excel)"
+              aria-label="Importar"
+              className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300 disabled:opacity-60"
+            >
+              <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 15V3m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          )}
+          {canExport && (
+            <a
+              href={apiPath(`/api/bases/${baseId}/export`)}
+              title="Exportar planilha (CSV)"
+              aria-label="Exportar"
+              className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300"
+            >
+              <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </a>
+          )}
+          {canImport && (
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleImport}
+              className="hidden"
+            />
+          )}
+        </div>
       </div>
 
       {historicoOpen && (
