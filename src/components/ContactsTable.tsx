@@ -1939,7 +1939,7 @@ async function saveCell(id: string, key: string, value: string) {
               visible.map((c, rowIndex) => {
                 const rowActive = !!selBounds && rowIndex >= selBounds.startRow && rowIndex <= selBounds.endRow;
                 return (
-                <tr key={c.id} className={`${rowIndex % 2 === 1 ? "bg-emerald-50" : "bg-white"} hover:bg-slate-50`}>
+                <tr key={c.id} className={`${rowIndex % 2 === 1 ? "bg-sky-50/70" : "bg-white"} hover:bg-slate-50`}>
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
                     onMouseDown={(e) => {
