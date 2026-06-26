@@ -1869,9 +1869,7 @@ async function saveCell(id: string, key: string, value: string) {
             </tr>
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white">
-                1
-              </th>
+              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white" />
               {visibleFields.map((col, i) => {
                 const label = headerLabelFor(col.key, col.label);
                 return (
@@ -1939,7 +1937,7 @@ async function saveCell(id: string, key: string, value: string) {
                         : "bg-emerald-700 text-white hover:bg-emerald-800"
                     }`}
                   >
-                    {rowIndex + 2}
+                    {rowIndex + 1}
                   </td>
                   {visibleFields.map((col, colIndex) => {
                     const f = fmtOf(c.id, col.key);
