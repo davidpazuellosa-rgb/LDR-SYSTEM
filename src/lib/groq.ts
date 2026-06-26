@@ -5,6 +5,7 @@ export type ScannedContact = {
   email?: string;
   tipo?: string;
   origem?: string;
+  foco?: string; // frente de busca que encontrou (Gabinete, Ouvidoria, Educação, Saúde…)
   validacao?: {
     status: "ok" | "warning";
     checks: string[];
@@ -276,38 +277,77 @@ function normalizeContacts(value: unknown): ScannedContact[] {
     .filter((item) => hasCompleteBrazilianPhone(item.telefone));
 }
 
-export async function scanOrgContacts(org: OrgInput): Promise<ScanResult> {
-  const token = process.env.GROQ_API_KEY;
-  if (!token) return { ok: false, error: "GROQ_API_KEY não configurada." };
+// Pool de chaves: uma por frente (round-robin). Várias em GROQ_API_KEYS (separadas por
+// vírgula) ou cai na única GROQ_API_KEY. As chaves ficam SÓ em variável de ambiente —
+// nunca no código/repo.
+function groqKeys(): string[] {
+  const multi = (process.env.GROQ_API_KEYS || "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  if (multi.length) return multi;
+  const single = (process.env.GROQ_API_KEY || "").trim();
+  return single ? [single] : [];
+}
 
-  const model = process.env.GROQ_MODEL || "groq/compound-mini";
-  const prompt = `Busque na internet contatos públicos da prefeitura/órgão abaixo.
+// As 4 frentes de busca: cada uma é uma ESTRATÉGIA diferente de achar contato,
+// e nenhuma pode devolver o número atual (que está incorreto).
+type ScanFocus = { foco: string; instrucao: string; tipo: string };
+const SCAN_FOCI: ScanFocus[] = [
+  {
+    foco: "Telefones oficiais da prefeitura/órgão",
+    instrucao:
+      "Procure telefones oficiais da prefeitura/órgão em fontes variadas (site oficial, página de contato, portal da transparência, diário oficial, câmara municipal). Devem ser DIFERENTES do telefone atual conhecido — ele está INCORRETO.",
+    tipo: "geral",
+  },
+  {
+    foco: "Ouvidoria",
+    instrucao:
+      "Procure contatos da OUVIDORIA da cidade/órgão (ouvidoria municipal, SIC — Serviço de Informação ao Cidadão, atendimento ao cidadão).",
+    tipo: "ouvidoria",
+  },
+  {
+    foco: "Pessoas da gestão",
+    instrucao:
+      "Procure contatos de PESSOAS ligadas à gestão da cidade/órgão: prefeito(a), vice, secretários(as), chefe de gabinete, diretores ou servidores que trabalham no órgão, com telefone público.",
+    tipo: "pessoa",
+  },
+  {
+    foco: "Varredura geral",
+    instrucao:
+      "Faça uma varredura GERAL por qualquer contato público possível: redes sociais (Instagram, Facebook), Wikipédia, notícias, listas e qualquer página pública relacionada à cidade/órgão.",
+    tipo: "outro",
+  },
+];
+
+function focusPrompt(org: OrgInput, f: ScanFocus): string {
+  return `Você faz UMA frente de busca de contatos públicos do município/órgão abaixo.
 
 Cidade: ${org.cidade || ""}
 Estado: ${org.estado || ""}
 Prefeito(a): ${org.nomePrefeito || ""}
 Site oficial conhecido: ${org.siteOficial || ""}
-Telefone atual conhecido: ${org.telefonePrefeitura || ""}
+Telefone atual conhecido (INCORRETO — NÃO repita este número): ${org.telefonePrefeitura || ""}
+
+FRENTE: ${f.foco}
+${f.instrucao}
+Traga de 2 a 3 contatos (no máximo 3), com telefone completo com DDD.
 
 Retorne apenas JSON no formato:
-[{"nome":"...","cargo":"...","telefone":"...","email":"...","tipo":"gabinete|whatsapp|geral|outro","origem":"URL ou descrição da fonte"}]
+[{"nome":"...","cargo":"...","telefone":"...","email":"...","tipo":"${f.tipo}","origem":"URL ou descrição da fonte"}]
 
-Busque em fontes diferentes: site oficial da prefeitura, página de contato, portal da transparência, diário oficial, câmara municipal, redes ou páginas públicas institucionais.
-Priorize telefones de gabinete, WhatsApp oficial, recepção geral, secretaria e contatos diretamente ligados ao gabinete do prefeito.
-Evite devolver resultados com o mesmo telefone. Se encontrar o mesmo número em várias fontes, mantenha apenas a melhor fonte.
-Não invente telefone. Só retorne telefone quando houver fonte pública. Prefira números diferentes do telefone atual conhecido.
-Retorne somente resultados com telefone completo com DDD. Se encontrar apenas e-mail, site ou ramal sem DDD, não inclua esse resultado.
-Valide existência por evidência pública: nome/cargo/órgão + telefone em site oficial, portal público, câmara, diário oficial, página institucional ou fonte pública relacionada.
-Não diga nem conclua que o contato "não existe" por ligação não atendida, ocupado, atendimento por terceiro, caixa postal, falha temporária ou fonte fora do ar. Essas situações só significam que a existência não foi confirmada naquele momento.
-Se a fonte indicar que o órgão/contato existe, mas o telefone estiver incerto, retorne o contato com telefone vazio em vez de inventar número.
+Não invente telefone — só retorne quando houver fonte pública. NÃO devolva o telefone atual conhecido (está incorreto).
+Retorne só resultados com telefone completo com DDD; sem DDD, não inclua o resultado.
+Não conclua que o contato "não existe" por ligação não atendida, ocupado, caixa postal ou fonte fora do ar.
+Se a fonte indicar que o contato existe mas o telefone estiver incerto, deixe o telefone vazio em vez de inventar.
 Se não encontrar algum campo, use string vazia. Não escreva nada além do JSON.`;
+}
 
+// Uma frente: 1 chamada à Groq (com 1 retry em 429). Lança erro em caso de falha.
+async function runScanAgent(key: string, model: string, prompt: string): Promise<ScannedContact[]> {
   const requestInit: RequestInit = {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       messages: [
@@ -317,33 +357,62 @@ Se não encontrar algum campo, use string vazia. Não escreva nada além do JSON
       temperature: 0.2,
     }),
   };
-
-  const callGroq = () => fetch("https://api.groq.com/openai/v1/chat/completions", requestInit);
-
-  try {
-    let res = await callGroq();
-    // Plano gratuito do Groq tem limite de taxa: 1 nova tentativa após uma pausa curta.
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 4000));
-      res = await callGroq();
-    }
-
-    if (!res.ok) {
-      const text = await res.text();
-      return { ok: false, error: groqErrorMessage(res.status, text) };
-    }
-
-    const data = await res.json();
-    const content = String(data?.choices?.[0]?.message?.content || "");
-    const parsed = extractJson(content);
-    const contatos = await validateScannedContacts(normalizeContacts(parsed), org);
-
-    return {
-      ok: true,
-      contatos,
-      resumo: contatos.length ? `${contatos.length} contato(s) encontrado(s).` : "Nenhum contato retornado.",
-    };
-  } catch (error) {
-    return { ok: false, error: `Falha Groq: ${(error as Error).message}` };
+  const call = () => fetch("https://api.groq.com/openai/v1/chat/completions", requestInit);
+  let res = await call();
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, 4000));
+    res = await call();
   }
+  if (!res.ok) throw new Error(groqErrorMessage(res.status, await res.text().catch(() => "")));
+  const data = await res.json();
+  const content = String(data?.choices?.[0]?.message?.content || "");
+  return normalizeContacts(extractJson(content));
+}
+
+export async function scanOrgContacts(org: OrgInput): Promise<ScanResult> {
+  const keys = groqKeys();
+  if (!keys.length) return { ok: false, error: "GROQ_API_KEYS (ou GROQ_API_KEY) não configurada." };
+  const model = process.env.GROQ_MODEL || "groq/compound-mini";
+
+  // Uma frente por foco, em paralelo; cada frente usa uma chave do pool (round-robin)
+  // para não estourar o limite de uma chave só.
+  const settled = await Promise.allSettled(
+    SCAN_FOCI.map((f, i) =>
+      runScanAgent(keys[i % keys.length], model, focusPrompt(org, f)).then((cs) =>
+        cs.slice(0, 3).map((c) => ({ ...c, foco: f.foco }))
+      )
+    )
+  );
+
+  const encontrados: ScannedContact[] = [];
+  let algumOk = false;
+  let primeiroErro = "";
+  for (const s of settled) {
+    if (s.status === "fulfilled") {
+      algumOk = true;
+      encontrados.push(...s.value);
+    } else if (!primeiroErro) {
+      primeiroErro = String((s.reason as Error)?.message || s.reason);
+    }
+  }
+  if (!algumOk) return { ok: false, error: primeiroErro || "Não foi possível concluir a varredura agora." };
+
+  // Descarta o número atual (incorreto) e deduplica por telefone (mantém o 1º a achar).
+  const atual = comparablePhone(org.telefonePrefeitura);
+  const seen = new Set<string>();
+  const unicos = encontrados.filter((c) => {
+    const k = comparablePhone(c.telefone);
+    if (!k || k === atual || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  const contatos = await validateScannedContacts(unicos, org);
+  return {
+    ok: true,
+    contatos,
+    resumo: contatos.length
+      ? `${contatos.length} contato(s) em ${SCAN_FOCI.length} frentes (prefeitura, ouvidoria, gestão e busca geral).`
+      : "Nenhum contato retornado.",
+  };
 }
