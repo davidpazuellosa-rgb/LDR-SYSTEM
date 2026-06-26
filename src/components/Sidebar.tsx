@@ -32,6 +32,15 @@ function Icon({ name }: { name: string }) {
           <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L20 13l-2 6a2 2 0 0 1-2 1A16 16 0 0 1 4 6a2 2 0 0 1 1-2Z" strokeLinejoin="round" />
         </svg>
       );
+    case "chart":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 4v16h16" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="7" y="11" width="3" height="6" rx="0.5" />
+          <rect x="12" y="7" width="3" height="10" rx="0.5" />
+          <rect x="17" y="13" width="3" height="4" rx="0.5" />
+        </svg>
+      );
     case "history":
       return (
         <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -88,6 +97,7 @@ export default function Sidebar({
 
   const nav = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
+    ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     { href: "/bases", label: "Bases de Dados", icon: "database", badge: badges.bases },
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: badges.pending },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
