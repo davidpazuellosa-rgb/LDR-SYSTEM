@@ -35,6 +35,27 @@ export async function ensureMetaTable() {
   await prisma.$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "MetaVisto" ("userId" TEXT NOT NULL, "vistoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "MetaVisto_pkey" PRIMARY KEY ("userId"));`
   );
+  // Snapshots de metas (histórico congelado por período encerrado).
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "MetaSnapshot" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "tipo" TEXT NOT NULL,
+      "baseId" TEXT,
+      "regiao" TEXT,
+      "estado" TEXT,
+      "campanha" TEXT,
+      "prazo" TEXT NOT NULL,
+      "alvo" INTEGER NOT NULL DEFAULT 0,
+      "feito" INTEGER NOT NULL DEFAULT 0,
+      "periodoInicio" TIMESTAMP(3) NOT NULL,
+      "chave" TEXT NOT NULL,
+      "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "MetaSnapshot_pkey" PRIMARY KEY ("id")
+    );`
+  );
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "MetaSnapshot_chave_key" ON "MetaSnapshot" ("chave");`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "MetaSnapshot_userId_idx" ON "MetaSnapshot" ("userId");`);
   // Metas de correção não usam base/estado — esses campos passam a ser opcionais.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ALTER COLUMN "baseId" DROP NOT NULL;`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ALTER COLUMN "estado" DROP NOT NULL;`);

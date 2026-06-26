@@ -72,6 +72,14 @@ function temMetaNova(metas: MetaComData[], vistoEm: Date | null): boolean {
   return metas.some((m) => m.criadoEm > vistoEm);
 }
 
+// Chave determinística de um snapshot (identidade da meta + início do período).
+function chaveSnap(
+  m: { userId: string; tipo: string; baseId: string | null; regiao: string | null; estado: string | null; campanha: string | null },
+  start: Date,
+): string {
+  return [m.userId, m.tipo, m.baseId || "", m.regiao || "", m.estado || "", m.campanha || "", start.toISOString().slice(0, 10)].join("|");
+}
+
 async function carregar(userId: string, desde: Date) {
   await ensureMetaTable();
   await ensureContactFillTable();
@@ -121,11 +129,58 @@ export async function statusMinhasMetas(userId: string): Promise<{ status: Statu
   return { status: worst, nova };
 }
 
+// Grava o resultado CONGELADO das metas do período recém-encerrado (chamado pelo cron).
+// Idempotente: a chave única evita duplicar se rodar mais de uma vez no mesmo período.
+export async function snapshotMetas(now = new Date()) {
+  await ensureMetaTable();
+  await ensureContactFillTable();
+  const metas = (await prisma.meta.findMany()) as MetaComData[];
+  if (metas.length === 0) return { criados: 0 };
+
+  const prevWeekStart = new Date(startOfWeek(now).getTime() - 7 * 86400000);
+  const prevWeekEnd = startOfWeek(now);
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = startOfMonth(now);
+  const desde = prevMonthStart < prevWeekStart ? prevMonthStart : prevWeekStart;
+
+  const [fillRows, corrRows] = await Promise.all([
+    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, concluidoEm: true } }),
+    prisma.correction.findMany({
+      where: { status: "resolved", resolvedAt: { gte: desde, not: null } },
+      select: { resolvedById: true, resolvedAt: true, contact: { select: { campanha: true } } },
+    }),
+  ]);
+  const ids = Array.from(new Set(fillRows.map((f) => f.contactId)));
+  const contacts = ids.length
+    ? await prisma.contact.findMany({ where: { id: { in: ids } }, select: { id: true, baseId: true, regiao: true, estado: true } })
+    : [];
+  const terr = new Map(contacts.map((c) => [c.id, c]));
+  const fills: Fill[] = [];
+  for (const f of fillRows) {
+    const c = terr.get(f.contactId);
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+  }
+  const corrections: CorrDone[] = corrRows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }));
+
+  const data = metas.map((m) => {
+    const [start, end] = m.prazo === "mensal" ? [prevMonthStart, prevMonthEnd] : [prevWeekStart, prevWeekEnd];
+    return {
+      userId: m.userId, tipo: m.tipo, baseId: m.baseId, regiao: m.regiao, estado: m.estado, campanha: m.campanha,
+      prazo: m.prazo, alvo: m.alvo, feito: feitoNoPeriodo(m, fills, corrections, start, end),
+      periodoInicio: start, chave: chaveSnap(m, start),
+    };
+  });
+  const res = await prisma.metaSnapshot.createMany({ data, skipDuplicates: true });
+  return { criados: res.count };
+}
+
 // Dados completos para a página Minhas Metas.
 export async function buildMinhasMetas(userId: string) {
   const now = new Date();
   const desde = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 7, 1)); // cobre 8 semanas e 6 meses
   const { metas, fills, corrections, baseName } = await carregar(userId, desde);
+  const snaps = await prisma.metaSnapshot.findMany({ where: { userId }, select: { chave: true, feito: true, alvo: true } });
+  const snapByChave = new Map(snaps.map((s) => [s.chave, s] as const));
 
   const ativas = metas.map((m) => {
     const ini = periodStart(m.prazo, now);
@@ -143,8 +198,11 @@ export async function buildMinhasMetas(userId: string) {
   const historico = metas.map((m) => {
     const quantas = m.prazo === "mensal" ? 6 : 8;
     const periodos = janelasPassadas(m.prazo, now, quantas).map((w) => {
-      const feito = feitoNoPeriodo(m, fills, corrections, w.start, w.end);
-      return { label: w.label, feito, alvo: m.alvo, hit: m.alvo > 0 && feito >= m.alvo };
+      // Usa o snapshot congelado se existir; senão recalcula retroativamente.
+      const snap = snapByChave.get(chaveSnap(m, w.start));
+      const feito = snap ? snap.feito : feitoNoPeriodo(m, fills, corrections, w.start, w.end);
+      const alvo = snap ? snap.alvo : m.alvo;
+      return { label: w.label, feito, alvo, hit: alvo > 0 && feito >= alvo };
     });
     // Sequência (streak): períodos batidos consecutivos a partir do mais recente.
     let streak = 0;

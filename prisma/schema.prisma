@@ -162,6 +162,27 @@ model Meta {
   @@index([userId])
 }
 
+// Resultado CONGELADO de uma meta num período já encerrado (gravado pelo cron de
+// snapshot). O histórico de Minhas Metas usa isto quando existe; senão, recalcula.
+// Tabela criada sob demanda (ensureMetaTable) — sem migration na produção.
+model MetaSnapshot {
+  id            String   @id @default(cuid())
+  userId        String
+  tipo          String
+  baseId        String?
+  regiao        String?
+  estado        String?
+  campanha      String?
+  prazo         String
+  alvo          Int
+  feito         Int
+  periodoInicio DateTime
+  chave         String   @unique // userId|tipo|base|regiao|estado|campanha|data — idempotência
+  criadoEm      DateTime @default(now())
+
+  @@index([userId])
+}
+
 // Histórico IMUTÁVEL de ações grandes numa base (importação, substituição…).
 // Append-only: cada ação vira um registro com quem fez, quando e um snapshot
 // que permite DESFAZER. Tabela criada sob demanda (ensureBaseEventoTable) —
