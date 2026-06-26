@@ -1760,16 +1760,16 @@ async function saveCell(id: string, key: string, value: string) {
         onMouseUp={() => setIsDragging(false)}
         className="min-h-0 flex-1 overflow-auto rounded-2xl bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300"
       >
-        <table className="text-sm">
+        <table className="text-sm [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-300">
           <thead className="sticky top-0 z-30">
             {/* Letras das colunas (A, B, C…) — estilo planilha */}
             <tr className="border-b border-slate-200 bg-slate-100 text-center text-[11px] font-semibold text-slate-500">
               <th
                 onClick={selectAll}
                 title="Selecionar tudo"
-                className="sticky left-0 z-30 w-12 min-w-[3rem] cursor-pointer bg-slate-100 px-1 py-1 hover:bg-slate-200"
+                className="sticky left-0 z-30 w-12 min-w-[3rem] cursor-pointer bg-emerald-700 px-1 py-1 hover:bg-emerald-800"
               >
-                <span className="inline-block h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-slate-300 align-middle" />
+                <span className="inline-block h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-white/70 align-middle" />
               </th>
               {visibleFields.map((col, i) => {
                 const activeCol = !!selBounds && i >= selBounds.startCol && i <= selBounds.endCol;
@@ -1780,7 +1780,7 @@ async function saveCell(id: string, key: string, value: string) {
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
                     title={`Selecionar coluna ${colLetter(i)}`}
                     className={`cursor-pointer px-1 py-1 ${
-                      activeCol ? "bg-indigo-100 text-indigo-700" : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                      activeCol ? "bg-emerald-800 text-white" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
@@ -1788,11 +1788,11 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-slate-100 px-2 py-1" />
+              <th className="bg-emerald-700 px-2 py-1" />
             </tr>
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-indigo-50 px-1 py-3 font-semibold text-indigo-700">
+              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white">
                 1
               </th>
               {visibleFields.map((col, i) => {
@@ -1847,7 +1847,7 @@ async function saveCell(id: string, key: string, value: string) {
               visible.map((c, rowIndex) => {
                 const rowActive = !!selBounds && rowIndex >= selBounds.startRow && rowIndex <= selBounds.endRow;
                 return (
-                <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={c.id} className="hover:bg-slate-50">
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
                     onMouseDown={(e) => {
@@ -1856,10 +1856,10 @@ async function saveCell(id: string, key: string, value: string) {
                     }}
                     onContextMenu={(e) => openRowContextMenu(e, rowIndex)}
                     title="Selecionar linha inteira"
-                    className={`sticky left-0 z-10 w-12 min-w-[3rem] cursor-pointer select-none border-r border-slate-200 px-1 text-center text-xs ${padY} ${
+                    className={`sticky left-0 z-10 w-12 min-w-[3rem] cursor-pointer select-none border-r border-slate-300 px-1 text-center text-xs ${padY} ${
                       rowActive
-                        ? "bg-indigo-100 font-semibold text-indigo-700"
-                        : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                        ? "bg-emerald-800 font-semibold text-white"
+                        : "bg-emerald-700 text-white hover:bg-emerald-800"
                     }`}
                   >
                     {rowIndex + 2}
