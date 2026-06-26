@@ -48,9 +48,14 @@ export default async function BaseDetailPage({
   const initialFormats = Object.fromEntries(
     rows.map((c) => [c.id, (c.formats as Record<string, unknown>) || {}])
   ) as ComponentProps<typeof ContactsTable>["initialFormats"];
-  const initialHeaders = ((base.headers as Record<string, string> | null) || {}) as ComponentProps<
+  // headers guarda rótulos de coluna E, na chave reservada __merges__, as mesclas
+  // visuais (estilo Excel) compartilhadas pelo time. Separa as duas coisas aqui.
+  const rawHeaders = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+  const { __merges__: rawMerges, ...labelHeaders } = rawHeaders;
+  const initialHeaders = labelHeaders as ComponentProps<typeof ContactsTable>["initialHeaders"];
+  const initialMerges = (Array.isArray(rawMerges) ? rawMerges : []) as ComponentProps<
     typeof ContactsTable
-  >["initialHeaders"];
+  >["initialMerges"];
 
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.
@@ -98,6 +103,7 @@ export default async function BaseDetailPage({
           initialContacts={contacts}
           initialFormats={initialFormats}
           initialHeaders={initialHeaders}
+          initialMerges={initialMerges}
           initialSavedAt={lastSaved?.toISOString() ?? null}
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}

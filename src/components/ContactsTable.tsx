@@ -193,6 +193,7 @@ export default function ContactsTable({
   initialContacts,
   initialFormats = {},
   initialHeaders = {},
+  initialMerges = [],
   initialSavedAt = null,
   canDelete = true,
   canImport = true,
@@ -203,6 +204,7 @@ export default function ContactsTable({
   initialContacts: Contact[];
   initialFormats?: Record<string, Record<string, CellFmt>>;
   initialHeaders?: Record<string, string>;
+  initialMerges?: MergeRegion[];
   initialSavedAt?: string | null;
   canDelete?: boolean;
   canImport?: boolean;
@@ -260,26 +262,22 @@ const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
 const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set());
   // Células copiadas/recortadas e marcadas (tracejado tipo Google Sheets).
   const [clip, setClip] = useState<Clip | null>(null);
-  // Mesclas visuais da base (persistidas no navegador, por base).
-  const [merges, setMerges] = useState<MergeRegion[]>([]);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`merges:${baseId}`);
-      setMerges(saved ? (JSON.parse(saved) as MergeRegion[]) : []);
-    } catch {
-      setMerges([]);
-    }
-  }, [baseId]);
+  // Mesclas visuais da base — compartilhadas por todo o time (salvas no banco,
+  // dentro de headers.__merges__ via /api/bases/[id]/merges).
+  const [merges, setMerges] = useState<MergeRegion[]>(initialMerges);
   const saveMerges = useCallback(
     (next: MergeRegion[]) => {
       setMerges(next);
-      try {
-        localStorage.setItem(`merges:${baseId}`, JSON.stringify(next));
-      } catch {
-        // localStorage indisponível — ignora
-      }
+      markSaving();
+      fetch(apiPath(`/api/bases/${baseId}/merges`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merges: next }),
+      })
+        .then((r) => (r.ok ? markSaved() : markSaveError()))
+        .catch(() => markSaveError());
     },
-    [baseId],
+    [baseId, markSaving, markSaved, markSaveError],
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
