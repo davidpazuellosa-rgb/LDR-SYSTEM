@@ -41,8 +41,9 @@ export async function pushCorrectionToHubspot(
       lifecyclestage: STAGE_TELEFONE_ATUALIZADO,
     };
 
-    if (options?.hasWhatsapp) {
-      properties.tem_whatsapp = "Sim";
+    // Tem WhatsApp (Sim/Não) — envia a resposta nos dois casos.
+    if (typeof options?.hasWhatsapp === "boolean") {
+      properties.tem_whatsapp = options.hasWhatsapp ? "Sim" : "Não";
     }
 
     // Contato institucional (Sim/Não): a propriedade usa os valores "true"/"false".

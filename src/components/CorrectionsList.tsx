@@ -138,63 +138,34 @@ function OpenIcon() {
   );
 }
 
-function WhatsappCheck({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label
-      className={`group flex w-fit cursor-pointer select-none items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-        checked
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <svg
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-        fill="currentColor"
-        className={`h-4 w-4 transition ${checked ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-500"}`}
-      >
-        <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.16c-.25.69-1.45 1.32-1.99 1.4-.51.08-1.15.11-1.86-.12-.43-.14-.98-.32-1.69-.62-2.97-1.28-4.91-4.27-5.06-4.47-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.59-.37.79-.37.2 0 .39 0 .57.01.18.01.43-.07.67.51.25.6.84 2.06.91 2.21.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.18-.31.4-.45.53-.15.15-.3.31-.13.6.17.3.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.36 1.45.3.15.47.12.64-.07.17-.2.74-.86.94-1.16.2-.3.4-.25.67-.15.27.1 1.72.81 2.01.96.3.15.49.22.57.35.07.13.07.74-.18 1.45Z" />
-      </svg>
-      Tem WhatsApp
-    </label>
-  );
-}
-
-// Chave Sim/Não para "Contato institucional". Padrão: Sim (institucional).
+// Chave Sim/Não reutilizável (ex.: "Tem WhatsApp", "Contato institucional").
 function SimNaoToggle({
+  label,
   value,
   onChange,
+  tone = "indigo",
 }: {
+  label: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  tone?: "indigo" | "emerald";
 }) {
+  const active = tone === "emerald" ? "bg-emerald-600 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
   return (
     <div className="space-y-1.5">
-      <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Contato institucional</span>
+      <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
       <div className="inline-flex items-center rounded-full bg-slate-100 p-0.5 text-xs font-medium">
         <button
           type="button"
           onClick={() => onChange(true)}
-          className={`rounded-full px-3.5 py-1 transition ${value ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`rounded-full px-3.5 py-1 transition ${value ? active : "text-slate-500 hover:text-slate-700"}`}
         >
           Sim
         </button>
         <button
           type="button"
           onClick={() => onChange(false)}
-          className={`rounded-full px-3.5 py-1 transition ${!value ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`rounded-full px-3.5 py-1 transition ${!value ? active : "text-slate-500 hover:text-slate-700"}`}
         >
           Não
         </button>
@@ -639,11 +610,14 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                             />
                           </div>
                           <div className="flex flex-1 flex-col gap-3 border-l border-slate-100 pl-4">
-                            <WhatsappCheck
-                              checked={whatsappValues[item.id] === true}
-                              onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
+                            <SimNaoToggle
+                              label="Tem WhatsApp"
+                              tone="emerald"
+                              value={whatsappValues[item.id] === true}
+                              onChange={(v) => setWhatsappValues((prev) => ({ ...prev, [item.id]: v }))}
                             />
                             <SimNaoToggle
+                              label="Contato institucional"
                               value={institucionalValues[item.id] !== false}
                               onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
                             />
@@ -727,11 +701,14 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                         className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       />
                       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-                        <WhatsappCheck
-                          checked={whatsappValues[item.id] === true}
-                          onChange={(checked) => setWhatsappValues((prev) => ({ ...prev, [item.id]: checked }))}
+                        <SimNaoToggle
+                          label="Tem WhatsApp"
+                          tone="emerald"
+                          value={whatsappValues[item.id] === true}
+                          onChange={(v) => setWhatsappValues((prev) => ({ ...prev, [item.id]: v }))}
                         />
                         <SimNaoToggle
+                          label="Contato institucional"
                           value={institucionalValues[item.id] !== false}
                           onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
                         />
