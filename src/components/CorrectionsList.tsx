@@ -50,6 +50,20 @@ function formatPhone(raw: string) {
   return `${PHONE_PREFIX}(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
 }
 
+// Devolve a posição do cursor logo após `n` dígitos no valor formatado — assim dá
+// pra editar qualquer dígito no meio sem o cursor pular pro fim a cada tecla.
+function caretFromDigitCount(formatted: string, n: number): number {
+  if (n <= 0) return PHONE_PREFIX.length;
+  let count = 0;
+  for (let i = 0; i < formatted.length; i += 1) {
+    if (/\d/.test(formatted[i])) {
+      count += 1;
+      if (count >= n) return i + 1;
+    }
+  }
+  return formatted.length;
+}
+
 function scanErrorMessage(message: string) {
   const lower = message.toLowerCase();
 
@@ -307,6 +321,25 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   const countByCampanha = (name: string) => items.filter((item) => (item.contact.campanha || "") === name).length;
   const countByRegiao = (name: string) =>
     items.filter((item) => (item.contact.campanha || "") === campanha && (item.contact.regiao || "") === name).length;
+
+  // Formata o telefone PRESERVANDO o cursor: dá pra editar qualquer dígito no
+  // meio sem precisar apagar tudo.
+  function handlePhoneInput(id: string, el: HTMLInputElement) {
+    const raw = el.value;
+    const caret = el.selectionStart ?? raw.length;
+    const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length;
+    const formatted = formatPhone(raw);
+    setValues((prev) => ({ ...prev, [id]: formatted }));
+    setWhatsappValues((prev) => ({ ...prev, [id]: false }));
+    requestAnimationFrame(() => {
+      const pos = caretFromDigitCount(formatted, digitsBefore);
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch {
+        // input pode não estar mais montado — ignora
+      }
+    });
+  }
 
   // Decide o caminho ao clicar em Corrigir: se NÃO for contato institucional,
   // abre o formulário (nome + cargo) antes de enviar; senão envia direto.
@@ -599,10 +632,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                           <div className="w-44 shrink-0">
                             <input
                               value={value}
-                              onChange={(event) => {
-                                setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
-                                setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
-                              }}
+                              onChange={(event) => handlePhoneInput(item.id, event.currentTarget)}
                               onFocus={(event) => {
                                 if (!values[item.id]) {
                                   setValues((prev) => ({ ...prev, [item.id]: PHONE_PREFIX }));
@@ -697,10 +727,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                     <div className="flex flex-col gap-3">
                       <input
                         value={value}
-                        onChange={(event) => {
-                          setValues((prev) => ({ ...prev, [item.id]: formatPhone(event.target.value) }));
-                          setWhatsappValues((prev) => ({ ...prev, [item.id]: false }));
-                        }}
+                        onChange={(event) => handlePhoneInput(item.id, event.currentTarget)}
                         placeholder="+55 (DD) 00000-0000"
                         className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       />
