@@ -164,7 +164,7 @@ export default function Sidebar({
                   <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] bg-indigo-400" />
                 )}
                 {collapsed && item.dot && (
-                  <span className={`absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] ${item.pulse ? "meta-nova-pulse" : item.dot}`} />
+                  <span className={`absolute -right-1 -top-1 h-2 w-2 rounded-full ${item.pulse ? "meta-nova-pulse" : item.dot}`} />
                 )}
               </span>
               {!collapsed && <span className="flex-1">{item.label}</span>}
