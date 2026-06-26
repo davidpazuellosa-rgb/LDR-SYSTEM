@@ -1802,7 +1802,10 @@ async function saveCell(id: string, key: string, value: string) {
         onMouseUp={() => setIsDragging(false)}
         className="min-h-0 flex-1 overflow-auto rounded-2xl bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300"
       >
-        <table className="text-sm [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-300">
+        <table
+          style={{ zoom: 0.7 }}
+          className="text-sm [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-300"
+        >
           <thead className="sticky top-0 z-30">
             {/* Letras das colunas (A, B, C…) — estilo planilha */}
             <tr className="border-b border-slate-200 bg-slate-100 text-center text-[11px] font-semibold text-slate-500">
