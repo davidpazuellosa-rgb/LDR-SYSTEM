@@ -1839,14 +1839,14 @@ async function saveCell(id: string, key: string, value: string) {
               <th className="bg-emerald-700 px-2 py-1" />
             </tr>
             {/* Rótulos das colunas */}
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
               <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white" />
               {visibleFields.map((col, i) => {
                 const label = headerLabelFor(col.key, col.label);
                 return (
                   <th
                     key={col.key}
-                    className={`bg-slate-50 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
+                    className={`bg-slate-200 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
                     {canEditHeaders ? (
@@ -1877,7 +1877,7 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-slate-50 px-3 py-3 font-medium">Status</th>
+              <th className="bg-slate-200 px-3 py-3 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -1893,7 +1893,7 @@ async function saveCell(id: string, key: string, value: string) {
               visible.map((c, rowIndex) => {
                 const rowActive = !!selBounds && rowIndex >= selBounds.startRow && rowIndex <= selBounds.endRow;
                 return (
-                <tr key={c.id} className="hover:bg-slate-50">
+                <tr key={c.id} className={`${rowIndex % 2 === 1 ? "bg-emerald-50" : "bg-white"} hover:bg-slate-50`}>
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
                     onMouseDown={(e) => {
