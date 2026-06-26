@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { TitleProvider } from "@/components/TitleContext";
@@ -18,7 +19,14 @@ export default function AppShell({
   badges: { bases: number; pending: number };
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Ao entrar numa planilha (/bases/[id]) recolhe a sidebar para dar mais espaço;
+  // fora dela volta expandida. O botão de alternar continua funcionando.
+  useEffect(() => {
+    setCollapsed(/^\/bases\/[^/]+/.test(pathname));
+  }, [pathname]);
 
   return (
     <TitleProvider>
