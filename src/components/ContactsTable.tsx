@@ -41,7 +41,10 @@ type HistoryAction =
   // Exclusão de linhas (soft delete): guarda os contatos, seus formatos e a posição
   // original de cada um (índice no array `contacts`) para restaurar (desfazer) no lugar
   // certo, ou excluir de novo (refazer).
-  | { kind: "delete"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] };
+  | { kind: "delete"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] }
+  // Inserção de linhas: é o inverso de "delete". Desfazer = excluir as linhas criadas;
+  // refazer = restaurá-las na mesma posição. Reaproveita applyDeleteBatch.
+  | { kind: "insert"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] };
 
 // "Marca-d'água" de copiar/recortar (estilo Google Sheets): as células ficam
 // tracejadas. No recorte, a origem só é apagada DEPOIS de colar (mover).
@@ -544,6 +547,13 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     recordBatch([edit]);
   }
 
+  // Registra uma inserção de linhas no histórico (para desfazer/refazer).
+  function recordInsert(created: Contact[], positions: number[]) {
+    if (created.length === 0) return;
+    setHistory((items) => [...items, { kind: "insert" as const, contacts: created, formats: {}, positions }].slice(-100));
+    setRedoStack([]);
+  }
+
   // Registra uma exclusão de linhas no histórico (para desfazer/refazer).
   function recordDelete(
     deleted: Contact[],
@@ -602,7 +612,8 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
 
   if (action.kind === "cells") applyBatch(action.edits, false);
   else if (action.kind === "formats") applyFormatBatch(action.edits, false);
-  else applyDeleteBatch(action, false); // restaura as linhas excluídas
+  else if (action.kind === "delete") applyDeleteBatch(action, false); // restaura as linhas excluídas
+  else applyDeleteBatch(action, true); // insert: desfazer = excluir as linhas criadas
 
   setClip(null);
 }
@@ -615,7 +626,8 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
 
   if (action.kind === "cells") applyBatch(action.edits, true);
   else if (action.kind === "formats") applyFormatBatch(action.edits, true);
-  else applyDeleteBatch(action, true); // exclui de novo
+  else if (action.kind === "delete") applyDeleteBatch(action, true); // exclui de novo
+  else applyDeleteBatch(action, false); // insert: refazer = restaurar as linhas
 
   setClip(null);
 }
@@ -1066,16 +1078,20 @@ async function insertRowNear(rowIndex: number, side: "above" | "below", count = 
   }
 
   const reference = visible[rowIndex];
+  // Calcula a posição de inserção a partir do estado atual para também registrar no
+  // histórico (desfazer/refazer) as posições onde cada nova linha entrou.
+  const referenceIndex = reference ? contacts.findIndex((contact) => contact.id === reference.id) : -1;
+  const insertAt = referenceIndex < 0 ? contacts.length : referenceIndex + (side === "below" ? 1 : 0);
   setContacts((prev) => {
-    const referenceIndex = reference ? prev.findIndex((contact) => contact.id === reference.id) : -1;
-    const insertAt = referenceIndex < 0 ? prev.length : referenceIndex + (side === "below" ? 1 : 0);
-    return [...prev.slice(0, insertAt), ...created, ...prev.slice(insertAt)];
+    const at = referenceIndex < 0 ? prev.length : Math.min(insertAt, prev.length);
+    return [...prev.slice(0, at), ...created, ...prev.slice(at)];
   });
   setHiddenRowIds((prev) => {
     const next = new Set(prev);
     created.forEach((c) => next.delete(c.id));
     return next;
   });
+  recordInsert(created, created.map((_, i) => insertAt + i));
   setMenu(null);
   selectAndFocus(rowIndex + (side === "below" ? 1 : 0), 0);
   markSaved();
