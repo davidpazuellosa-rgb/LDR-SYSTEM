@@ -150,7 +150,11 @@ function SimNaoToggle({
   onChange: (value: boolean) => void;
   tone?: "indigo" | "emerald";
 }) {
-  const active = tone === "emerald" ? "bg-emerald-600 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
+  // "Sim" verde e "Não" vermelho rosé (combinam) no WhatsApp (tone emerald);
+  // o institucional (tone indigo) mantém indigo nos dois.
+  const yesActive = tone === "emerald" ? "bg-emerald-600 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
+  const noActive = tone === "emerald" ? "bg-rose-500 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
+  const idle = "text-slate-500 hover:text-slate-700";
   return (
     <div className="space-y-1.5">
       <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
@@ -158,14 +162,14 @@ function SimNaoToggle({
         <button
           type="button"
           onClick={() => onChange(true)}
-          className={`rounded-full px-3.5 py-1 transition ${value ? active : "text-slate-500 hover:text-slate-700"}`}
+          className={`rounded-full px-3.5 py-1 transition ${value ? yesActive : idle}`}
         >
           Sim
         </button>
         <button
           type="button"
           onClick={() => onChange(false)}
-          className={`rounded-full px-3.5 py-1 transition ${!value ? active : "text-slate-500 hover:text-slate-700"}`}
+          className={`rounded-full px-3.5 py-1 transition ${!value ? noActive : idle}`}
         >
           Não
         </button>
@@ -591,7 +595,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                           {item.oldValue || "Sem telefone"}
                         </div>
 
-                        <div className="flex items-start gap-4 px-4 py-4">
+                        <div className="flex items-center gap-4 px-4 py-4">
                           <div className="w-44 shrink-0">
                             <input
                               value={value}
