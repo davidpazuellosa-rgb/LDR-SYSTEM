@@ -16,10 +16,37 @@ type Item = {
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+function CopyIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" strokeLinecap="round" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg className="h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function SuggestionsList({ initial }: { initial: Item[] }) {
   const toast = useToast();
   const [items, setItems] = useState<Item[]>(initial);
   const [busy, setBusy] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function copy(it: Item) {
+    try {
+      await navigator.clipboard.writeText(it.texto);
+      setCopiedId(it.id);
+      setTimeout(() => setCopiedId((c) => (c === it.id ? null : c)), 1500);
+    } catch {
+      toast.error("Não foi possível copiar.", "");
+    }
+  }
 
   async function toggle(it: Item) {
     const status = it.status === "resolvida" ? "nova" : "resolvida";
@@ -73,7 +100,17 @@ export default function SuggestionsList({ initial }: { initial: Item[] }) {
               </span>
             </div>
 
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{it.texto}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{it.texto}</p>
+              <button
+                onClick={() => copy(it)}
+                title="Copiar texto"
+                aria-label="Copiar texto"
+                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                {copiedId === it.id ? <CheckIcon /> : <CopyIcon />}
+              </button>
+            </div>
 
             {it.audio && <audio src={it.audio} controls className="mt-3 h-9 w-full max-w-md" />}
 
