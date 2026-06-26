@@ -226,7 +226,7 @@ export default function ContactsTable({
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<HistoryAction[]>([]);
   const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
-  const [density, setDensity] = useState<"compacta" | "normal" | "ampla">("normal");
+  const [density, setDensity] = useState<"compacta" | "normal" | "ampla">("compacta");
   const [frozen] = useState(false);
   const [formats, setFormats] = useState<Record<string, Record<string, CellFmt>>>(initialFormats);
   // Célula em edição (null = apenas seleção, sem editar) e o caractere inicial ao digitar direto.
