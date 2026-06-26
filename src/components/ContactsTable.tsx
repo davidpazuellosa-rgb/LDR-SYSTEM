@@ -1743,7 +1743,15 @@ async function saveCell(id: string, key: string, value: string) {
         </button>
       </div>
 
-      {historicoOpen && <HistoricoModal baseId={baseId} onClose={() => setHistoricoOpen(false)} />}
+      {historicoOpen && (
+        <HistoricoModal
+          baseId={baseId}
+          onClose={() => setHistoricoOpen(false)}
+          onReverted={(contactId, data) =>
+            setContacts((prev) => prev.map((c) => (c.id === contactId ? { ...c, ...(data as Partial<Contact>) } : c)))
+          }
+        />
+      )}
 
       {message && (
         <span className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</span>

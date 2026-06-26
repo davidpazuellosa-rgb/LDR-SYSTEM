@@ -30,6 +30,8 @@ export async function POST(
   const snap = evento.snapshot as unknown as EventoSnapshot | null;
   if (!snap) return NextResponse.json({ error: "Sem dados para desfazer." }, { status: 400 });
 
+  let restored: { contactId: string; data: Record<string, string | null> } | null = null;
+
   if (snap.kind === "replace") {
     // Restaura os contatos antigos, remove os importados e volta os rótulos de coluna.
     if (snap.deletedIds.length > 0) {
@@ -55,11 +57,16 @@ export async function POST(
         })
       );
     }
+  } else if (snap.kind === "cell_edit") {
+    // Volta cada campo editado ao valor anterior.
+    const data = Object.fromEntries(snap.fields.map((f) => [f.campo, f.oldValue]));
+    await prisma.contact.update({ where: { id: snap.contactId }, data: { ...data } });
+    restored = { contactId: snap.contactId, data };
   } else {
     return NextResponse.json({ error: "Tipo de ação não reversível." }, { status: 400 });
   }
 
   await prisma.baseEvento.update({ where: { id: eventoId }, data: { desfeitoEm: new Date() } });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, restored });
 }

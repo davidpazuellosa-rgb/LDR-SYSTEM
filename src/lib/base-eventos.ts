@@ -40,4 +40,10 @@ export type ReplaceSnapshot = {
   oldHeaders: Record<string, string>; // rótulos de coluna antes (desfazer = restaurar)
 };
 
-export type EventoSnapshot = MergeSnapshot | ReplaceSnapshot;
+export type CellEditSnapshot = {
+  kind: "cell_edit";
+  contactId: string;
+  fields: { campo: string; oldValue: string | null }[]; // desfazer = volta cada campo ao oldValue
+};
+
+export type EventoSnapshot = MergeSnapshot | ReplaceSnapshot | CellEditSnapshot;
