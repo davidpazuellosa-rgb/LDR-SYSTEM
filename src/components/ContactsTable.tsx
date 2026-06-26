@@ -1846,13 +1846,13 @@ async function saveCell(id: string, key: string, value: string) {
             </tr>
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
-              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white" />
+              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]" />
               {visibleFields.map((col, i) => {
                 const label = headerLabelFor(col.key, col.label);
                 return (
                   <th
                     key={col.key}
-                    className={`bg-slate-200 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
+                    className={`bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
                     {canEditHeaders ? (
@@ -1883,7 +1883,7 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-slate-200 px-3 py-3 font-medium">Status</th>
+              <th className="bg-slate-200 px-3 py-3 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]">Status</th>
             </tr>
           </thead>
           <tbody>
