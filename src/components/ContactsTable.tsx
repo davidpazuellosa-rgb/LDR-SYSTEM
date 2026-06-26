@@ -241,6 +241,65 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+  // Largura das colunas — ajustável (arrastar a borda / duplo-clique p/ ajustar)
+  // e guardada por base no navegador (localStorage), sem mexer no banco.
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`colw:${baseId}`);
+      if (saved) setColWidths(JSON.parse(saved));
+    } catch {
+      // localStorage indisponível ou JSON inválido — ignora
+    }
+  }, [baseId]);
+  const colW = (col: { key: string; width?: number }) => colWidths[col.key] ?? col.width ?? 150;
+  function startColResize(e: React.MouseEvent, col: { key: string; width?: number }) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = colW(col);
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(60, Math.min(700, startW + (ev.clientX - startX)));
+      setColWidths((prev) => ({ ...prev, [col.key]: w }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setColWidths((prev) => {
+        try {
+          localStorage.setItem(`colw:${baseId}`, JSON.stringify(prev));
+        } catch {
+          // ignora
+        }
+        return prev;
+      });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+  function autoFitColumn(col: { key: string; width?: number; label: string }) {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
+    let max = ctx.measureText(headerLabelFor(col.key, col.label)).width;
+    for (const c of visible) {
+      const v = (c as unknown as Record<string, string | null>)[col.key] || "";
+      const w = ctx.measureText(v).width;
+      if (w > max) max = w;
+    }
+    // Largura do conteúdo + 15% de folga à direita + padding, com limites.
+    const width = Math.min(560, Math.max(80, Math.round(max * 1.15) + 28));
+    setColWidths((prev) => {
+      const next = { ...prev, [col.key]: width };
+      try {
+        localStorage.setItem(`colw:${baseId}`, JSON.stringify(next));
+      } catch {
+        // ignora
+      }
+      return next;
+    });
+  }
+
   const fmtOf = (id: string, key: string): CellFmt => formats[id]?.[key] || {};
   const padY = density === "compacta" ? "py-0.5" : density === "ampla" ? "py-2.5" : "py-1";
 
@@ -1787,12 +1846,22 @@ async function saveCell(id: string, key: string, value: string) {
                     onClick={(e) => selectColumn(i, e.shiftKey)}
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
                     title={`Selecionar coluna ${colLetter(i)}`}
-                    className={`cursor-pointer px-1 py-1 ${
+                    className={`relative cursor-pointer px-1 py-1 ${
                       activeCol ? "bg-emerald-800 text-white" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
-                    style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
+                    style={{ width: colW(col), minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
                     {colLetter(i)}
+                    <span
+                      onMouseDown={(e) => startColResize(e, col)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        autoFitColumn(col);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Arraste para redimensionar · duplo-clique para ajustar"
+                      className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize hover:bg-white/50"
+                    />
                   </th>
                 );
               })}
@@ -1809,7 +1878,7 @@ async function saveCell(id: string, key: string, value: string) {
                   <th
                     key={col.key}
                     className={`bg-slate-50 px-2 py-2 font-medium ${frozen && i === 0 ? "sticky z-20" : ""}`}
-                    style={{ minWidth: col.width, ...(frozen && i === 0 ? { left: 48 } : {}) }}
+                    style={{ minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
                     {canEditHeaders ? (
                       <input
@@ -1984,7 +2053,7 @@ async function saveCell(id: string, key: string, value: string) {
                             }
                           }}
                           style={{
-                            minWidth: col.width,
+                            minWidth: colW(col),
                             fontWeight: f.b ? 700 : undefined,
                             fontStyle: f.i ? "italic" : undefined,
                             textDecoration: f.s ? "line-through" : undefined,
@@ -2001,8 +2070,8 @@ async function saveCell(id: string, key: string, value: string) {
                         <div
                           data-grid-cell={`${rowIndex}:${colIndex}`}
                           style={{
-                            width: col.width,
-                            maxWidth: col.width,
+                            width: colW(col),
+                            maxWidth: colW(col),
                             fontWeight: f.b ? 700 : undefined,
                             fontStyle: f.i ? "italic" : undefined,
                             textDecoration: f.s ? "line-through" : undefined,
