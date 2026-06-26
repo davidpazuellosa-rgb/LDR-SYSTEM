@@ -109,10 +109,13 @@ export default function Sidebar({
     : badges.metasStatus === "risco" ? "bg-amber-400"
     : badges.metasStatus === "ok" ? "bg-emerald-500"
     : "";
+  // Estando NA página de metas, para de piscar/mostrar "nova" na hora (sem esperar refresh).
+  const naPaginaMetas = pathname === "/minhas-metas" || pathname.startsWith("/minhas-metas/");
+  const metaNova = badges.metaNova && !naPaginaMetas;
 
   const nav: { href: string; label: string; icon: string; badge: number; dot?: string; pulse?: boolean }[] = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
-    { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (badges.metaNova ? "bg-indigo-400" : ""), pulse: badges.metaNova },
+    { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (metaNova ? "bg-indigo-400" : ""), pulse: metaNova },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
