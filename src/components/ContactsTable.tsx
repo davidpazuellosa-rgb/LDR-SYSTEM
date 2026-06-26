@@ -1979,9 +1979,10 @@ async function saveCell(id: string, key: string, value: string) {
                       onDoubleClick={() => startEditing(rowIndex, colIndex)}
                     >
                       {editing ? (
-                        <input
+                        <textarea
                           key={`edit:${c.id}:${col.key}`}
                           autoFocus
+                          rows={1}
                           data-grid-cell={`${rowIndex}:${colIndex}`}
                           defaultValue={editSeed ?? value}
                           onFocus={(e) => {
@@ -1992,6 +1993,14 @@ async function saveCell(id: string, key: string, value: string) {
                             } else {
                               el.select();
                             }
+                            // Cresce a altura conforme o conteúdo (quebra de linha ao vivo).
+                            el.style.height = "auto";
+                            el.style.height = `${el.scrollHeight}px`;
+                          }}
+                          onInput={(e) => {
+                            const el = e.currentTarget;
+                            el.style.height = "auto";
+                            el.style.height = `${el.scrollHeight}px`;
                           }}
                           onBlur={(e) => {
                             const next = e.target.value;
@@ -2035,7 +2044,7 @@ async function saveCell(id: string, key: string, value: string) {
                             color: f.color || undefined,
                             textAlign: f.align || undefined,
                           }}
-                          className={`w-full rounded border border-indigo-400 bg-white px-2 ${padY} outline-none ${
+                          className={`w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded border border-indigo-400 bg-white px-2 ${padY} leading-snug outline-none ${
                             !f.color && col.key === "telefonePrefeitura" && c.status === STATUS_INCORRETO
                               ? "text-amber-700"
                               : "text-slate-700"
