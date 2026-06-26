@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SasiLogo from "@/components/SasiLogo";
 
-type Badges = { bases: number; pending: number };
+type Badges = { bases: number; pending: number; sugestoes: number };
 
 function Icon({ name }: { name: string }) {
   const common = "h-5 w-5";
@@ -98,13 +98,13 @@ export default function Sidebar({
   const nav = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
-    { href: "/bases", label: "Bases de Dados", icon: "database", badge: badges.bases },
+    { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: badges.pending },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/hubspot", label: "HubSpot CRM", icon: "link", badge: 0 }] : []),
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
-    ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: 0 }] : []),
+    ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: badges.sugestoes }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
   ];
 
@@ -140,8 +140,18 @@ export default function Sidebar({
                   : "text-slate-300 hover:bg-white/5 hover:text-white"
               } ${collapsed ? "justify-center" : ""}`}
             >
-              <Icon name={item.icon} />
+              <span className="relative">
+                <Icon name={item.icon} />
+                {collapsed && item.badge > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] bg-indigo-400" />
+                )}
+              </span>
               {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.badge > 0 && (
+                <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-indigo-500 px-1.5 text-[11px] font-semibold text-white">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -17,7 +17,7 @@ export default function AppShell({
 }: {
   user: { name?: string | null; email?: string | null };
   role: string;
-  badges: { bases: number; pending: number };
+  badges: { bases: number; pending: number; sugestoes: number };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
