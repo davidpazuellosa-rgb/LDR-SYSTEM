@@ -236,11 +236,40 @@ export async function buildRelatorio(f: RelatorioFiltros) {
     antigos: pendRows.filter((p) => ageDays(p.createdAt) > 30).length,
   };
 
+  // ---- Mapa por UF (status dos contatos) ----
+  const ufAgg = new Map<string, { total: number; incorreto: number; atualizado: number }>();
+  for (const c of contacts) {
+    const uf = (ufSigla(c.estado) || (c.estado || "").trim().toUpperCase());
+    if (!uf) continue;
+    const a = ufAgg.get(uf) || { total: 0, incorreto: 0, atualizado: 0 };
+    a.total++;
+    if (c.status === STATUS_INCORRETO) a.incorreto++;
+    else if (c.status === STATUS_ATUALIZADO) a.atualizado++;
+    ufAgg.set(uf, a);
+  }
+  const mapaUF: Record<string, { total: number; incorreto: number; atualizado: number; taxa: number | null }> = {};
+  for (const [uf, a] of ufAgg) {
+    const sinal = a.incorreto + a.atualizado;
+    mapaUF[uf] = { ...a, taxa: sinal ? Math.round((a.atualizado / sinal) * 100) : null };
+  }
+
+  // ---- Heatmap de atividade (dia da semana × hora, em horário de Brasília UTC-3) ----
+  const heat: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  const addHeat = (d: Date) => {
+    const brt = new Date(d.getTime() - 3 * 3600000);
+    const wd = (brt.getUTCDay() + 6) % 7; // segunda = 0
+    heat[wd][brt.getUTCHours()]++;
+  };
+  for (const fr of fillRows) if (!ldrId || fr.preenchidoPorId === ldrId) addHeat(new Date(fr.concluidoEm));
+  for (const c of corrRows) if (c.resolvedAt && (!ldrId || c.resolvedById === ldrId)) addHeat(new Date(c.resolvedAt));
+  const heatMax = Math.max(1, ...heat.flat());
+
   return {
     periodo, ldrId, campanha, now,
     ldrs, campanhas,
     kpis, ranking, rankMax, dias, serieMax,
     metasView, semaforo,
     funil, funilMax, completudePorBase, backlog,
+    mapaUF, heat, heatMax,
   };
 }

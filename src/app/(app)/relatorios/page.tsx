@@ -4,6 +4,9 @@ import { isAdmin } from "@/lib/permissions";
 import { buildRelatorio, parsePeriodo, PERIODO_LABEL } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
 import RelatorioFiltros from "@/components/RelatorioFiltros";
+import BrasilTilemap from "@/components/BrasilTilemap";
+
+const DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 export const dynamic = "force-dynamic";
 
@@ -235,6 +238,48 @@ export default async function RelatoriosPage({
               ))}
             </div>
           )}
+        </section>
+
+        {/* Mapa do Brasil + Heatmap de atividade */}
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-1 font-semibold text-slate-800">Mapa por estado</h2>
+            <p className="mb-4 text-xs text-slate-400">% de telefones atualizados (entre os sinalizados)</p>
+            <BrasilTilemap dados={r.mapaUF} />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+            <h2 className="mb-1 font-semibold text-slate-800">Atividade por dia e hora</h2>
+            <p className="mb-4 text-xs text-slate-400">Produção da equipe (horário de Brasília){r.ldrId ? " · LDR filtrado" : ""}</p>
+            <div className="space-y-1">
+              {/* Régua de horas */}
+              <div className="flex items-center gap-1 pl-8 text-[9px] text-slate-400">
+                {Array.from({ length: 24 }, (_, h) => (
+                  <span key={h} className="flex-1 text-center">{h % 6 === 0 ? `${h}h` : ""}</span>
+                ))}
+              </div>
+              {r.heat.map((linha, wd) => (
+                <div key={wd} className="flex items-center gap-1">
+                  <span className="w-7 shrink-0 text-[10px] font-medium text-slate-500">{DIAS_SEMANA[wd]}</span>
+                  {linha.map((count, h) => (
+                    <span
+                      key={h}
+                      title={`${DIAS_SEMANA[wd]} ${h}h — ${count} ação(ões)`}
+                      className="aspect-square flex-1 rounded-[3px]"
+                      style={{ backgroundColor: count ? `rgba(99,102,241,${(0.15 + 0.85 * (count / r.heatMax)).toFixed(3)})` : "#f1f5f9" }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2 text-xs text-slate-400">
+              <span>menos</span>
+              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: "rgba(99,102,241,0.2)" }} />
+              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: "rgba(99,102,241,0.5)" }} />
+              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: "rgba(99,102,241,1)" }} />
+              <span>mais (pico {r.heatMax})</span>
+            </div>
+          </div>
         </section>
       </main>
     </>
