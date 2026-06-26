@@ -272,6 +272,20 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     }
   }
 
+  // Densidade das linhas — também guardada no navegador. Default compacta.
+  useEffect(() => {
+    const saved = localStorage.getItem("griddensity");
+    if (saved === "compacta" || saved === "normal" || saved === "ampla") setDensity(saved);
+  }, []);
+  function changeDensity(v: "compacta" | "normal" | "ampla") {
+    setDensity(v);
+    try {
+      localStorage.setItem("griddensity", v);
+    } catch {
+      // localStorage indisponível — ignora
+    }
+  }
+
   // Largura das colunas — ajustável (arrastar a borda / duplo-clique p/ ajustar)
   // e guardada por base no navegador (localStorage), sem mexer no banco.
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
@@ -1728,7 +1742,7 @@ async function saveCell(id: string, key: string, value: string) {
         {/* Densidade (zoom das linhas) */}
         <select
           value={density}
-          onChange={(e) => setDensity(e.target.value as "compacta" | "normal" | "ampla")}
+          onChange={(e) => changeDensity(e.target.value as "compacta" | "normal" | "ampla")}
           title="Densidade das linhas"
           className="h-9 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-600 outline-none hover:bg-slate-50"
         >
