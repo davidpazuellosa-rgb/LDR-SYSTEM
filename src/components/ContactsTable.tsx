@@ -44,7 +44,10 @@ type HistoryAction =
   | { kind: "delete"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] }
   // Inserção de linhas: é o inverso de "delete". Desfazer = excluir as linhas criadas;
   // refazer = restaurá-las na mesma posição. Reaproveita applyDeleteBatch.
-  | { kind: "insert"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] };
+  | { kind: "insert"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] }
+  // Mesclar/desmesclar: guarda o conjunto de mesclas antes/depois e as edições de
+  // valor feitas (limpar as células não-âncora), tudo num passo só de desfazer.
+  | { kind: "merge"; prevMerges: MergeRegion[]; nextMerges: MergeRegion[]; edits: CellEdit[] };
 
 // "Marca-d'água" de copiar/recortar (estilo Google Sheets): as células ficam
 // tracejadas. No recorte, a origem só é apagada DEPOIS de colar (mover).
@@ -53,6 +56,15 @@ type Clip = {
   rect: { startRow: number; endRow: number; startCol: number; endCol: number };
   cells: { id: string; key: string }[];
 };
+
+// Mescla visual (estilo Excel/Sheets): um bloco de células vira uma só, exibindo o
+// valor da âncora (canto superior esquerdo). Guardamos por IDENTIDADE (ids de linha +
+// chaves de coluna), não por índice, para sobreviver a recarregar a página. A mescla
+// só é DESENHADA quando as células estão contíguas na visão atual (aba/busca); se um
+// filtro as separar, ela some visualmente sem perder os dados.
+type MergeRegion = { anchorId: string; anchorKey: string; rowIds: string[]; colKeys: string[] };
+const cellKey = (id: string, key: string) => `${id}::${key}`;
+const regionCells = (m: MergeRegion) => m.rowIds.flatMap((id) => m.colKeys.map((k) => cellKey(id, k)));
 
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_META[status] || STATUS_META[STATUS_OK];
@@ -248,6 +260,27 @@ const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
 const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set());
   // Células copiadas/recortadas e marcadas (tracejado tipo Google Sheets).
   const [clip, setClip] = useState<Clip | null>(null);
+  // Mesclas visuais da base (persistidas no navegador, por base).
+  const [merges, setMerges] = useState<MergeRegion[]>([]);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`merges:${baseId}`);
+      setMerges(saved ? (JSON.parse(saved) as MergeRegion[]) : []);
+    } catch {
+      setMerges([]);
+    }
+  }, [baseId]);
+  const saveMerges = useCallback(
+    (next: MergeRegion[]) => {
+      setMerges(next);
+      try {
+        localStorage.setItem(`merges:${baseId}`, JSON.stringify(next));
+      } catch {
+        // localStorage indisponível — ignora
+      }
+    },
+    [baseId],
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   // Atalhos comuns de planilha (Ctrl/Cmd+Z/Y = desfazer/refazer, B = negrito,
@@ -438,6 +471,32 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [visibleIds, contactById]
   );
 
+  // Traduz as mesclas (por id/chave) para a visão atual: em quais posições há um
+  // span (rowSpan/colSpan) e quais células devem ser PULADAS por estarem cobertas.
+  // Uma mescla só vale na visão se todas as suas linhas/colunas estão presentes E
+  // contíguas (sem filtro/busca/aba separando) — senão é ignorada (sem perder dados).
+  const mergeLayout = useMemo(() => {
+    const spanAt = new Map<string, { rowSpan: number; colSpan: number; anchorId: string; anchorKey: string }>();
+    const skip = new Set<string>();
+    if (merges.length === 0) return { spanAt, skip };
+    const idToRow = new Map(visible.map((c, i) => [c.id, i] as const));
+    const keyToCol = new Map(fieldKeys.map((k, i) => [k, i] as const));
+    for (const m of merges) {
+      const rows = m.rowIds.map((id) => idToRow.get(id)).filter((x): x is number => x !== undefined);
+      const cols = m.colKeys.map((k) => keyToCol.get(k)).filter((x): x is number => x !== undefined);
+      if (rows.length !== m.rowIds.length || cols.length !== m.colKeys.length) continue;
+      rows.sort((a, b) => a - b);
+      cols.sort((a, b) => a - b);
+      const contiguous = (arr: number[]) => arr.every((v, i) => i === 0 || v === arr[i - 1] + 1);
+      if (!contiguous(rows) || !contiguous(cols)) continue;
+      const top = rows[0];
+      const left = cols[0];
+      spanAt.set(`${top}:${left}`, { rowSpan: rows.length, colSpan: cols.length, anchorId: m.anchorId, anchorKey: m.anchorKey });
+      for (const r of rows) for (const c of cols) if (!(r === top && c === left)) skip.add(`${r}:${c}`);
+    }
+    return { spanAt, skip };
+  }, [merges, visible, fieldKeys]);
+
   // Limpa a seleção quando o conjunto visível muda (troca de aba/filtro/busca):
   // os índices anchor/focus apontam para posições em `visible` e, sem isso,
   // passariam a referenciar contatos diferentes dos exibidos.
@@ -613,7 +672,12 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   if (action.kind === "cells") applyBatch(action.edits, false);
   else if (action.kind === "formats") applyFormatBatch(action.edits, false);
   else if (action.kind === "delete") applyDeleteBatch(action, false); // restaura as linhas excluídas
-  else applyDeleteBatch(action, true); // insert: desfazer = excluir as linhas criadas
+  else if (action.kind === "insert") applyDeleteBatch(action, true); // insert: desfazer = excluir as linhas criadas
+  else {
+    // merge: volta ao conjunto de mesclas anterior e restaura os valores limpos.
+    saveMerges(action.prevMerges);
+    if (action.edits.length) applyBatch(action.edits, false);
+  }
 
   setClip(null);
 }
@@ -627,7 +691,12 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   if (action.kind === "cells") applyBatch(action.edits, true);
   else if (action.kind === "formats") applyFormatBatch(action.edits, true);
   else if (action.kind === "delete") applyDeleteBatch(action, true); // exclui de novo
-  else applyDeleteBatch(action, false); // insert: refazer = restaurar as linhas
+  else if (action.kind === "insert") applyDeleteBatch(action, false); // insert: refazer = restaurar as linhas
+  else {
+    // merge: reaplica o conjunto de mesclas e limpa de novo as células não-âncora.
+    saveMerges(action.nextMerges);
+    if (action.edits.length) applyBatch(action.edits, true);
+  }
 
   setClip(null);
 }
@@ -1226,20 +1295,62 @@ async function saveCell(id: string, key: string, value: string) {
     }
   }
 
+  // Mescla VISUAL (estilo Excel): o retângulo selecionado vira uma célula só, exibindo
+  // o valor da âncora (canto superior esquerdo). Os valores das demais células cobertas
+  // são limpos (o conteúdo único que fica é o da primeira). Tudo num passo de desfazer.
   async function mergeSelectedCells() {
-    if (selectedCells.length < 2) return;
+    if (!selBounds || selectedCells.length < 2) return;
+    const { startRow, endRow, startCol, endCol } = selBounds;
+    const rowIds: string[] = [];
+    for (let r = startRow; r <= endRow; r++) if (visible[r]) rowIds.push(visible[r].id);
+    const colKeys: string[] = [];
+    for (let c = startCol; c <= endCol; c++) if (fieldKeys[c]) colKeys.push(fieldKeys[c]);
+    if (rowIds.length * colKeys.length < 2) return;
 
-    const [first, ...rest] = selectedCells;
-    const merged = Array.from(
-      new Set(selectedCells.map((cell) => String(cell.contact[cell.key] || "").trim()).filter(Boolean))
-    ).join(" / ");
+    const region: MergeRegion = { anchorId: rowIds[0], anchorKey: colKeys[0], rowIds, colKeys };
+    const newCells = new Set(regionCells(region));
+    // Remove mesclas antigas que toquem qualquer célula desta nova seleção.
+    const prevMerges = merges;
+    const nextMerges = [...merges.filter((m) => !regionCells(m).some((c) => newCells.has(c))), region];
 
-    await persistCells([
-      { id: first.contact.id, key: first.key, value: merged },
-      ...rest.map((cell) => ({ id: cell.contact.id, key: cell.key, value: "" })),
-    ]);
-    selectAndFocus(first.row, first.col);
+    // Limpa o valor de todas as células cobertas, menos a âncora (que mantém o conteúdo).
+    const before = new Map(contacts.map((c) => [c.id, c] as const));
+    const edits: CellEdit[] = [];
+    for (const id of rowIds) {
+      for (const key of colKeys) {
+        if (id === region.anchorId && key === region.anchorKey) continue;
+        const prev = String(before.get(id)?.[key] ?? "");
+        if (prev !== "") edits.push({ id, key, prev, next: "" });
+      }
+    }
+
+    saveMerges(nextMerges);
+    setHistory((items) => [...items, { kind: "merge" as const, prevMerges, nextMerges, edits }].slice(-100));
+    setRedoStack([]);
+    if (edits.length) await applyBatch(edits, true);
+    selectCell(startRow, startCol);
+    focusGrid();
   }
+
+  // Desmescla: remove as mesclas que tocam a seleção atual (não restaura valores
+  // limpos — para isso, é só desfazer com Ctrl/Cmd+Z).
+  function unmergeSelectedCells() {
+    if (selectedCells.length === 0) return;
+    const sel = new Set(selectedCells.map((c) => cellKey(c.contact.id, c.key)));
+    const prevMerges = merges;
+    const nextMerges = merges.filter((m) => !regionCells(m).some((c) => sel.has(c)));
+    if (nextMerges.length === prevMerges.length) return;
+    saveMerges(nextMerges);
+    setHistory((items) => [...items, { kind: "merge" as const, prevMerges, nextMerges, edits: [] }].slice(-100));
+    setRedoStack([]);
+  }
+
+  // Há alguma mescla tocando a seleção atual? (habilita "Desmesclar".)
+  const selectionHasMerge = useMemo(() => {
+    if (selectedCells.length === 0 || merges.length === 0) return false;
+    const sel = new Set(selectedCells.map((c) => cellKey(c.contact.id, c.key)));
+    return merges.some((m) => regionCells(m).some((c) => sel.has(c)));
+  }, [selectedCells, merges]);
 
   async function clearSelectedCells() {
     if (selectedCells.length === 0) return;
@@ -1651,9 +1762,12 @@ async function saveCell(id: string, key: string, value: string) {
 
         <ToolDivider />
 
-        {/* Mesclar células (recortar/copiar/colar/excluir ficam no menu do botão direito) */}
+        {/* Mesclar / Desmesclar células (recortar/copiar/colar/excluir ficam no menu do botão direito) */}
         <ToolBtn title="Mesclar células" onClick={mergeSelectedCells} disabled={selectedCount < 2}>
           <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M9 5v14M15 5v14M3 12h6m6 0h6" /><path d="m10.5 10 2 2-2 2M13.5 10l-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </ToolBtn>
+        <ToolBtn title="Desmesclar células" onClick={unmergeSelectedCells} disabled={!selectionHasMerge}>
+          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 12h18M12 5v14" /></svg>
         </ToolBtn>
 
         <ToolDivider />
@@ -1983,6 +2097,9 @@ async function saveCell(id: string, key: string, value: string) {
                     {rowIndex + 1}
                   </td>
                   {visibleFields.map((col, colIndex) => {
+                    // Mescla: célula coberta (não-âncora) não é desenhada; a âncora ganha span.
+                    if (mergeLayout.skip.has(`${rowIndex}:${colIndex}`)) return null;
+                    const span = mergeLayout.spanAt.get(`${rowIndex}:${colIndex}`);
                     const f = fmtOf(c.id, col.key);
                     const selectedCell = isSelected(rowIndex, colIndex);
                     const isActiveCell = focusCell?.row === rowIndex && focusCell?.col === colIndex;
@@ -2005,7 +2122,9 @@ async function saveCell(id: string, key: string, value: string) {
                     return (
                     <td
                       key={col.key}
-                      className={`relative px-1 ${padY} ${
+                      rowSpan={span?.rowSpan}
+                      colSpan={span?.colSpan}
+                      className={`relative px-1 ${padY} ${span ? "align-top" : ""} ${
                         selectedCell
                           ? isActiveCell
                             ? "bg-indigo-50 ring-[3px] ring-inset ring-indigo-500"
@@ -2120,8 +2239,8 @@ async function saveCell(id: string, key: string, value: string) {
                         <div
                           data-grid-cell={`${rowIndex}:${colIndex}`}
                           style={{
-                            width: colW(col),
-                            maxWidth: colW(col),
+                            width: span ? "auto" : colW(col),
+                            maxWidth: span ? undefined : colW(col),
                             fontWeight: f.b ? 700 : undefined,
                             fontStyle: f.i ? "italic" : undefined,
                             textDecoration: f.s ? "line-through" : undefined,
@@ -2314,20 +2433,34 @@ async function saveCell(id: string, key: string, value: string) {
                 </div>
               )}
             </div>
-              {/* Mesclar células (estilo Excel) — só aparece com 2+ células */}
-              {selectedCount >= 2 && (
+              {/* Mesclar/Desmesclar células (estilo Excel) */}
+              {(selectedCount >= 2 || selectionHasMerge) && (
                 <>
                   <div className="my-1 h-px bg-slate-200" />
-                  <MenuRow
-                    icon={
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M9 5v14M15 5v14M3 12h6m6 0h6" /><path d="m10.5 10 2 2-2 2M13.5 10l-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    }
-                    label="Mesclar células"
-                    onClick={() => {
-                      mergeSelectedCells();
-                      setMenu(null);
-                    }}
-                  />
+                  {selectedCount >= 2 && (
+                    <MenuRow
+                      icon={
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M9 5v14M15 5v14M3 12h6m6 0h6" /><path d="m10.5 10 2 2-2 2M13.5 10l-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      }
+                      label="Mesclar células"
+                      onClick={() => {
+                        mergeSelectedCells();
+                        setMenu(null);
+                      }}
+                    />
+                  )}
+                  {selectionHasMerge && (
+                    <MenuRow
+                      icon={
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 12h18M12 5v14" /></svg>
+                      }
+                      label="Desmesclar células"
+                      onClick={() => {
+                        unmergeSelectedCells();
+                        setMenu(null);
+                      }}
+                    />
+                  )}
                 </>
               )}
 
