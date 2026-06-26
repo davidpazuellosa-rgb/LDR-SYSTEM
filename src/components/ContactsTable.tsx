@@ -38,9 +38,10 @@ type FormatEdit = { id: string; key: string; prev: CellFmt; next: CellFmt };
 type HistoryAction =
   | { kind: "cells"; edits: CellEdit[] }
   | { kind: "formats"; edits: FormatEdit[] }
-  // Exclusão de linhas (soft delete): guarda os contatos e seus formatos para
-  // poder restaurar (desfazer) ou excluir de novo (refazer).
-  | { kind: "delete"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>> };
+  // Exclusão de linhas (soft delete): guarda os contatos, seus formatos e a posição
+  // original de cada um (índice no array `contacts`) para restaurar (desfazer) no lugar
+  // certo, ou excluir de novo (refazer).
+  | { kind: "delete"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] };
 
 // "Marca-d'água" de copiar/recortar (estilo Google Sheets): as células ficam
 // tracejadas. No recorte, a origem só é apagada DEPOIS de colar (mover).
@@ -226,7 +227,7 @@ export default function ContactsTable({
   const [history, setHistory] = useState<HistoryAction[]>([]);
   const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
   const [density, setDensity] = useState<"compacta" | "normal" | "ampla">("normal");
-  const [frozen, setFrozen] = useState(false);
+  const [frozen] = useState(false);
   const [formats, setFormats] = useState<Record<string, Record<string, CellFmt>>>(initialFormats);
   // Célula em edição (null = apenas seleção, sem editar) e o caractere inicial ao digitar direto.
   const [editingCell, setEditingCell] = useState<CellRef | null>(null);
@@ -246,6 +247,15 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const [clip, setClip] = useState<Clip | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  // Atalhos comuns de planilha (Ctrl/Cmd+Z/Y = desfazer/refazer, B = negrito,
+  // I = itálico) a nível de JANELA — funcionam mesmo sem o foco estar na grade.
+  // Guardado em ref para o handler usar sempre os estados/funções atuais.
+  const shortcutRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => shortcutRef.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Zoom da grade (escala do conteúdo) — guardado no navegador. Default 70%.
   const [zoom, setZoom] = useState(0.7);
@@ -521,15 +531,19 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   }
 
   // Registra uma exclusão de linhas no histórico (para desfazer/refazer).
-  function recordDelete(deleted: Contact[], deletedFormats: Record<string, Record<string, CellFmt>>) {
+  function recordDelete(
+    deleted: Contact[],
+    deletedFormats: Record<string, Record<string, CellFmt>>,
+    positions: number[]
+  ) {
     if (deleted.length === 0) return;
-    setHistory((items) => [...items, { kind: "delete" as const, contacts: deleted, formats: deletedFormats }].slice(-100));
+    setHistory((items) => [...items, { kind: "delete" as const, contacts: deleted, formats: deletedFormats, positions }].slice(-100));
     setRedoStack([]);
   }
 
   // Aplica/desfaz uma exclusão: redelete=true exclui de novo; false restaura.
   async function applyDeleteBatch(
-    action: { contacts: Contact[]; formats: Record<string, Record<string, CellFmt>> },
+    action: { contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] },
     redelete: boolean
   ) {
     const ids = action.contacts.map((c) => c.id);
@@ -539,7 +553,16 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       setAnchorCell(null);
       setFocusCell(null);
     } else {
-      setContacts((prev) => [...prev, ...action.contacts]);
+      // Restaura cada linha na POSIÇÃO ORIGINAL (não no fim). Inserir em ordem crescente
+      // de posição recoloca os índices certos ao desfazer (LIFO logo após a exclusão).
+      setContacts((prev) => {
+        const next = [...prev];
+        action.contacts
+          .map((c, i) => ({ c, pos: action.positions[i] ?? next.length }))
+          .sort((a, b) => a.pos - b.pos)
+          .forEach(({ c, pos }) => next.splice(Math.min(pos, next.length), 0, c));
+        return next;
+      });
       if (Object.keys(action.formats).length) setFormats((prev) => ({ ...prev, ...action.formats }));
     }
     try {
@@ -655,7 +678,17 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
 function openColumnContextMenu(e: React.MouseEvent, colIndex: number) {
   e.preventDefault();
   e.stopPropagation();
-  selectColumn(colIndex, e.shiftKey);
+  // Mantém a seleção só se ela for mesmo de COLUNAS (cobre todas as linhas) e o clique
+  // cair dentro dela. Se a seleção atual for ortogonal (ex.: uma linha inteira, que
+  // também cobre todas as colunas), reseta para esta coluna — senão "Limpar/Ocultar N
+  // colunas" agiria sobre a grade inteira.
+  const keepCols =
+    !!selBounds &&
+    selBounds.startRow === 0 &&
+    selBounds.endRow === visible.length - 1 &&
+    colIndex >= selBounds.startCol &&
+    colIndex <= selBounds.endCol;
+  if (!keepCols) selectColumn(colIndex, e.shiftKey);
   if (!canEditHeaders) return; // LDR só preenche: não altera a estrutura das colunas
   setPasteSpecialOpen(false);
   setMenu({ type: "column", x: e.clientX, y: e.clientY, col: colIndex });
@@ -664,7 +697,17 @@ function openColumnContextMenu(e: React.MouseEvent, colIndex: number) {
 function openRowContextMenu(e: React.MouseEvent, rowIndex: number) {
   e.preventDefault();
   e.stopPropagation();
-  selectRow(rowIndex, e.shiftKey);
+  // Mantém a seleção só se ela for mesmo de LINHAS (cobre todas as colunas) e o clique
+  // cair dentro dela. Se a seleção atual for ortogonal (ex.: uma coluna inteira, que
+  // cobre todas as linhas), reseta para esta linha — senão "Excluir N linhas" apagaria
+  // a grade inteira.
+  const keepRows =
+    !!selBounds &&
+    selBounds.startCol === 0 &&
+    selBounds.endCol === fieldKeys.length - 1 &&
+    rowIndex >= selBounds.startRow &&
+    rowIndex <= selBounds.endRow;
+  if (!keepRows) selectRow(rowIndex, e.shiftKey);
   setPasteSpecialOpen(false);
   setMenu({ type: "row", x: e.clientX, y: e.clientY, row: rowIndex });
 }
@@ -765,6 +808,30 @@ function toggleStrike() {
   applyFormat((fmt) => ({ ...fmt, s: on }));
 }
 
+  // Mantém o handler de atalhos de janela sempre com as funções/estado atuais.
+  shortcutRef.current = (e: KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const el = document.activeElement as HTMLElement | null;
+    const tag = el?.tagName;
+    // Digitando num campo (busca, cabeçalho, editor de célula): deixa o navegador agir.
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+    const k = e.key.toLowerCase();
+    if (k === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    } else if (k === "y") {
+      e.preventDefault();
+      redo();
+    } else if (k === "b") {
+      e.preventDefault();
+      toggleBold();
+    } else if (k === "i") {
+      e.preventDefault();
+      toggleItalic();
+    }
+  };
+
 function setTextColor(color: string) {
   applyFormat((fmt) => ({ ...fmt, color }));
 }
@@ -811,6 +878,17 @@ function setAlign(align: CellFmt["align"]) {
       endCol: Math.max(anchorCell.col, focusCell.col),
     };
   }, [anchorCell, focusCell]);
+
+  // Quantidade de linhas/colunas (e seus índices) no retângulo selecionado — usado
+  // pelo menu do botão direito para "Inserir/Excluir N linhas" e "Ocultar/Limpar N colunas".
+  const selRows = selBounds ? selBounds.endRow - selBounds.startRow + 1 : 0;
+  const selCols = selBounds ? selBounds.endCol - selBounds.startCol + 1 : 0;
+  const selRowIndices = selBounds
+    ? Array.from({ length: selRows }, (_, i) => selBounds.startRow + i)
+    : [];
+  const selColIndices = selBounds
+    ? Array.from({ length: selCols }, (_, i) => selBounds.startCol + i)
+    : [];
 
   function isSelected(row: number, col: number) {
     if (!selBounds) return false;
@@ -906,35 +984,38 @@ function setAlign(align: CellFmt["align"]) {
     focusGrid();
   }
 
-async function clearColumn(colIndex: number) {
-  const key = fieldKeys[colIndex];
-  if (!key) return;
-
+// Limpa o conteúdo de N colunas inteiras (todas as linhas visíveis) num lote só.
+async function clearColumns(colIndices: number[]) {
+  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  if (keys.length === 0) return;
   const edits = visible
-    .map((contact) => ({
-      id: contact.id,
-      key,
-      prev: String(contact[key] ?? ""),
-      next: "",
-    }))
+    .flatMap((contact) =>
+      keys.map((key) => ({
+        id: contact.id,
+        key,
+        prev: String(contact[key] ?? ""),
+        next: "",
+      }))
+    )
     .filter((edit) => edit.prev !== "");
-
   if (edits.length === 0) {
     setMenu(null);
     return;
   }
-
-  setHistory((prev) => [...prev, { kind: "cells", edits }]);
-  setRedoStack([]);
+  recordBatch(edits);
   await applyBatch(edits, true);
   setMenu(null);
 }
 
-// Oculta uma coluna da visão (os dados continuam no banco — campos fixos).
-function hideColumn(colIndex: number) {
-  const key = fieldKeys[colIndex];
-  if (!key) return;
-  setHiddenColumns((prev) => new Set(prev).add(key));
+// Oculta N colunas da visão de uma vez (os campos continuam no banco).
+function hideColumns(colIndices: number[]) {
+  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  if (keys.length === 0) return;
+  setHiddenColumns((prev) => {
+    const next = new Set(prev);
+    keys.forEach((k) => next.add(k));
+    return next;
+  });
   setAnchorCell(null);
   setFocusCell(null);
   setClip(null);
@@ -947,31 +1028,38 @@ function showAllColumns() {
   setFocusCell(null);
 }
 
-async function insertRowNear(rowIndex: number, side: "above" | "below") {
+async function insertRowNear(rowIndex: number, side: "above" | "below", count = 1) {
   setClip(null);
   const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
-  const res = await fetch(apiPath("/api/contacts"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ baseId, estado }),
-  });
+  // Cria N contatos novos (N = linhas selecionadas, estilo Excel).
+  const created: Contact[] = [];
+  for (let i = 0; i < Math.max(1, count); i++) {
+    const res = await fetch(apiPath("/api/contacts"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId, estado }),
+    });
+    if (!res.ok) {
+      toast.error("Não foi possível inserir a linha.");
+      break;
+    }
+    created.push(await res.json());
+  }
 
-  if (!res.ok) {
-    toast.error("Não foi possível inserir a linha.");
+  if (created.length === 0) {
     setMenu(null);
     return;
   }
 
-  const created = await res.json();
   const reference = visible[rowIndex];
   setContacts((prev) => {
     const referenceIndex = reference ? prev.findIndex((contact) => contact.id === reference.id) : -1;
     const insertAt = referenceIndex < 0 ? prev.length : referenceIndex + (side === "below" ? 1 : 0);
-    return [...prev.slice(0, insertAt), created, ...prev.slice(insertAt)];
+    return [...prev.slice(0, insertAt), ...created, ...prev.slice(insertAt)];
   });
   setHiddenRowIds((prev) => {
     const next = new Set(prev);
-    next.delete(created.id);
+    created.forEach((c) => next.delete(c.id));
     return next;
   });
   setMenu(null);
@@ -979,29 +1067,37 @@ async function insertRowNear(rowIndex: number, side: "above" | "below") {
   markSaved();
 }
 
-async function deleteRow(rowIndex: number) {
-  const contact = visible[rowIndex];
-  if (!contact) return;
-  if (!confirm("Excluir esta linha?")) return;
-
-  markSaving();
-  const res = await fetch(apiPath(`/api/contacts/${contact.id}`), { method: "DELETE" });
-  if (!res.ok) {
-    markSaveError();
-    toast.error("Não foi possível excluir a linha.", "Verifique suas permissões.");
+// Exclui N linhas de uma vez (N = linhas selecionadas). Registra para desfazer.
+async function deleteRows(rowIndices: number[]) {
+  const targets = Array.from(new Set(rowIndices))
+    .map((i) => visible[i])
+    .filter((c): c is Contact => Boolean(c));
+  if (targets.length === 0) return;
+  if (!confirm(targets.length > 1 ? `Excluir ${targets.length} linhas?` : "Excluir esta linha?")) {
     setMenu(null);
     return;
   }
-
-  // Guarda contato e formato para permitir desfazer a exclusão.
+  markSaving();
+  const results = await Promise.all(
+    targets.map((c) => fetch(apiPath(`/api/contacts/${c.id}`), { method: "DELETE" }))
+  );
+  if (!results.every((r) => r.ok)) {
+    markSaveError();
+    toast.error("Não foi possível excluir todas as linhas.", "Verifique suas permissões.");
+    setMenu(null);
+    return;
+  }
   const deletedFormats: Record<string, Record<string, CellFmt>> = {};
-  if (formats[contact.id]) deletedFormats[contact.id] = formats[contact.id];
-  recordDelete([contact], deletedFormats);
-
-  setContacts((prev) => prev.filter((c) => c.id !== contact.id));
+  for (const c of targets) if (formats[c.id]) deletedFormats[c.id] = formats[c.id];
+  // Posição original de cada alvo no array `contacts` (antes de remover), para restaurar no lugar.
+  const posOf = new Map(contacts.map((c, i) => [c.id, i]));
+  const positions = targets.map((c) => posOf.get(c.id) ?? contacts.length);
+  recordDelete(targets, deletedFormats, positions);
+  const ids = new Set(targets.map((c) => c.id));
+  setContacts((prev) => prev.filter((c) => !ids.has(c.id)));
   setHiddenRowIds((prev) => {
     const next = new Set(prev);
-    next.delete(contact.id);
+    ids.forEach((id) => next.delete(id));
     return next;
   });
   setAnchorCell(null);
@@ -1011,37 +1107,14 @@ async function deleteRow(rowIndex: number) {
   markSaved();
 }
 
-async function clearRow(rowIndex: number) {
-  const contact = visible[rowIndex];
-  if (!contact) return;
-
-  const edits = fieldKeys
-    .map((key) => ({
-      id: contact.id,
-      key,
-      prev: String(contact[key] ?? ""),
-      next: "",
-    }))
-    .filter((edit) => edit.prev !== "");
-
-  if (edits.length === 0) {
-    setMenu(null);
-    return;
-  }
-
-  setHistory((prev) => [...prev, { kind: "cells", edits }]);
-  setRedoStack([]);
-  await applyBatch(edits, true);
-  setMenu(null);
-}
-
-function hideRow(rowIndex: number) {
-  const contact = visible[rowIndex];
-  if (!contact) return;
+// Oculta N linhas da visão (N = linhas selecionadas; os contatos continuam no banco).
+function hideRows(rowIndices: number[]) {
+  const ids = rowIndices.map((i) => visible[i]?.id).filter(Boolean) as string[];
+  if (ids.length === 0) return;
 
   setHiddenRowIds((prev) => {
     const next = new Set(prev);
-    next.add(contact.id);
+    ids.forEach((id) => next.add(id));
     return next;
   });
   setAnchorCell(null);
@@ -1286,17 +1359,8 @@ async function saveCell(id: string, key: string, value: string) {
       return;
     }
     if (key === "v") return;
-    if (key === "z") {
-      e.preventDefault();
-      if (e.shiftKey) redo();
-      else undo();
-      return;
-    }
-    if (key === "y") {
-      e.preventDefault();
-      redo();
-      return;
-    }
+    // Ctrl/Cmd+Z, +Y e +B/+I são tratados no listener de janela (shortcutRef),
+    // para funcionarem mesmo sem o foco estar na grade.
   }
 
   switch (e.key) {
@@ -1391,22 +1455,6 @@ async function saveCell(id: string, key: string, value: string) {
     e.preventDefault();
     // Cola a partir do canto superior-esquerdo da seleção (igual à barra de ferramentas).
     pasteGrid(selBounds.startRow, selBounds.startCol, text, false, selBounds).then(afterPaste);
-  }
-
-  async function addRow() {
-  setClip(null);
-    // Se estiver numa aba de UF específica, já cria o contato nesse estado.
-    const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
-    const res = await fetch(apiPath("/api/contacts"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseId, estado }),
-    });
-    if (res.ok) {
-      const c = await res.json();
-      setContacts((prev) => [...prev, c]);
-      setClip(null);
-    }
   }
 
   function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1663,18 +1711,6 @@ async function saveCell(id: string, key: string, value: string) {
         })}
 
         <ToolDivider />
-
-        {/* Inserir linha */}
-        <ToolBtn title="Inserir linha (novo contato)" onClick={addRow}>
-          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="6" rx="1" /><rect x="3" y="14" width="18" height="6" rx="1" /><path d="M12 11v6M9 14h6" strokeLinecap="round" /></svg>
-        </ToolBtn>
-
-        <ToolDivider />
-
-        {/* Congelar 1ª coluna */}
-        <ToolBtn title={frozen ? "Descongelar 1ª coluna" : "Congelar 1ª coluna"} onClick={() => setFrozen((v) => !v)}>
-          <svg className={`h-[18px] w-[18px] ${frozen ? "text-indigo-600" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M3 9h6M3 14h6" /></svg>
-        </ToolBtn>
 
         {/* Mostrar colunas ocultas (aparece só quando há colunas ocultas) */}
         {hiddenColumns.size > 0 && (
@@ -2097,13 +2133,17 @@ async function saveCell(id: string, key: string, value: string) {
         </table>
       </div>
 
-      {/* Abas por estado (UF) — rodapé fixo e destacado, estilo Google Sheets */}
+      {/* Abas por estado (UF) — rodapé estilo Excel: a aba ativa fica branca, um
+          pouco mais alta e com borda (presa à planilha); as demais ficam cinzas
+          e recuadas, separadas por tracinhos. */}
       {estados.length > 0 && (
-        <div className="-mt-2 flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-b-xl border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-2px_6px_rgba(15,23,42,0.05)]">
+        <div className="-mt-2 flex shrink-0 items-end overflow-x-auto rounded-b-xl border-t border-slate-300 bg-slate-100 px-2 shadow-[0_-2px_6px_rgba(15,23,42,0.05)]">
           <button
             onClick={() => setTab(ALL)}
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-              tab === ALL ? "bg-indigo-100 text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
+              tab === ALL
+                ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
+                : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
             }`}
           >
             Todas <span className="text-xs text-slate-400">({filteredTotal})</span>
@@ -2112,8 +2152,10 @@ async function saveCell(id: string, key: string, value: string) {
             <button
               key={uf}
               onClick={() => setTab(uf)}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                tab === uf ? "bg-indigo-100 text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
+                tab === uf
+                  ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
+                  : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
               }`}
             >
               {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-400">({n})</span>
@@ -2158,8 +2200,8 @@ async function saveCell(id: string, key: string, value: string) {
                       <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
                     </svg>
                   }
-                  label="Limpar coluna"
-                  onClick={() => clearColumn(menu.col)}
+                  label={selCols > 1 ? `Limpar ${selCols} colunas` : "Limpar coluna"}
+                  onClick={() => clearColumns(selColIndices.length ? selColIndices : [menu.col])}
                 />
                 <MenuRow
                   icon={
@@ -2170,8 +2212,8 @@ async function saveCell(id: string, key: string, value: string) {
                       <path d="M6.6 6.7A12.4 12.4 0 0 0 2.5 12C3.5 14.5 7 19 12 19a10.8 10.8 0 0 0 4.1-.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   }
-                  label="Ocultar coluna"
-                  onClick={() => hideColumn(menu.col)}
+                  label={selCols > 1 ? `Ocultar ${selCols} colunas` : "Ocultar coluna"}
+                  onClick={() => hideColumns(selColIndices.length ? selColIndices : [menu.col])}
                 />
               </>
             ) : (
@@ -2242,57 +2284,71 @@ async function saveCell(id: string, key: string, value: string) {
                 </div>
               )}
             </div>
-              <div className="my-1 h-px bg-slate-200" />
-              <MenuRow
-                icon={
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                    <path d="M9 10l6 4M15 10l-6 4" strokeLinecap="round" />
-                  </svg>
-                }
-                label={selectedCount > 1 ? `Excluir ${selectedCount} células` : "Excluir célula"}
-                disabled={selectedCount === 0}
-                onClick={() => {
-                  clearSelectedCells();
-                  setMenu(null);
-                }}
-              />
-              {menu.type === "row" && (
+              {/* Mesclar células (estilo Excel) — só aparece com 2+ células */}
+              {selectedCount >= 2 && (
                 <>
                   <div className="my-1 h-px bg-slate-200" />
                   <MenuRow
-                    icon={<span className="text-xl leading-none">+</span>}
-                    label="Inserir 1 linha acima"
-                    onClick={() => insertRowNear(menu.row, "above")}
-                  />
-                  <MenuRow
-                    icon={<span className="text-xl leading-none">+</span>}
-                    label="Inserir 1 linha abaixo"
-                    onClick={() => insertRowNear(menu.row, "below")}
-                  />
-                  {canDelete && (
-                    <MenuRow
-                      icon={
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path d="M3 6h18" strokeLinecap="round" />
-                          <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M10 11v5M14 11v5" strokeLinecap="round" />
-                        </svg>
-                      }
-                      label="Excluir linha"
-                      onClick={() => deleteRow(menu.row)}
-                    />
-                  )}
-                  <MenuRow
                     icon={
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                        <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
-                      </svg>
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M9 5v14M15 5v14M3 12h6m6 0h6" /><path d="m10.5 10 2 2-2 2M13.5 10l-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     }
-                    label="Limpar linha"
-                    onClick={() => clearRow(menu.row)}
+                    label="Mesclar células"
+                    onClick={() => {
+                      mergeSelectedCells();
+                      setMenu(null);
+                    }}
                   />
+                </>
+              )}
+
+              {/* Linhas — insere/exclui conforme a seleção (N = linhas selecionadas) */}
+              <div className="my-1 h-px bg-slate-200" />
+              <MenuRow
+                icon={<span className="text-xl leading-none">+</span>}
+                label={selRows > 1 ? `Inserir ${selRows} linhas acima` : "Inserir linha acima"}
+                onClick={() => {
+                  if (selBounds) insertRowNear(selBounds.startRow, "above", selRows);
+                }}
+              />
+              <MenuRow
+                icon={<span className="text-xl leading-none">+</span>}
+                label={selRows > 1 ? `Inserir ${selRows} linhas abaixo` : "Inserir linha abaixo"}
+                onClick={() => {
+                  if (selBounds) insertRowNear(selBounds.endRow, "below", selRows);
+                }}
+              />
+              {canDelete && (
+                <MenuRow
+                  icon={
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M3 6h18" strokeLinecap="round" />
+                      <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+                    </svg>
+                  }
+                  label={selRows > 1 ? `Excluir ${selRows} linhas` : "Excluir linha"}
+                  disabled={selectedCount === 0}
+                  onClick={() => deleteRows(selRowIndices)}
+                />
+              )}
+              <MenuRow
+                icon={
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M3 3l18 18" strokeLinecap="round" />
+                    <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" strokeLinecap="round" />
+                    <path d="M9.5 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9.5 7a12.2 12.2 0 0 1-2.3 3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M6.6 6.7A12.4 12.4 0 0 0 2.5 12C3.5 14.5 7 19 12 19a10.8 10.8 0 0 0 4.1-.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                }
+                label={selRows > 1 ? `Ocultar ${selRows} linhas` : "Ocultar linha"}
+                onClick={() => hideRows(selRowIndices)}
+              />
+
+              {/* Colunas — campos fixos: dá pra ocultar (não excluir de verdade) */}
+              {canEditHeaders && (
+                <>
+                  <div className="my-1 h-px bg-slate-200" />
                   <MenuRow
                     icon={
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -2302,11 +2358,27 @@ async function saveCell(id: string, key: string, value: string) {
                         <path d="M6.6 6.7A12.4 12.4 0 0 0 2.5 12C3.5 14.5 7 19 12 19a10.8 10.8 0 0 0 4.1-.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     }
-                    label="Ocultar linha"
-                    onClick={() => hideRow(menu.row)}
+                    label={selCols > 1 ? `Ocultar ${selCols} colunas` : "Ocultar coluna"}
+                    onClick={() => hideColumns(selColIndices)}
                   />
                 </>
               )}
+
+              {/* Limpar o conteúdo das células selecionadas */}
+              <div className="my-1 h-px bg-slate-200" />
+              <MenuRow
+                icon={
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+                  </svg>
+                }
+                label="Limpar conteúdo"
+                disabled={selectedCount === 0}
+                onClick={() => {
+                  clearSelectedCells();
+                  setMenu(null);
+                }}
+              />
               </>
             )}
           </div>
