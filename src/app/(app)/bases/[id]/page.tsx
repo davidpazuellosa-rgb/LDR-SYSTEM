@@ -75,7 +75,7 @@ export default async function BaseDetailPage({
           </Link>
         }
       />
-      <div className="flex h-full flex-col p-8">
+      <div className="flex h-full flex-col px-8 pt-8 pb-3">
         <ContactsTable
           baseId={base.id}
           initialContacts={contacts}
