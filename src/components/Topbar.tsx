@@ -38,7 +38,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/bases": "Bases de Dados",
   "/correcoes": "Correção de Contatos",
   "/historico-correcoes": "Histórico de Correções",
-  "/hubspot": "HubSpot CRM",
+  "/relatorios": "Relatórios",
   "/configuracoes": "Configurações",
 };
 

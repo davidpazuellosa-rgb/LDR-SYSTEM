@@ -102,7 +102,6 @@ export default function Sidebar({
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: badges.pending },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Áreas sensíveis: só admin
-    ...(admin ? [{ href: "/hubspot", label: "HubSpot CRM", icon: "link", badge: 0 }] : []),
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
     ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: badges.sugestoes }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
