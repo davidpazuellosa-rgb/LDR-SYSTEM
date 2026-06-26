@@ -1,0 +1,151 @@
+// "Minhas Metas" (visão do próprio LDR): metas ativas, histórico retroativo e
+// conquistas. Histórico é calculado dos timestamps (ContactFill/Correction) contra o
+// alvo atual — sem versionar (ver planejamento). Reaproveita a lógica de meta-progress.
+import { prisma } from "@/lib/prisma";
+import { ufSigla } from "@/lib/uf";
+import { tipoOrgao } from "@/lib/completude";
+import { normCampanha } from "@/lib/campanhas";
+import { regiaoKey, periodStart, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { ensureMetaTable } from "@/lib/meta";
+import { ensureContactFillTable } from "@/lib/contact-fill";
+
+export type StatusMeta = "ok" | "risco" | "atrasado";
+
+function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: Date, end: Date): number {
+  if (m.tipo === "correcao") {
+    const camp = normCampanha(m.campanha);
+    return corrections.filter((c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && c.resolvedAt < end && normCampanha(c.campanha) === camp).length;
+  }
+  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado).length;
+}
+
+function statusDe(feito: number, alvo: number, decorrido: number): StatusMeta {
+  const p = alvo > 0 ? feito / alvo : feito > 0 ? 1 : 0;
+  if (p >= 1) return "ok";
+  const esperado = alvo * decorrido;
+  if (feito >= esperado) return "ok";
+  if (feito >= esperado * 0.6) return "risco";
+  return "atrasado";
+}
+
+// Pior situação entre as metas (verde < âmbar < vermelho) — para o ponto na sidebar.
+const pior = (a: StatusMeta | null, b: StatusMeta): StatusMeta => {
+  const ordem = { ok: 0, risco: 1, atrasado: 2 } as const;
+  if (!a) return b;
+  return ordem[b] > ordem[a] ? b : a;
+};
+
+function rotuloMeta(m: Meta, baseName: (id: string | null) => string): string {
+  return m.tipo === "correcao"
+    ? `Campanha: ${m.campanha || "—"}`
+    : `${tipoOrgao(baseName(m.baseId))} · ${m.regiao || "—"} · ${ufSigla(m.estado) || m.estado || "—"}`;
+}
+
+function janelasPassadas(prazo: string, now: Date, quantas: number) {
+  const wins: { start: Date; end: Date; label: string }[] = [];
+  for (let i = quantas; i >= 1; i--) {
+    if (prazo === "mensal") {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      wins.push({ start, end, label: start.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") });
+    } else {
+      const start = new Date(startOfWeek(now).getTime() - i * 7 * 86400000);
+      const end = new Date(start.getTime() + 7 * 86400000);
+      wins.push({ start, end, label: `${start.getDate()}/${start.getMonth() + 1}` });
+    }
+  }
+  return wins;
+}
+
+async function carregar(userId: string, desde: Date) {
+  await ensureMetaTable();
+  await ensureContactFillTable();
+  const metas = (await prisma.meta.findMany({ where: { userId } })) as Meta[];
+  if (metas.length === 0) return { metas, fills: [] as Fill[], corrections: [] as CorrDone[], baseName: (() => "Base") as (id: string | null) => string };
+
+  const [fillRows, corrRows, bases] = await Promise.all([
+    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, concluidoEm: true } }),
+    prisma.correction.findMany({
+      where: { resolvedById: userId, status: "resolved", resolvedAt: { gte: desde, not: null } },
+      select: { resolvedAt: true, contact: { select: { campanha: true } } },
+    }),
+    prisma.base.findMany({ select: { id: true, name: true } }),
+  ]);
+  const ids = Array.from(new Set(fillRows.map((f) => f.contactId)));
+  const contacts = ids.length
+    ? await prisma.contact.findMany({ where: { id: { in: ids } }, select: { id: true, baseId: true, regiao: true, estado: true } })
+    : [];
+  const terr = new Map(contacts.map((c) => [c.id, c]));
+  const fills: Fill[] = [];
+  for (const f of fillRows) {
+    const c = terr.get(f.contactId);
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+  }
+  const corrections: CorrDone[] = corrRows.map((r) => ({ resolvedById: userId, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }));
+  const nomes = new Map(bases.map((b) => [b.id, b.name]));
+  const baseName = (id: string | null) => nomes.get(id || "") || "Base";
+  return { metas, fills, corrections, baseName };
+}
+
+// Situação resumida (para o ponto na sidebar) — só o período atual, leve.
+export async function statusMinhasMetas(userId: string): Promise<StatusMeta | null> {
+  const now = new Date();
+  const desde = new Date(Math.min(startOfWeek(now).getTime(), startOfMonth(now).getTime()));
+  const { metas, fills, corrections } = await carregar(userId, desde);
+  if (metas.length === 0) return null;
+  let worst: StatusMeta | null = null;
+  for (const m of metas) {
+    const ini = periodStart(m.prazo, now);
+    const fim = m.prazo === "mensal" ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(ini.getTime() + 7 * 86400000);
+    const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
+    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
+    worst = pior(worst, statusDe(feito, m.alvo, decorrido));
+  }
+  return worst;
+}
+
+// Dados completos para a página Minhas Metas.
+export async function buildMinhasMetas(userId: string) {
+  const now = new Date();
+  const desde = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 7, 1)); // cobre 8 semanas e 6 meses
+  const { metas, fills, corrections, baseName } = await carregar(userId, desde);
+
+  const ativas = metas.map((m) => {
+    const ini = periodStart(m.prazo, now);
+    const fim = m.prazo === "mensal" ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(ini.getTime() + 7 * 86400000);
+    const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
+    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
+    const p = m.alvo > 0 ? Math.min(100, Math.round((feito / m.alvo) * 100)) : feito > 0 ? 100 : 0;
+    return {
+      id: m.id, tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m, baseName),
+      feito, alvo: m.alvo, p, esperado: Math.round(m.alvo * decorrido),
+      status: statusDe(feito, m.alvo, decorrido),
+    };
+  });
+
+  const historico = metas.map((m) => {
+    const quantas = m.prazo === "mensal" ? 6 : 8;
+    const periodos = janelasPassadas(m.prazo, now, quantas).map((w) => {
+      const feito = feitoNoPeriodo(m, fills, corrections, w.start, w.end);
+      return { label: w.label, feito, alvo: m.alvo, hit: m.alvo > 0 && feito >= m.alvo };
+    });
+    // Sequência (streak): períodos batidos consecutivos a partir do mais recente.
+    let streak = 0;
+    for (let i = periodos.length - 1; i >= 0; i--) {
+      if (periodos[i].hit) streak++;
+      else break;
+    }
+    return { id: m.id, tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m, baseName), periodos, streak };
+  });
+
+  const conquistas = {
+    batendoAgora: ativas.filter((a) => a.p >= 100).length,
+    totalAtivas: ativas.length,
+    batidasHistorico: historico.reduce((acc, h) => acc + h.periodos.filter((p) => p.hit).length, 0),
+    melhorSequencia: historico.reduce((acc, h) => Math.max(acc, h.streak), 0),
+  };
+
+  const status = ativas.reduce<StatusMeta | null>((acc, a) => pior(acc, a.status), null);
+
+  return { ativas, historico, conquistas, status };
+}

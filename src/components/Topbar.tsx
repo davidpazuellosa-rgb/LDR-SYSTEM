@@ -35,6 +35,7 @@ function SavedBadge({ saved }: { saved: NonNullable<SavedStatus> }) {
 
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Visão geral",
+  "/minhas-metas": "Minhas Metas",
   "/bases": "Bases de Dados",
   "/correcoes": "Correção de Contatos",
   "/historico-correcoes": "Histórico de Correções",

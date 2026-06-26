@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SasiLogo from "@/components/SasiLogo";
 
-type Badges = { bases: number; pending: number; sugestoes: number };
+type Badges = { bases: number; pending: number; sugestoes: number; metasStatus: "ok" | "risco" | "atrasado" | null };
 
 function Icon({ name }: { name: string }) {
   const common = "h-5 w-5";
@@ -30,6 +30,14 @@ function Icon({ name }: { name: string }) {
       return (
         <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L20 13l-2 6a2 2 0 0 1-2 1A16 16 0 0 1 4 6a2 2 0 0 1 1-2Z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "target":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="12" cy="12" r="0.6" fill="currentColor" />
         </svg>
       );
     case "chart":
@@ -95,8 +103,16 @@ export default function Sidebar({
   const pathname = usePathname();
   const admin = role === "admin";
 
-  const nav = [
+  // Ponto colorido em "Minhas Metas" conforme a pior situação das metas do usuário.
+  const metaDot =
+    badges.metasStatus === "atrasado" ? "bg-rose-500"
+    : badges.metasStatus === "risco" ? "bg-amber-400"
+    : badges.metasStatus === "ok" ? "bg-emerald-500"
+    : "";
+
+  const nav: { href: string; label: string; icon: string; badge: number; dot?: string }[] = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
+    { href: "/minhas-metas", label: "Minhas Metas", icon: "target", badge: 0, dot: metaDot },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
@@ -144,8 +160,12 @@ export default function Sidebar({
                 {collapsed && item.badge > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] bg-indigo-400" />
                 )}
+                {collapsed && item.dot && (
+                  <span className={`absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#191d45] ${item.dot}`} />
+                )}
               </span>
               {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.dot && <span className={`h-2 w-2 shrink-0 rounded-full ${item.dot}`} />}
               {!collapsed && item.badge > 0 && (
                 <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-indigo-500 px-1.5 text-[11px] font-semibold text-white">
                   {item.badge > 99 ? "99+" : item.badge}

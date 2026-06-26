@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/permissions";
 import { ensureSuggestionTable } from "@/lib/suggestions";
+import { statusMinhasMetas } from "@/lib/minhas-metas";
 import AppShell from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
@@ -25,17 +26,20 @@ export default async function AppLayout({
     return prisma.suggestion.count({ where: { status: "nova" } });
   }
 
-  const [bases, pending, sugestoes] = await Promise.all([
+  const meId = (session.user as { id?: string }).id || "";
+
+  const [bases, pending, sugestoes, metasStatus] = await Promise.all([
     prisma.base.count(),
     prisma.correction.count({ where: { status: "pending" } }),
     contarSugestoesNovas(),
+    meId ? statusMinhasMetas(meId) : Promise.resolve(null),
   ]);
 
   return (
     <AppShell
       user={{ name: session.user.name, email: session.user.email }}
       role={role}
-      badges={{ bases, pending, sugestoes }}
+      badges={{ bases, pending, sugestoes, metasStatus }}
     >
       {children}
     </AppShell>
