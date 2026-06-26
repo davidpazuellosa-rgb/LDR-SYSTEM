@@ -165,9 +165,9 @@ function SimNaoToggle({
   tone?: "indigo" | "emerald";
 }) {
   // "Sim" verde e "Não" vermelho rosé (combinam) no WhatsApp (tone emerald);
-  // o institucional (tone indigo) mantém indigo nos dois.
-  const yesActive = tone === "emerald" ? "bg-emerald-600 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
-  const noActive = tone === "emerald" ? "bg-rose-500 text-white shadow-sm" : "bg-indigo-600 text-white shadow-sm";
+  // o institucional (tone indigo) usa laranja queimado nos dois (combina com verde + vermelho).
+  const yesActive = tone === "emerald" ? "bg-emerald-600 text-white shadow-sm" : "bg-orange-600 text-white shadow-sm";
+  const noActive = tone === "emerald" ? "bg-rose-500 text-white shadow-sm" : "bg-orange-600 text-white shadow-sm";
   const idle = "text-slate-500 hover:text-slate-700";
   return (
     <div className="space-y-1.5">
