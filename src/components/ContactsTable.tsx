@@ -213,6 +213,12 @@ export default function ContactsTable({
   const [message, setMessage] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [undoInfo, setUndoInfo] = useState<{ eventoId: string; resumo: string } | null>(null);
+  // Tooltip instantâneo (o title nativo demora ~1s pra aparecer).
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const showTip = (e: React.MouseEvent, text: string) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ text, x: r.left + r.width / 2, y: r.bottom + 6 });
+  };
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1763,7 +1769,8 @@ async function saveCell(id: string, key: string, value: string) {
           <button
             type="button"
             onClick={() => setHistoricoOpen(true)}
-            title="Histórico de alterações desta planilha"
+            onMouseEnter={(e) => showTip(e, "Histórico de alterações")}
+            onMouseLeave={() => setTip(null)}
             aria-label="Histórico de alterações"
             className="grid h-9 w-9 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
           >
@@ -1778,7 +1785,8 @@ async function saveCell(id: string, key: string, value: string) {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={importing}
-              title="Importar planilha (CSV/Excel)"
+              onMouseEnter={(e) => showTip(e, "Importar planilha (CSV/Excel)")}
+              onMouseLeave={() => setTip(null)}
               aria-label="Importar"
               className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300 disabled:opacity-60"
             >
@@ -1788,7 +1796,8 @@ async function saveCell(id: string, key: string, value: string) {
           {canExport && (
             <a
               href={apiPath(`/api/bases/${baseId}/export`)}
-              title="Exportar planilha (CSV)"
+              onMouseEnter={(e) => showTip(e, "Exportar planilha (CSV)")}
+              onMouseLeave={() => setTip(null)}
               aria-label="Exportar"
               className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300"
             >
@@ -2129,6 +2138,15 @@ async function saveCell(id: string, key: string, value: string) {
               {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-[11px] text-slate-400">({n})</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-[90] -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-white shadow-lg"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {tip.text}
         </div>
       )}
 
