@@ -57,10 +57,25 @@ function janelasPassadas(prazo: string, now: Date, quantas: number) {
   return wins;
 }
 
+type MetaComData = Meta & { criadoEm: Date };
+
+async function lerVistoEm(userId: string): Promise<Date | null> {
+  const rows = await prisma.$queryRaw<{ vistoEm: Date }[]>`SELECT "vistoEm" FROM "MetaVisto" WHERE "userId" = ${userId}`;
+  return rows[0]?.vistoEm ?? null;
+}
+async function marcarVisto(userId: string) {
+  await prisma.$executeRaw`INSERT INTO "MetaVisto" ("userId", "vistoEm") VALUES (${userId}, NOW()) ON CONFLICT ("userId") DO UPDATE SET "vistoEm" = NOW()`;
+}
+function temMetaNova(metas: MetaComData[], vistoEm: Date | null): boolean {
+  if (metas.length === 0) return false;
+  if (!vistoEm) return true;
+  return metas.some((m) => m.criadoEm > vistoEm);
+}
+
 async function carregar(userId: string, desde: Date) {
   await ensureMetaTable();
   await ensureContactFillTable();
-  const metas = (await prisma.meta.findMany({ where: { userId } })) as Meta[];
+  const metas = (await prisma.meta.findMany({ where: { userId } })) as MetaComData[];
   if (metas.length === 0) return { metas, fills: [] as Fill[], corrections: [] as CorrDone[], baseName: (() => "Base") as (id: string | null) => string };
 
   const [fillRows, corrRows, bases] = await Promise.all([
@@ -88,11 +103,12 @@ async function carregar(userId: string, desde: Date) {
 }
 
 // Situação resumida (para o ponto na sidebar) — só o período atual, leve.
-export async function statusMinhasMetas(userId: string): Promise<StatusMeta | null> {
+// Também devolve se há "meta nova" (criada depois da última vez que o LDR abriu a página).
+export async function statusMinhasMetas(userId: string): Promise<{ status: StatusMeta | null; nova: boolean }> {
   const now = new Date();
   const desde = new Date(Math.min(startOfWeek(now).getTime(), startOfMonth(now).getTime()));
   const { metas, fills, corrections } = await carregar(userId, desde);
-  if (metas.length === 0) return null;
+  if (metas.length === 0) return { status: null, nova: false };
   let worst: StatusMeta | null = null;
   for (const m of metas) {
     const ini = periodStart(m.prazo, now);
@@ -101,7 +117,8 @@ export async function statusMinhasMetas(userId: string): Promise<StatusMeta | nu
     const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
     worst = pior(worst, statusDe(feito, m.alvo, decorrido));
   }
-  return worst;
+  const nova = temMetaNova(metas, await lerVistoEm(userId));
+  return { status: worst, nova };
 }
 
 // Dados completos para a página Minhas Metas.
@@ -146,6 +163,9 @@ export async function buildMinhasMetas(userId: string) {
   };
 
   const status = ativas.reduce<StatusMeta | null>((acc, a) => pior(acc, a.status), null);
+
+  // Abrir a página = "vi minhas metas": limpa o sinal de meta nova na sidebar.
+  if (userId && metas.length > 0) await marcarVisto(userId);
 
   return { ativas, historico, conquistas, status };
 }

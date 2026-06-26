@@ -157,6 +157,7 @@ model Meta {
   campanha String? // correcao
   prazo    String  @default("semanal") // semanal | mensal
   alvo     Int     @default(0) // quantidade da meta no prazo
+  criadoEm DateTime @default(now()) // para sinalizar "meta nova" ao LDR
 
   @@index([userId])
 }

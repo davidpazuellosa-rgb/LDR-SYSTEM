@@ -28,18 +28,18 @@ export default async function AppLayout({
 
   const meId = (session.user as { id?: string }).id || "";
 
-  const [bases, pending, sugestoes, metasStatus] = await Promise.all([
+  const [bases, pending, sugestoes, metas] = await Promise.all([
     prisma.base.count(),
     prisma.correction.count({ where: { status: "pending" } }),
     contarSugestoesNovas(),
-    meId ? statusMinhasMetas(meId) : Promise.resolve(null),
+    meId ? statusMinhasMetas(meId) : Promise.resolve({ status: null, nova: false }),
   ]);
 
   return (
     <AppShell
       user={{ name: session.user.name, email: session.user.email }}
       role={role}
-      badges={{ bases, pending, sugestoes, metasStatus }}
+      badges={{ bases, pending, sugestoes, metasStatus: metas.status, metaNova: metas.nova }}
     >
       {children}
     </AppShell>

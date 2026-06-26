@@ -19,6 +19,7 @@ export async function ensureMetaTable() {
       "campanha" TEXT,
       "prazo" TEXT NOT NULL DEFAULT 'semanal',
       "alvo" INTEGER NOT NULL DEFAULT 0,
+      "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "Meta_pkey" PRIMARY KEY ("id")
     );`
   );
@@ -29,6 +30,11 @@ export async function ensureMetaTable() {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "campanha" TEXT;`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "prazo" TEXT NOT NULL DEFAULT 'semanal';`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "alvo" INTEGER NOT NULL DEFAULT 0;`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`);
+  // Tabela auxiliar: quando cada LDR viu suas metas pela última vez (para "meta nova").
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "MetaVisto" ("userId" TEXT NOT NULL, "vistoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "MetaVisto_pkey" PRIMARY KEY ("userId"));`
+  );
   // Metas de correção não usam base/estado — esses campos passam a ser opcionais.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ALTER COLUMN "baseId" DROP NOT NULL;`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ALTER COLUMN "estado" DROP NOT NULL;`);
