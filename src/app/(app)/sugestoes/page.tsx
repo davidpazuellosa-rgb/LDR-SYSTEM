@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/permissions";
 import { ensureSuggestionTable } from "@/lib/suggestions";
 import PageHeader from "@/components/PageHeader";
 import SuggestionsList from "@/components/SuggestionsList";
+import MarkSuggestionsSeen from "@/components/MarkSuggestionsSeen";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function SugestoesPage() {
   return (
     <>
       <PageHeader title="Sugestões de Melhoria" />
+      <MarkSuggestionsSeen />
       <div className="p-8">
         <SuggestionsList
           initial={sugestoes.map((s) => ({

@@ -112,6 +112,8 @@ export default function Sidebar({
   // Estando NA página de metas, para de piscar/mostrar "nova" na hora (sem esperar refresh).
   const naPaginaMetas = pathname === "/minhas-metas" || pathname.startsWith("/minhas-metas/");
   const metaNova = badges.metaNova && !naPaginaMetas;
+  // Estando NA página de sugestões, esconde o ponto/contador na hora.
+  const naPaginaSugestoes = pathname.startsWith("/sugestoes");
 
   const nav: { href: string; label: string; icon: string; badge: number; dot?: string; pulse?: boolean }[] = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
@@ -122,7 +124,7 @@ export default function Sidebar({
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
-    ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: badges.sugestoes }] : []),
+    ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: naPaginaSugestoes ? 0 : badges.sugestoes }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
   ];
 

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/permissions";
@@ -19,11 +20,15 @@ export default async function AppLayout({
   const role = (session.user as { role?: string }).role || "ldr";
   const admin = isAdmin(role);
 
-  // Sugestões "novas" (ainda não resolvidas) — só interessa ao admin (que as lê).
+  // Sugestões "novas" = criadas DEPOIS da última vez que o admin abriu a página
+  // (marcado por cookie ao visitar /sugestoes). Some ao ver; reaparece só quando
+  // chega uma sugestão nova — não depende de estar "resolvida".
   async function contarSugestoesNovas() {
     if (!admin) return 0;
     await ensureSuggestionTable();
-    return prisma.suggestion.count({ where: { status: "nova" } });
+    const seen = (await cookies()).get("sug_seen_at")?.value;
+    const seenAt = seen ? new Date(Number(seen)) : new Date(0);
+    return prisma.suggestion.count({ where: { criadoEm: { gt: seenAt } } });
   }
 
   const meId = (session.user as { id?: string }).id || "";
