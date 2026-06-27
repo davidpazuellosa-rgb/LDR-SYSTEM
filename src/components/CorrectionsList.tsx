@@ -273,6 +273,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   const [values, setValues] = useState<Record<string, string>>({});
   const [whatsappValues, setWhatsappValues] = useState<Record<string, boolean>>({});
   const [institucionalValues, setInstitucionalValues] = useState<Record<string, boolean>>({});
+  const [naoEncontradoValues, setNaoEncontradoValues] = useState<Record<string, boolean>>({});
   const [pessoaModal, setPessoaModal] = useState<{ id: string } | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanTarget | null>(null);
@@ -344,6 +345,11 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   // Decide o caminho ao clicar em Corrigir: se NÃO for contato institucional,
   // abre o formulário (nome + cargo) antes de enviar; senão envia direto.
   function resolve(id: string) {
+    // "Número não encontrado": fecha o item sem exigir telefone.
+    if (naoEncontradoValues[id]) {
+      submitNaoEncontrado(id);
+      return;
+    }
     if (localDigits(values[id]).length < 10) {
       toast.error("Digite um telefone válido com DDD.");
       return;
@@ -353,6 +359,33 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
       return;
     }
     submitCorrection(id, { institucional: true });
+  }
+
+  // Marca o contato como "número não encontrado": sai da fila e NÃO conta na meta.
+  async function submitNaoEncontrado(id: string) {
+    setSaving(id);
+    const loadingId = toast.loading("Marcando como não encontrado...");
+    try {
+      const res = await fetch(apiPath(`/api/corrections/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ naoEncontrado: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.dismiss(loadingId);
+        toast.success("Marcado como número não encontrado.", "Saiu da fila — não conta como ponto na meta.");
+        router.refresh();
+      } else {
+        toast.dismiss(loadingId);
+        toast.error("Não foi possível marcar.", data.error || `HTTP ${res.status}.`);
+      }
+    } catch (error) {
+      toast.dismiss(loadingId);
+      toast.error("Não foi possível marcar.", (error as Error).message);
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function submitCorrection(
@@ -639,8 +672,9 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                                   requestAnimationFrame(() => event.currentTarget.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length));
                                 }
                               }}
+                              disabled={naoEncontradoValues[item.id] === true}
                               placeholder="+55 (DD) 00000-0000"
-                              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
                             />
                           </div>
                           <div className="flex flex-1 flex-col gap-3 border-l border-slate-100 pl-4">
@@ -655,17 +689,28 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                               value={institucionalValues[item.id] !== false}
                               onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
                             />
+                            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={naoEncontradoValues[item.id] === true}
+                                onChange={(e) => setNaoEncontradoValues((prev) => ({ ...prev, [item.id]: e.target.checked }))}
+                                className="h-4 w-4 rounded border-slate-300 text-zinc-600 focus:ring-zinc-400"
+                              />
+                              Número não encontrado
+                            </label>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-end gap-2 px-4 py-4">
                           <button
                             onClick={() => resolve(item.id)}
-                            disabled={!valid || saving === item.id}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={(!valid && naoEncontradoValues[item.id] !== true) || saving === item.id}
+                            className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                              naoEncontradoValues[item.id] ? "bg-zinc-600 hover:bg-zinc-700" : "bg-emerald-600 hover:bg-emerald-700"
+                            }`}
                           >
                             <CheckIcon />
-                            {saving === item.id ? "Salvando" : "Corrigir"}
+                            {saving === item.id ? "Salvando" : naoEncontradoValues[item.id] ? "Não encontrado" : "Corrigir"}
                           </button>
                               <button
                                 onClick={() => handleScan(scanTarget)}
@@ -728,8 +773,9 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                       <input
                         value={value}
                         onChange={(event) => handlePhoneInput(item.id, event.currentTarget)}
+                        disabled={naoEncontradoValues[item.id] === true}
                         placeholder="+55 (DD) 00000-0000"
-                        className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                        className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
                       />
                       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
                         <SimNaoToggle
@@ -744,15 +790,26 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                           onChange={(v) => setInstitucionalValues((prev) => ({ ...prev, [item.id]: v }))}
                         />
                       </div>
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={naoEncontradoValues[item.id] === true}
+                          onChange={(e) => setNaoEncontradoValues((prev) => ({ ...prev, [item.id]: e.target.checked }))}
+                          className="h-4 w-4 rounded border-slate-300 text-zinc-600 focus:ring-zinc-400"
+                        />
+                        Número não encontrado
+                      </label>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => resolve(item.id)}
-                        disabled={!valid || saving === item.id}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white disabled:opacity-40"
+                        disabled={(!valid && naoEncontradoValues[item.id] !== true) || saving === item.id}
+                        className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-white disabled:opacity-40 ${
+                          naoEncontradoValues[item.id] ? "bg-zinc-600" : "bg-emerald-600"
+                        }`}
                       >
                         <CheckIcon />
-                        Corrigir
+                        {naoEncontradoValues[item.id] ? "Não encontrado" : "Corrigir"}
                       </button>
                       <button
                         onClick={() => handleScan(scanTarget)}

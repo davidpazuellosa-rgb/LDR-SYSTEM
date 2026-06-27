@@ -206,7 +206,8 @@ export async function syncFromCrm(opts?: { force?: boolean }): Promise<SyncResul
       const { cidade, uf } = parse(c.properties);
       const id = matchId(cidade, uf);
       if (!id) continue;
-      if (statusOf.get(id) === "telefone_atualizado") continue; // preserva correção local
+      // preserva decisão local: correção feita OU "não encontrado" pelo LDR
+      if (statusOf.get(id) === "telefone_atualizado" || statusOf.get(id) === "telefone_nao_encontrado") continue;
       incIds.push(id);
     }
     if (incIds.length > 0) {

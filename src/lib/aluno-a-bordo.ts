@@ -148,8 +148,10 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
       });
     }
 
-    const existentes = await prisma.contact.findMany({ where: { baseId: base.id }, select: { id: true, hubspotId: true } });
+    const existentes = await prisma.contact.findMany({ where: { baseId: base.id }, select: { id: true, hubspotId: true, status: true } });
     const idByHub = new Map(existentes.map((e) => [e.hubspotId, e.id]));
+    // Status local atual por hubspotId — para não reverter a marca "não encontrado" do LDR.
+    const statusByHub = new Map(existentes.map((e) => [e.hubspotId, e.status]));
 
     const dataOf = (c: PulledContact) => {
       const ownerName = c.ownerId ? owners.get(String(c.ownerId)) || null : null;
@@ -173,7 +175,16 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
     // updates em lote (transação por blocos de 100)
     for (let i = 0; i < antigos.length; i += 100) {
       const bloco = antigos.slice(i, i + 100);
-      await prisma.$transaction(bloco.map((c) => prisma.contact.update({ where: { id: idByHub.get(c.hubspotId)! }, data: dataOf(c) })));
+      await prisma.$transaction(
+        bloco.map((c) => {
+          const data = dataOf(c);
+          // Preserva a decisão local do LDR: não reverte "telefone não encontrado".
+          if (statusByHub.get(c.hubspotId) === "telefone_nao_encontrado") {
+            delete (data as { status?: string }).status;
+          }
+          return prisma.contact.update({ where: { id: idByHub.get(c.hubspotId)! }, data });
+        })
+      );
     }
 
     // re-mapeia hubspotId -> id local (inclui os recém-criados)
@@ -181,12 +192,14 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
     const idByHub2 = new Map(todos.map((e) => [e.hubspotId, e.id]));
 
     // correções pendentes para quem está na fila e ainda não tem
-    const filaIds = pulled.filter((c) => c.naFila).map((c) => idByHub2.get(c.hubspotId)).filter(Boolean) as string[];
+    // Não recoloca na fila quem o LDR já marcou como "não encontrado".
+    const naoEncontrado = (c: PulledContact) => statusByHub.get(c.hubspotId) === "telefone_nao_encontrado";
+    const filaIds = pulled.filter((c) => c.naFila && !naoEncontrado(c)).map((c) => idByHub2.get(c.hubspotId)).filter(Boolean) as string[];
     let novasCorrecoes = 0;
     if (filaIds.length) {
       const jaPendentes = await prisma.correction.findMany({ where: { contactId: { in: filaIds }, status: "pending" }, select: { contactId: true } });
       const pend = new Set(jaPendentes.map((p) => p.contactId));
-      const faltam = pulled.filter((c) => c.naFila && idByHub2.get(c.hubspotId) && !pend.has(idByHub2.get(c.hubspotId)!));
+      const faltam = pulled.filter((c) => c.naFila && !naoEncontrado(c) && idByHub2.get(c.hubspotId) && !pend.has(idByHub2.get(c.hubspotId)!));
       if (faltam.length) {
         await prisma.correction.createMany({
           data: faltam.map((c) => ({

@@ -4,8 +4,14 @@
 export const STATUS_OK = "ok";
 export const STATUS_INCORRETO = "telefone_incorreto";
 export const STATUS_ATUALIZADO = "telefone_atualizado";
+// LDR pesquisou e não achou número válido — sai da fila e não conta na meta.
+export const STATUS_NAO_ENCONTRADO = "telefone_nao_encontrado";
 
-export type PhoneStatus = typeof STATUS_OK | typeof STATUS_INCORRETO | typeof STATUS_ATUALIZADO;
+export type PhoneStatus =
+  | typeof STATUS_OK
+  | typeof STATUS_INCORRETO
+  | typeof STATUS_ATUALIZADO
+  | typeof STATUS_NAO_ENCONTRADO;
 
 export const STATUS_META: Record<
   string,
@@ -28,5 +34,11 @@ export const STATUS_META: Record<
     dot: "bg-emerald-500",
     badge: "bg-emerald-100 text-emerald-700",
     active: "border-emerald-500 bg-emerald-50 text-emerald-700",
+  },
+  [STATUS_NAO_ENCONTRADO]: {
+    label: "Telefone não encontrado",
+    dot: "bg-zinc-500",
+    badge: "bg-zinc-100 text-zinc-700",
+    active: "border-zinc-500 bg-zinc-50 text-zinc-700",
   },
 };

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guard";
 import { looksLikeValidPhone } from "@/lib/import";
-import { pushCorrectionToHubspot } from "@/lib/hubspot-write";
+import { pushCorrectionToHubspot, pushNaoEncontradoToHubspot } from "@/lib/hubspot-write";
 import { PHONE_FIELD } from "@/lib/contact-fields";
 
 // Resolve uma correção: grava o novo telefone na base local usada pela planilha,
@@ -18,16 +18,50 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const newValue = String(body?.newValue || "").trim();
+  // LDR procurou e não achou número: fecha o item sem exigir telefone.
+  const naoEncontrado = body?.naoEncontrado === true;
   const hasWhatsapp = body?.hasWhatsapp === true;
   // Contato institucional (Sim/Não). undefined = front não enviou (não mexe na propriedade).
   const institucional =
     body?.institucional === true ? true : body?.institucional === false ? false : undefined;
   const pessoaNome = String(body?.pessoaNome || "").trim();
   const pessoaCargo = String(body?.pessoaCargo || "").trim();
-  if (!newValue) return NextResponse.json({ error: "Novo telefone obrigatório" }, { status: 400 });
+  if (!naoEncontrado && !newValue)
+    return NextResponse.json({ error: "Novo telefone obrigatório" }, { status: 400 });
 
   const correction = await prisma.correction.findUnique({ where: { id } });
   if (!correction) return NextResponse.json({ error: "Correção não encontrada" }, { status: 404 });
+
+  // Caminho "número não encontrado": fecha o item com status próprio ("nao_encontrado")
+  // — assim ele SAI da fila (que mostra "pending") e NÃO conta na meta (que conta
+  // "resolved"). Marca o contato e, no HubSpot, muda só a etapa do ciclo de vida
+  // (desligado enquanto a etapa não estiver configurada).
+  if (naoEncontrado) {
+    await prisma.$transaction([
+      prisma.correction.update({
+        where: { id },
+        data: {
+          status: "nao_encontrado",
+          resolvedAt: new Date(),
+          // @ts-expect-error id custom na sessão
+          resolvedById: session.user.id ?? null,
+        },
+      }),
+      prisma.contact.update({
+        where: { id: correction.contactId },
+        data: { status: "telefone_nao_encontrado" },
+      }),
+    ]);
+
+    let hubspot: { ok: boolean; error?: string } = { ok: false, error: "não enviado" };
+    const alvo = await prisma.contact.findUnique({
+      where: { id: correction.contactId },
+      select: { hubspotId: true },
+    });
+    if (alvo?.hubspotId) hubspot = await pushNaoEncontradoToHubspot(alvo.hubspotId);
+
+    return NextResponse.json({ ok: true, naoEncontrado: true, hubspot });
+  }
 
   const valid = looksLikeValidPhone(newValue);
 

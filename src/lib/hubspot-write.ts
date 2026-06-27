@@ -2,6 +2,9 @@
 // Atualiza o telefone do contato e muda a Fase do Ciclo de Vida para "Telefone Atualizado".
 
 const STAGE_TELEFONE_ATUALIZADO = "1320496031";
+// Etapa "Telefone não encontrado pelo LDR": preencher com o ID quando a etapa for
+// criada no HubSpot (Settings → Lifecycle stages). Vazio = envio ao HubSpot desligado.
+const STAGE_NAO_ENCONTRADO = "";
 
 type PushOptions = {
   hasWhatsapp?: boolean;
@@ -67,6 +70,32 @@ export async function pushCorrectionToHubspot(
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ properties }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      return { ok: false, error: `HTTP ${res.status}: ${t.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+// Marca no HubSpot que o LDR procurou e não achou o número: muda só a Fase do
+// Ciclo de Vida para "Telefone não encontrado pelo LDR". Fica DESLIGADO até a
+// etapa existir (STAGE_NAO_ENCONTRADO vazio) — depois é só preencher o ID.
+export async function pushNaoEncontradoToHubspot(
+  hubspotId: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!STAGE_NAO_ENCONTRADO) return { ok: false, error: "etapa 'não encontrado' ainda não configurada" };
+  const token = process.env.HUBSPOT_TOKEN;
+  if (!token) return { ok: false, error: "sem token" };
+  if (!hubspotId) return { ok: false, error: "contato sem hubspotId (rode a sincronização)" };
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${hubspotId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: { lifecyclestage: STAGE_NAO_ENCONTRADO } }),
     });
     if (!res.ok) {
       const t = await res.text();
