@@ -16,6 +16,37 @@ type Item = {
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+// Copia texto de forma robusta: tenta a API moderna (precisa de HTTPS/contexto
+// seguro) e, se falhar ou não existir, cai no fallback antigo (textarea +
+// execCommand) que funciona em qualquer contexto. Retorna true se copiou.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // segue para o fallback
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    ta.setAttribute("readonly", "");
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function CopyIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -39,11 +70,17 @@ export default function SuggestionsList({ initial }: { initial: Item[] }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function copy(it: Item) {
-    try {
-      await navigator.clipboard.writeText(it.texto);
+    // Texto da sugestão; se for só áudio (sem texto), copia o link do áudio
+    // para que "tudo dê pra copiar".
+    const text = (it.texto && it.texto.trim()) || it.audio || "";
+    if (!text) {
+      toast.error("Nada para copiar nesta sugestão.", "");
+      return;
+    }
+    if (await copyToClipboard(text)) {
       setCopiedId(it.id);
       setTimeout(() => setCopiedId((c) => (c === it.id ? null : c)), 1500);
-    } catch {
+    } else {
       toast.error("Não foi possível copiar.", "");
     }
   }
