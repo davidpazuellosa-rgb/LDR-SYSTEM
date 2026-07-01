@@ -18,6 +18,8 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const newValue = String(body?.newValue || "").trim();
+  // Segundo número (opcional) → vai como telefone secundário (mobilephone) no HubSpot.
+  const newValue2 = String(body?.newValue2 || "").trim();
   // LDR procurou e não achou número: fecha o item sem exigir telefone.
   const naoEncontrado = body?.naoEncontrado === true;
   const hasWhatsapp = body?.hasWhatsapp === true;
@@ -106,6 +108,7 @@ export async function PATCH(
         institucional,
         pessoaNome,
         pessoaCargo,
+        telefoneSecundario: newValue2 && looksLikeValidPhone(newValue2) ? newValue2 : undefined,
       });
     } else {
       hubspot = { ok: false, error: "contato ainda sem hubspotId (aguardando sincronização)" };

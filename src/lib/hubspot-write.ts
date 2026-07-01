@@ -32,6 +32,7 @@ type PushOptions = {
   institucional?: boolean;
   pessoaNome?: string;
   pessoaCargo?: string;
+  telefoneSecundario?: string; // 2º número (opcional) → mobilephone no HubSpot
 };
 
 // Lê o firstname atual do contato, para concatenar com o nome digitado pelo LDR
@@ -64,6 +65,11 @@ export async function pushCorrectionToHubspot(
       phone: novoTelefone,
       lifecyclestage: STAGE_TELEFONE_ATUALIZADO,
     };
+
+    // Segundo número (opcional) → telefone secundário (mobilephone).
+    if (options?.telefoneSecundario) {
+      properties.mobilephone = options.telefoneSecundario;
+    }
 
     // Tem WhatsApp (Sim/Não) — envia a resposta nos dois casos.
     if (typeof options?.hasWhatsapp === "boolean") {

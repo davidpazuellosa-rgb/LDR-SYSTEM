@@ -271,6 +271,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
   const router = useRouter();
   const toast = useToast();
   const [values, setValues] = useState<Record<string, string>>({});
+  const [values2, setValues2] = useState<Record<string, string>>({}); // 2º número (opcional)
   const [whatsappValues, setWhatsappValues] = useState<Record<string, boolean>>({});
   const [institucionalValues, setInstitucionalValues] = useState<Record<string, boolean>>({});
   const [naoEncontradoValues, setNaoEncontradoValues] = useState<Record<string, boolean>>({});
@@ -332,6 +333,23 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
     const formatted = formatPhone(raw);
     setValues((prev) => ({ ...prev, [id]: formatted }));
     setWhatsappValues((prev) => ({ ...prev, [id]: false }));
+    requestAnimationFrame(() => {
+      const pos = caretFromDigitCount(formatted, digitsBefore);
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch {
+        // input pode não estar mais montado — ignora
+      }
+    });
+  }
+
+  // Segundo número (opcional): mesma formatação/cursor. Não mexe no WhatsApp.
+  function handlePhoneInput2(id: string, el: HTMLInputElement) {
+    const raw = el.value;
+    const caret = el.selectionStart ?? raw.length;
+    const digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length;
+    const formatted = formatPhone(raw);
+    setValues2((prev) => ({ ...prev, [id]: formatted }));
     requestAnimationFrame(() => {
       const pos = caretFromDigitCount(formatted, digitsBefore);
       try {
@@ -407,6 +425,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           newValue,
+          newValue2: localDigits(values2[id] || "").length >= 10 ? values2[id] : undefined,
           hasWhatsapp: whatsappValues[id] === true,
           institucional: extra.institucional,
           pessoaNome: extra.pessoaNome,
@@ -662,7 +681,7 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                         </div>
 
                         <div className="flex items-center gap-4 px-4 py-4">
-                          <div className="w-44 shrink-0">
+                          <div className="w-44 shrink-0 space-y-1.5">
                             <input
                               value={value}
                               onChange={(event) => handlePhoneInput(item.id, event.currentTarget)}
@@ -675,6 +694,19 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                               disabled={naoEncontradoValues[item.id] === true}
                               placeholder="+55 (DD) 00000-0000"
                               className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
+                            />
+                            <input
+                              value={values2[item.id] ?? ""}
+                              onChange={(event) => handlePhoneInput2(item.id, event.currentTarget)}
+                              onFocus={(event) => {
+                                if (!values2[item.id]) {
+                                  setValues2((prev) => ({ ...prev, [item.id]: PHONE_PREFIX }));
+                                  requestAnimationFrame(() => event.currentTarget.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length));
+                                }
+                              }}
+                              disabled={naoEncontradoValues[item.id] === true}
+                              placeholder="2º número (opcional)"
+                              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
                             />
                           </div>
                           <div className="flex flex-1 flex-col gap-3 border-l border-slate-100 pl-4">
@@ -776,6 +808,19 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
                         disabled={naoEncontradoValues[item.id] === true}
                         placeholder="+55 (DD) 00000-0000"
                         className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
+                      />
+                      <input
+                        value={values2[item.id] ?? ""}
+                        onChange={(event) => handlePhoneInput2(item.id, event.currentTarget)}
+                        onFocus={(event) => {
+                          if (!values2[item.id]) {
+                            setValues2((prev) => ({ ...prev, [item.id]: PHONE_PREFIX }));
+                            requestAnimationFrame(() => event.currentTarget.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length));
+                          }
+                        }}
+                        disabled={naoEncontradoValues[item.id] === true}
+                        placeholder="2º número (opcional)"
+                        className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:line-through"
                       />
                       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
                         <SimNaoToggle
