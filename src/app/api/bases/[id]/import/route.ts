@@ -62,8 +62,11 @@ export async function POST(
   const form = await req.formData();
   const file = form.get("file") as File | null;
   // "merge" (padrão): completa campos vazios + adiciona novos.
-  // "replace": substitui tudo (apaga reversível + reseta colunas) e importa do zero.
+  // "replace": substitui tudo (apaga reversível) e importa do zero.
   const mode = String(form.get("mode") || "merge") === "replace" ? "replace" : "merge";
+  // Em "replace": se true, os RÓTULOS das colunas passam a ser os nomes da planilha
+  // importada; se false, mantém os rótulos atuais (só troca as linhas).
+  const replaceColumns = String(form.get("replaceColumns") || "") === "true";
   if (!file) return NextResponse.json({ error: "Arquivo não enviado" }, { status: 400 });
 
   const fileError = validateSpreadsheetFile(file);
@@ -141,7 +144,11 @@ export async function POST(
     if (deletedIds.length > 0) {
       await prisma.contact.updateMany({ where: { id: { in: deletedIds } }, data: { deletedAt: new Date() } });
     }
-    await prisma.base.update({ where: { id }, data: { headers: {} } });
+    // Rótulos das colunas: só troca se o usuário pediu (senão, mantém os atuais).
+    if (replaceColumns) {
+      const newHeaders = Object.fromEntries(parsed.matchedColumns.map((c) => [c.field, c.header]));
+      await prisma.base.update({ where: { id }, data: { headers: newHeaders } });
+    }
 
     const seenInFile = new Set<string>();
     const newRows: ImportedRow[] = [];

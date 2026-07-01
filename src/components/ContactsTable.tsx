@@ -230,6 +230,8 @@ export default function ContactsTable({
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // "Substituir": trocar também os rótulos das colunas pela nova planilha? (default sim)
+  const [replaceColumns, setReplaceColumns] = useState(true);
   const [undoInfo, setUndoInfo] = useState<{ eventoId: string; resumo: string } | null>(null);
   // Tooltip instantâneo (o title nativo demora ~1s pra aparecer).
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -1608,7 +1610,7 @@ async function saveCell(id: string, key: string, value: string) {
     doImport(file, "merge");
   }
 
-  async function doImport(file: File, mode: "merge" | "replace") {
+  async function doImport(file: File, mode: "merge" | "replace", replaceCols = false) {
     setPendingFile(null);
     setImporting(true);
     setMessage(null);
@@ -1620,6 +1622,7 @@ async function saveCell(id: string, key: string, value: string) {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("mode", mode);
+    if (mode === "replace") fd.append("replaceColumns", String(replaceCols));
     const res = await fetch(apiPath(`/api/bases/${baseId}/import`), { method: "POST", body: fd });
     setImporting(false);
     const data = await res.json();
@@ -1709,14 +1712,26 @@ async function saveCell(id: string, key: string, value: string) {
                 </div>
               </button>
               <button
-                onClick={() => doImport(pendingFile, "replace")}
+                onClick={() => doImport(pendingFile, "replace", replaceColumns)}
                 className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-rose-300 hover:bg-rose-50"
               >
                 <div className="font-semibold text-slate-800">Sim — substituir tudo</div>
                 <div className="text-xs text-slate-500">
-                  Troca todos os contatos e os rótulos de coluna pela nova planilha. É reversível (dá pra desfazer).
+                  Troca todos os contatos pela nova planilha. É reversível (dá pra desfazer).
                 </div>
               </button>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={replaceColumns}
+                  onChange={(e) => setReplaceColumns(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
+                />
+                <span>
+                  <span className="font-medium text-slate-700">Substituir também os nomes das colunas</span> — o cabeçalho
+                  passa a mostrar os nomes da planilha importada. Desmarcado, mantém os nomes de coluna atuais (troca só as linhas).
+                </span>
+              </label>
             </div>
             <div className="mt-5 flex justify-end">
               <button
