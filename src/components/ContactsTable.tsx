@@ -47,7 +47,10 @@ type HistoryAction =
   | { kind: "insert"; contacts: Contact[]; formats: Record<string, Record<string, CellFmt>>; positions: number[] }
   // Mesclar/desmesclar: guarda o conjunto de mesclas antes/depois e as edições de
   // valor feitas (limpar as células não-âncora), tudo num passo só de desfazer.
-  | { kind: "merge"; prevMerges: MergeRegion[]; nextMerges: MergeRegion[]; edits: CellEdit[] };
+  | { kind: "merge"; prevMerges: MergeRegion[]; nextMerges: MergeRegion[]; edits: CellEdit[] }
+  // Excluir coluna (soft, admin): limpa o conteúdo + oculta a(s) coluna(s) num passo só.
+  // Desfazer restaura os valores e mostra as colunas de novo.
+  | { kind: "coldelete"; edits: CellEdit[]; colKeys: string[] };
 
 // "Marca-d'água" de copiar/recortar (estilo Google Sheets): as células ficam
 // tracejadas. No recorte, a origem só é apagada DEPOIS de colar (mover).
@@ -673,6 +676,15 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   else if (action.kind === "formats") applyFormatBatch(action.edits, false);
   else if (action.kind === "delete") applyDeleteBatch(action, false); // restaura as linhas excluídas
   else if (action.kind === "insert") applyDeleteBatch(action, true); // insert: desfazer = excluir as linhas criadas
+  else if (action.kind === "coldelete") {
+    // desfazer excluir coluna: restaura os valores e mostra a(s) coluna(s) de novo.
+    if (action.edits.length) applyBatch(action.edits, false);
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      action.colKeys.forEach((k) => next.delete(k));
+      return next;
+    });
+  }
   else {
     // merge: volta ao conjunto de mesclas anterior e restaura os valores limpos.
     saveMerges(action.prevMerges);
@@ -692,6 +704,15 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   else if (action.kind === "formats") applyFormatBatch(action.edits, true);
   else if (action.kind === "delete") applyDeleteBatch(action, true); // exclui de novo
   else if (action.kind === "insert") applyDeleteBatch(action, false); // insert: refazer = restaurar as linhas
+  else if (action.kind === "coldelete") {
+    // refazer excluir coluna: limpa de novo e oculta.
+    if (action.edits.length) applyBatch(action.edits, true);
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      action.colKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }
   else {
     // merge: reaplica o conjunto de mesclas e limpa de novo as células não-âncora.
     saveMerges(action.nextMerges);
@@ -1106,6 +1127,42 @@ async function clearColumns(colIndices: number[]) {
 function hideColumns(colIndices: number[]) {
   const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
+  setHiddenColumns((prev) => {
+    const next = new Set(prev);
+    keys.forEach((k) => next.add(k));
+    return next;
+  });
+  setAnchorCell(null);
+  setFocusCell(null);
+  setClip(null);
+  setMenu(null);
+}
+
+// Excluir coluna (só admin — o menu de coluna já é admin-only): limpa o conteúdo E
+// oculta a(s) coluna(s) como UMA ação. Desfazer (Ctrl+Z) restaura tudo (valores + colunas).
+async function excluirColunas(colIndices: number[]) {
+  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  if (keys.length === 0) return;
+  const nomes = colIndices
+    .map((i) => {
+      const k = fieldKeys[i];
+      return k ? headerLabelFor(k, visibleFields[i]?.label || k) : "";
+    })
+    .filter(Boolean);
+  const msg =
+    keys.length > 1
+      ? `Excluir ${keys.length} colunas (${nomes.join(", ")})?`
+      : `Excluir a coluna "${nomes[0]}"?`;
+  if (!confirm(`${msg}\n\nApaga o conteúdo em todas as linhas e some da visão. Dá pra desfazer com Ctrl+Z.`)) {
+    setMenu(null);
+    return;
+  }
+  const edits = visible
+    .flatMap((contact) => keys.map((key) => ({ id: contact.id, key, prev: String(contact[key] ?? ""), next: "" })))
+    .filter((edit) => edit.prev !== "");
+  setHistory((prev) => [...prev, { kind: "coldelete" as const, edits, colKeys: keys }].slice(-100));
+  setRedoStack([]);
+  if (edits.length) await applyBatch(edits, true);
   setHiddenColumns((prev) => {
     const next = new Set(prev);
     keys.forEach((k) => next.add(k));
@@ -2376,6 +2433,19 @@ async function saveCell(id: string, key: string, value: string) {
                   }
                   label={selCols > 1 ? `Ocultar ${selCols} colunas` : "Ocultar coluna"}
                   onClick={() => hideColumns(selColIndices.length ? selColIndices : [menu.col])}
+                />
+                <div className="my-1 h-px bg-slate-200" />
+                <MenuRow
+                  icon={
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M3 6h18" strokeLinecap="round" />
+                      <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+                    </svg>
+                  }
+                  label={selCols > 1 ? `Excluir ${selCols} colunas` : "Excluir coluna"}
+                  onClick={() => excluirColunas(selColIndices.length ? selColIndices : [menu.col])}
                 />
               </>
             ) : (
