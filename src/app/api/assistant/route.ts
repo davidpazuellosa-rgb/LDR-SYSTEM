@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guard";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, OPERATOR_ROLES } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,6 @@ type ChatMessage = {
 
 type Viewer = { id: string; role: string; name: string | null };
 
-const LDRS = ["Cecília", "Karina"] as const; // usado apenas no modo admin (visão geral)
 const SENSITIVE_TERMS = ["token", "senha", "password", "hash", "secret", "api key", "apikey", ".env", "groq_api_key"];
 
 type AdminContext = Awaited<ReturnType<typeof buildAdminContext>>;
@@ -27,8 +26,24 @@ function normalizeName(value?: string | null) {
 }
 
 function matchesLdr(ldr: string, ...values: Array<string | null | undefined>) {
-  const needle = normalizeName(ldr);
-  return values.some((value) => normalizeName(value).includes(needle));
+  const full = normalizeName(ldr);
+  const first = full.split(/\s+/)[0];
+  return values.some((value) => {
+    const v = normalizeName(value);
+    return (!!full && v.includes(full)) || (first.length >= 3 && v.includes(first));
+  });
+}
+
+// Acha o operador citado num texto (por nome completo ou primeiro nome).
+function findOperatorInText(text: string, names: string[]): string | null {
+  const n = normalizeName(text);
+  for (const name of names) {
+    const full = normalizeName(name);
+    if (!full) continue;
+    const first = full.split(/\s+/)[0];
+    if (n.includes(full) || (first.length >= 3 && n.includes(first))) return name;
+  }
+  return null;
 }
 
 function dayBounds(date = new Date()) {
@@ -60,13 +75,14 @@ function asksForSensitiveData(text: string) {
 
 // Privacidade do LDR: bloqueia perguntas sobre OUTROS usuários / a equipe / cargos alheios.
 // (Defesa adicional — o contexto do LDR já não contém esses dados.)
-function asksAboutOtherUsers(text: string, viewer: Viewer) {
+function asksAboutOtherUsers(text: string, viewer: Viewer, operatorNames: string[]) {
   const n = normalizeName(text);
   if (/\busuari/.test(n)) return true; // "usuário(s)"
   if (/(quem|quantos|quantas|quais|lista|liste)\b/.test(n) && /(usuari|ldr|admin|cargo|equipe|time|pessoa|funcionari|colaborador)/.test(n)) return true;
   if (/(e-?mail|cargo|senha)\s+(de|do|da|dos|das)\s+\S/.test(n)) return true;
-  // citou outro LDR conhecido que não é ele mesmo
-  if (LDRS.some((l) => n.includes(normalizeName(l)) && normalizeName(l) !== normalizeName(viewer.name))) return true;
+  // citou outro operador conhecido que não é ele mesmo
+  const outros = operatorNames.filter((name) => normalizeName(name) !== normalizeName(viewer.name));
+  if (findOperatorInText(text, outros)) return true;
   return false;
 }
 
@@ -193,7 +209,7 @@ function selfLocalAnswer(question: string, ctx: SelfContext): string | null {
 
 function localAnswer(question: string, context: AdminContext) {
   const normalized = normalizeName(question);
-  const requestedLdr = LDRS.find((ldr) => normalized.includes(normalizeName(ldr)));
+  const requestedLdr = findOperatorInText(question, context.ldrs.map((l) => l.ldr));
   const asksToday = normalized.includes("hoje");
   const asksPending = normalized.includes("pendente") || normalized.includes("fila") || normalized.includes("corrigir");
   const asksUpdated = normalized.includes("atualiz") || normalized.includes("corrig");
@@ -356,7 +372,13 @@ async function buildAdminContext(question: string) {
     }),
   ]);
 
-  const ldrMetrics = LDRS.map((ldr) => {
+  // Operadores (LDR + Pré-vendedor) vindos do banco — lista dinâmica, sem nomes fixos.
+  const operatorNames = users
+    .filter((usr) => (OPERATOR_ROLES as string[]).includes(usr.role))
+    .map((usr) => usr.name)
+    .filter((name): name is string => !!name);
+
+  const ldrMetrics = operatorNames.map((ldr) => {
     const added = contacts.filter((contact) =>
       matchesLdr(ldr, contact.createdBy?.name, contact.createdBy?.email, contact.prospectante, contact.proprietario),
     );
@@ -481,12 +503,19 @@ export async function POST(req: Request) {
   }
 
   // Bloqueio de privacidade para LDR: nada sobre outros usuários.
-  if (!admin && asksAboutOtherUsers(lastUserMessage, viewer)) {
-    return NextResponse.json({
-      answer:
-        "Como LDR, você tem acesso apenas aos seus próprios números e a informações gerais da SASI. Dados de outros usuários (lista, e-mails, cargos ou atividade) não estão disponíveis para o seu acesso.",
-      source: "policy",
-    });
+  if (!admin) {
+    const operatorNames = (
+      await prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { name: true } })
+    )
+      .map((usr) => usr.name)
+      .filter((name): name is string => !!name);
+    if (asksAboutOtherUsers(lastUserMessage, viewer, operatorNames)) {
+      return NextResponse.json({
+        answer:
+          "Como LDR, você tem acesso apenas aos seus próprios números e a informações gerais da SASI. Dados de outros usuários (lista, e-mails, cargos ou atividade) não estão disponíveis para o seu acesso.",
+        source: "policy",
+      });
+    }
   }
 
   const apiKey = process.env.GROQ_API_KEY;
