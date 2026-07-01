@@ -101,6 +101,22 @@ export default function SuggestionsList({ initial }: { initial: Item[] }) {
     }
   }
 
+  async function remove(it: Item) {
+    if (!confirm("Excluir esta sugestão? Não dá pra desfazer.")) return;
+    setBusy(it.id);
+    try {
+      const res = await fetch(apiPath(`/api/sugestoes/${it.id}`), { method: "DELETE" });
+      if (res.ok) {
+        setItems((prev) => prev.filter((x) => x.id !== it.id));
+        toast.success("Sugestão excluída.", "");
+      } else {
+        toast.error("Não foi possível excluir a sugestão.", "");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
@@ -151,7 +167,21 @@ export default function SuggestionsList({ initial }: { initial: Item[] }) {
 
             {it.audio && <audio src={it.audio} controls className="mt-3 h-9 w-full max-w-md" />}
 
-            <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+              <button
+                onClick={() => remove(it)}
+                disabled={busy === it.id}
+                title="Excluir sugestão"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 6h18" strokeLinecap="round" />
+                  <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+                </svg>
+                Excluir
+              </button>
               <button
                 onClick={() => toggle(it)}
                 disabled={busy === it.id}

@@ -16,3 +16,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   await prisma.suggestion.update({ where: { id }, data: { status } });
   return NextResponse.json({ ok: true });
 }
+
+// Só admin exclui uma sugestão (definitivo).
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { deny } = await requireAdmin();
+  if (deny) return deny;
+  const { id } = await params;
+  await ensureSuggestionTable();
+  await prisma.suggestion.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
