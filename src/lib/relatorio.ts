@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { isComplete, tipoOrgao } from "@/lib/completude";
 import { ufSigla } from "@/lib/uf";
+import { OPERATOR_ROLES } from "@/lib/permissions";
 import {
   metaFeito,
   periodStart,
@@ -59,7 +60,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   s14.setDate(s14.getDate() - 13);
 
   const [ldrs, metasAll, contactsAll, fillRowsAll, corrRowsAll, pendRows, bases] = await Promise.all([
-    prisma.user.findMany({ where: { role: "ldr" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.meta.findMany() as Promise<Meta[]>,
     prisma.contact.findMany({
       where: { deletedAt: null },

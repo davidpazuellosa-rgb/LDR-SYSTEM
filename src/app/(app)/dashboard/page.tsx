@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, OPERATOR_ROLES } from "@/lib/permissions";
 import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
@@ -222,7 +222,7 @@ async function AdminMain() {
     prisma.contact.count({ where: { deletedAt: null } }),
     prisma.contact.count({ where: { status: "telefone_incorreto", deletedAt: null } }),
     prisma.contact.count({ where: { status: "telefone_atualizado", deletedAt: null } }),
-    prisma.user.findMany({ where: { role: "ldr" }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.base.findMany({ select: { id: true, name: true } }),
     prisma.meta.findMany() as Promise<Meta[]>,
     loadProgress(),

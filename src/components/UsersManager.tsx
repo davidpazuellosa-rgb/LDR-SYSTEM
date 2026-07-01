@@ -16,7 +16,9 @@ type User = {
 };
 
 function asRole(role: string): Role {
-  return role === "admin" ? "admin" : "ldr";
+  if (role === "admin") return "admin";
+  if (role === "prevendedor") return "prevendedor";
+  return "ldr";
 }
 
 function initials(name: string | null, email: string) {
@@ -266,7 +268,7 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   )}
                 </div>
                 <div className="flex items-center justify-end gap-1">
-                  {asRole(user.role) === "ldr" && (
+                  {asRole(user.role) !== "admin" && (
                     <button
                       onClick={() => setMetaUser({ id: user.id, name: user.name || user.email })}
                       className="mr-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:border-indigo-300 hover:bg-indigo-50"
