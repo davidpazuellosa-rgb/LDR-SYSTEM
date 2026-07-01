@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { currentRole } from "@/lib/current-role";
 import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import CorrectionsList from "@/components/CorrectionsList";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CorrecoesPage() {
   const session = await auth();
   const u = session?.user as { id?: string; role?: string } | undefined;
-  const prevendedor = u?.role === "prevendedor";
+  const prevendedor = (await currentRole(session)) === "prevendedor";
 
   // Pré-vendedor: só vê a fila do PROPRIETÁRIO vinculado a ele. Sem vínculo → nada.
   const proprietario = prevendedor ? await getProprietarioDoUsuario(u?.id || "") : null;

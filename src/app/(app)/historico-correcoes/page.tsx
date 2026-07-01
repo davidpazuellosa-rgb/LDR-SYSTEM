@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { currentRole } from "@/lib/current-role";
 import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import { ufSigla } from "@/lib/uf";
@@ -15,7 +16,7 @@ function personInitials(name?: string | null, email?: string | null) {
 export default async function HistoricoCorrecoesPage() {
   const session = await auth();
   const u = session?.user as { id?: string; role?: string } | undefined;
-  const prevendedor = u?.role === "prevendedor";
+  const prevendedor = (await currentRole(session)) === "prevendedor";
   // Pré-vendedor: só o histórico dos contatos dele (por proprietário). Sem vínculo → nada.
   const proprietario = prevendedor ? await getProprietarioDoUsuario(u?.id || "") : null;
 

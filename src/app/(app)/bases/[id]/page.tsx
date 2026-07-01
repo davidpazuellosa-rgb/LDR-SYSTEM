@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { currentRole } from "@/lib/current-role";
 import { can, isAdmin } from "@/lib/permissions";
 import { isComplete, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
@@ -20,7 +21,7 @@ export default async function BaseDetailPage({
   const { id } = await params;
   const { regiao } = await searchParams;
   const session = await auth();
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  const role = await currentRole(session);
   if (role === "prevendedor") redirect("/dashboard"); // Pré-vendedor não acessa Bases
   const base = await prisma.base.findUnique({
     where: { id },

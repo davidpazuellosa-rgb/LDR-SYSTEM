@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { currentRole } from "@/lib/current-role";
 import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import RelatorioOperador, { type RelatorioRow } from "@/components/RelatorioOperador";
@@ -12,7 +13,7 @@ export default async function RelatorioPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const meId = (session.user as { id?: string }).id || "";
-  const role = (session.user as { role?: string }).role;
+  const role = await currentRole(session);
   // Pré-vendedor: a "fila" do card é a do proprietário dele, não a geral.
   const proprietario = role === "prevendedor" ? await getProprietarioDoUsuario(meId) : null;
 

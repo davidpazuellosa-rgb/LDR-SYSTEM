@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/permissions";
+import { currentRole } from "@/lib/current-role";
 import { ensureSuggestionTable } from "@/lib/suggestions";
 import { statusMinhasMetas } from "@/lib/minhas-metas";
 import AppShell from "@/components/AppShell";
@@ -17,7 +18,8 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const role = (session.user as { role?: string }).role || "ldr";
+  // Cargo lido do banco (reflete mudança de cargo sem re-login). Só leitura.
+  const role = (await currentRole(session)) || "ldr";
   const admin = isAdmin(role);
 
   // Sugestões "novas" = criadas DEPOIS da última vez que o admin abriu a página

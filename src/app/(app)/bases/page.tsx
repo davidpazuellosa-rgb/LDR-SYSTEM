@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { currentRole } from "@/lib/current-role";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
@@ -58,9 +59,9 @@ export default async function BasesPage({
 }) {
   const { tipo } = await searchParams;
 
-  // Pré-vendedor não acessa Bases de Dados.
+  // Pré-vendedor não acessa Bases de Dados (cargo lido do banco — sem re-login).
   const session = await auth();
-  if ((session?.user as { role?: string } | undefined)?.role === "prevendedor") redirect("/dashboard");
+  if ((await currentRole(session)) === "prevendedor") redirect("/dashboard");
 
   const bases = await prisma.base.findMany({ orderBy: { createdAt: "desc" } });
 
