@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/guard";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { makeInvite, isInvitePending, buildInviteLink } from "@/lib/invite";
 import { sendInviteEmail } from "@/lib/email";
+import { setProprietarioDoUsuario } from "@/lib/user-proprietario";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
   });
   const { token, sentinel } = makeInvite(created.id);
   await prisma.user.update({ where: { id: created.id }, data: { passwordHash: sentinel } });
+
+  // Pré-vendedor: vincula ao "Proprietário" do HubSpot (escopo da correção).
+  if (role === "prevendedor") await setProprietarioDoUsuario(created.id, body?.proprietario ?? null);
 
   const inviteLink = buildInviteLink(req, token);
   const mail = await sendInviteEmail({ to: created.email, name: created.name, link: inviteLink, role: ROLE_LABELS[role] || role });

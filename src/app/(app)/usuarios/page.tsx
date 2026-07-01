@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/permissions";
 import { isInvitePending } from "@/lib/invite";
+import { getMapaProprietarios, listarProprietarios } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import UsersManager from "@/components/UsersManager";
 
@@ -13,10 +14,14 @@ export default async function UsuariosPage() {
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!isAdmin(role)) redirect("/dashboard"); // área sensível: só admin
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true, role: true, createdAt: true, passwordHash: true },
-  });
+  const [users, proprietarioByUser, proprietarios] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, email: true, role: true, createdAt: true, passwordHash: true },
+    }),
+    getMapaProprietarios(),
+    listarProprietarios(),
+  ]);
   const selfId = (session?.user as { id?: string } | undefined)?.id;
 
   return (
@@ -33,6 +38,8 @@ export default async function UsuariosPage() {
             pending: isInvitePending(u.passwordHash),
           }))}
           selfId={selfId || ""}
+          proprietarios={proprietarios}
+          proprietarioByUser={proprietarioByUser}
         />
       </div>
     </>

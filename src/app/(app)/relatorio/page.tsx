@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import RelatorioOperador, { type RelatorioRow } from "@/components/RelatorioOperador";
 
@@ -11,6 +12,9 @@ export default async function RelatorioPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const meId = (session.user as { id?: string }).id || "";
+  const role = (session.user as { role?: string }).role;
+  // Pré-vendedor: a "fila" do card é a do proprietário dele, não a geral.
+  const proprietario = role === "prevendedor" ? await getProprietarioDoUsuario(meId) : null;
 
   const [rows, filaGlobal] = await Promise.all([
     prisma.correction.findMany({
@@ -25,7 +29,9 @@ export default async function RelatorioPage() {
       orderBy: { resolvedAt: "desc" },
       take: 5000,
     }),
-    prisma.correction.count({ where: { status: "pending" } }),
+    prisma.correction.count({
+      where: { status: "pending", ...(proprietario ? { contact: { is: { proprietario } } } : {}) },
+    }),
   ]);
 
   const data: RelatorioRow[] = rows.map((r) => ({

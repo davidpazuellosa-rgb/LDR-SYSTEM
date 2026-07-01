@@ -64,11 +64,22 @@ function TrashIcon() {
   );
 }
 
-export default function UsersManager({ initialUsers, selfId }: { initialUsers: User[]; selfId?: string }) {
+export default function UsersManager({
+  initialUsers,
+  selfId,
+  proprietarios,
+  proprietarioByUser,
+}: {
+  initialUsers: User[];
+  selfId?: string;
+  proprietarios: string[];
+  proprietarioByUser: Record<string, string>;
+}) {
   const toast = useToast();
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", role: "ldr" as Role });
+  const [form, setForm] = useState({ name: "", email: "", role: "ldr" as Role, proprietario: "" });
+  const [propByUser, setPropByUser] = useState<Record<string, string>>(proprietarioByUser);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -103,8 +114,9 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
         return;
       }
       setUsers((prev) => [{ id: data.id, name: data.name, email: data.email, role: data.role, createdAt: data.createdAt, pending: true }, ...prev]);
+      if (data.role === "prevendedor" && form.proprietario) setPropByUser((prev) => ({ ...prev, [data.id]: form.proprietario }));
       setOpen(false);
-      setForm({ name: "", email: "", role: "ldr" });
+      setForm({ name: "", email: "", role: "ldr", proprietario: "" });
       if (data.inviteLink) setLinkResult({ email: data.email, link: data.inviteLink, emailSent: !!data.emailSent, reason: data.emailReason });
       toast.success(data.emailSent ? "Convite enviado por e-mail." : "Convite criado.", data.email);
     } catch (err) {
@@ -133,10 +145,46 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
         return;
       }
       setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, role: data.role } : item)));
+      setPropByUser((prev) => {
+        if (data.role === "prevendedor") return prev;
+        const next = { ...prev };
+        delete next[user.id];
+        return next;
+      });
       toast.success("Cargo atualizado.", `${user.email} agora é ${ROLE_LABELS[role]}.`);
     } catch (err) {
       toast.dismiss(loadingId);
       toast.error("Não foi possível atualizar cargo.", (err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeProprietario(user: User, proprietario: string) {
+    setBusyId(user.id);
+    const loadingId = toast.loading("Salvando proprietário...", user.email);
+    try {
+      const res = await fetch(apiPath(`/api/users/${user.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proprietario }),
+      });
+      const data = await res.json().catch(() => ({}));
+      toast.dismiss(loadingId);
+      if (!res.ok) {
+        toast.error("Não foi possível salvar o proprietário.", data.error || `Erro ${res.status}.`);
+        return;
+      }
+      setPropByUser((prev) => {
+        const next = { ...prev };
+        if (proprietario) next[user.id] = proprietario;
+        else delete next[user.id];
+        return next;
+      });
+      toast.success("Proprietário atualizado.", proprietario || "Vínculo removido.");
+    } catch (err) {
+      toast.dismiss(loadingId);
+      toast.error("Não foi possível salvar o proprietário.", (err as Error).message);
     } finally {
       setBusyId(null);
     }
@@ -255,6 +303,20 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                       </option>
                     ))}
                   </select>
+                  {asRole(user.role) === "prevendedor" && (
+                    <select
+                      value={propByUser[user.id] || ""}
+                      disabled={busy}
+                      onChange={(event) => changeProprietario(user, event.target.value)}
+                      title="Proprietário (HubSpot) — escopo da correção"
+                      className="mt-1.5 w-40 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-500 disabled:opacity-50"
+                    >
+                      <option value="">— Proprietário (HubSpot) —</option>
+                      {proprietarios.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   {user.pending ? (
@@ -342,6 +404,24 @@ export default function UsersManager({ initialUsers, selfId }: { initialUsers: U
                   ))}
                 </select>
               </div>
+              {form.role === "prevendedor" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Proprietário (HubSpot)</label>
+                  <select
+                    value={form.proprietario}
+                    onChange={(event) => setForm({ ...form, proprietario: event.target.value })}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  >
+                    <option value="">— Selecione o proprietário —</option>
+                    {proprietarios.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-400">
+                    O Pré-vendedor só vê a correção e o histórico dos contatos deste proprietário.
+                  </p>
+                </div>
+              )}
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
             </div>
             <div className="mt-6 flex justify-end gap-3">

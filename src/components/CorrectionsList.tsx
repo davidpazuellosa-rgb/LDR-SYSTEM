@@ -267,7 +267,7 @@ function PessoaModal({
   );
 }
 
-export default function CorrectionsList({ items }: { items: CorrectionItem[] }) {
+export default function CorrectionsList({ items, hideProprietario = false }: { items: CorrectionItem[]; hideProprietario?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -598,32 +598,34 @@ export default function CorrectionsList({ items }: { items: CorrectionItem[] }) 
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-sm font-medium text-slate-500">Proprietário:</span>
-        <button
-          onClick={() => setOwner("all")}
-          className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
-            owner === "all"
-              ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-              : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          Todos <span className="text-xs text-slate-400">({filtered.length})</span>
-        </button>
-        {ownersInScope.map(([name, count]) => (
+      {!hideProprietario && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-sm font-medium text-slate-500">Proprietário:</span>
           <button
-            key={name}
-            onClick={() => setOwner(name)}
+            onClick={() => setOwner("all")}
             className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
-              owner === name
+              owner === "all"
                 ? "border-indigo-600 bg-indigo-50 text-indigo-700"
                 : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             }`}
           >
-            {name} <span className="text-xs text-slate-400">({count})</span>
+            Todos <span className="text-xs text-slate-400">({filtered.length})</span>
           </button>
-        ))}
-      </div>
+          {ownersInScope.map(([name, count]) => (
+            <button
+              key={name}
+              onClick={() => setOwner(name)}
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+                owner === name
+                  ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {name} <span className="text-xs text-slate-400">({count})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {shown.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">

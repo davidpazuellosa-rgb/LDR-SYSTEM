@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import { ufSigla } from "@/lib/uf";
 
@@ -11,20 +13,30 @@ function personInitials(name?: string | null, email?: string | null) {
 }
 
 export default async function HistoricoCorrecoesPage() {
-  const historyRaw = await prisma.correction.findMany({
-    where: {
-      status: "resolved",
-      newValue: { not: null },
-      NOT: { newValue: "" },
-      resolvedAt: { not: null },
-    },
-    orderBy: { resolvedAt: "desc" },
-    take: 100,
-    include: {
-      contact: { select: { cidade: true, estado: true } },
-      resolvedBy: { select: { name: true, email: true } },
-    },
-  });
+  const session = await auth();
+  const u = session?.user as { id?: string; role?: string } | undefined;
+  const prevendedor = u?.role === "prevendedor";
+  // Pré-vendedor: só o histórico dos contatos dele (por proprietário). Sem vínculo → nada.
+  const proprietario = prevendedor ? await getProprietarioDoUsuario(u?.id || "") : null;
+
+  const historyRaw =
+    prevendedor && !proprietario
+      ? []
+      : await prisma.correction.findMany({
+          where: {
+            status: "resolved",
+            newValue: { not: null },
+            NOT: { newValue: "" },
+            resolvedAt: { not: null },
+            ...(proprietario ? { contact: { is: { proprietario } } } : {}),
+          },
+          orderBy: { resolvedAt: "desc" },
+          take: 100,
+          include: {
+            contact: { select: { cidade: true, estado: true } },
+            resolvedBy: { select: { name: true, email: true } },
+          },
+        });
   const history = historyRaw.filter((item) => item.newValue?.trim() && item.resolvedAt);
 
   return (

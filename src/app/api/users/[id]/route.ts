@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/guard";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { makeInvite, buildInviteLink } from "@/lib/invite";
 import { sendInviteEmail } from "@/lib/email";
+import { setProprietarioDoUsuario } from "@/lib/user-proprietario";
 
 // Edita um usuário (admin): nome, cargo, ou gera um novo link de convite/redefinição.
 // O admin NUNCA define a senha — só envia o link para a pessoa definir a própria.
@@ -44,6 +45,15 @@ export async function PATCH(
     data,
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   });
+
+  // Vínculo com o "Proprietário" do HubSpot (Pré-vendedor). Se sair do cargo
+  // prevendedor, o vínculo é removido.
+  if (typeof body?.proprietario === "string") {
+    await setProprietarioDoUsuario(id, body.proprietario);
+  } else if (body?.role && body.role !== "prevendedor") {
+    await setProprietarioDoUsuario(id, null);
+  }
+
   return NextResponse.json(user);
 }
 

@@ -29,11 +29,14 @@ export type Action =
 
 // O que o cargo LDR PODE fazer. Tudo o que não está aqui é só admin.
 const LDR_ALLOWED: Action[] = ["data.import", "corrections.write"];
+// Pré-vendedor: só corrige (não importa — não acessa Bases). Escopo limitado aos
+// contatos do proprietário dele (aplicado nas telas de correção/histórico).
+const PREVENDEDOR_ALLOWED: Action[] = ["corrections.write"];
 
 export function can(role: string | null | undefined, action: Action): boolean {
   if (role === "admin") return true;
-  // LDR e Pré-vendedor compartilham as mesmas permissões de operação.
-  if (role === "ldr" || role === "prevendedor") return LDR_ALLOWED.includes(action);
+  if (role === "ldr") return LDR_ALLOWED.includes(action);
+  if (role === "prevendedor") return PREVENDEDOR_ALLOWED.includes(action);
   return false;
 }
 
