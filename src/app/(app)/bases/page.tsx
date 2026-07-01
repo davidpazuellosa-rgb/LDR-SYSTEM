@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
@@ -55,6 +57,10 @@ export default async function BasesPage({
   searchParams: Promise<{ tipo?: string }>;
 }) {
   const { tipo } = await searchParams;
+
+  // Pré-vendedor não acessa Bases de Dados.
+  const session = await auth();
+  if ((session?.user as { role?: string } | undefined)?.role === "prevendedor") redirect("/dashboard");
 
   const bases = await prisma.base.findMany({ orderBy: { createdAt: "desc" } });
 

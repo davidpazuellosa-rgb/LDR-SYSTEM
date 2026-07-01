@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -21,6 +21,7 @@ export default async function BaseDetailPage({
   const { regiao } = await searchParams;
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
+  if (role === "prevendedor") redirect("/dashboard"); // Pré-vendedor não acessa Bases
   const base = await prisma.base.findUnique({
     where: { id },
     include: { contacts: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } },

@@ -102,6 +102,7 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const admin = role === "admin";
+  const prevendedor = role === "prevendedor";
 
   // Ponto colorido em "Minhas Metas" conforme a pior situação das metas do usuário.
   const metaDot =
@@ -119,7 +120,8 @@ export default function Sidebar({
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
     { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (metaNova ? "bg-indigo-400" : ""), pulse: metaNova },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
-    { href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 },
+    // Pré-vendedor não vê Bases de Dados.
+    ...(prevendedor ? [] : [{ href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 }]),
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Relatório próprio do operador (LDR / Pré-vendedor). Admin usa /relatorios.
