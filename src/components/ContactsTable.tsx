@@ -228,10 +228,14 @@ export default function ContactsTable({
     return () => setSaved(null);
   }, [initialSavedAt, setSaved]);
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  // Ao concluir importação/sincronização, o router.refresh() traz novos initialContacts;
+  // sincroniza a grade pra os dados aparecerem sem recarregar a página inteira.
+  useEffect(() => {
+    setContacts(initialContacts);
+  }, [initialContacts]);
   const [headerLabels, setHeaderLabels] = useState<Record<string, string>>(initialHeaders);
   const [importing, setImporting] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   // "Substituir": trocar também os rótulos das colunas pela nova planilha? (default sim)
   const [replaceColumns, setReplaceColumns] = useState(true);
@@ -1670,7 +1674,6 @@ async function saveCell(id: string, key: string, value: string) {
   async function doImport(file: File, mode: "merge" | "replace", replaceCols = false) {
     setPendingFile(null);
     setImporting(true);
-    setMessage(null);
     setUndoInfo(null);
     const loadingId = toast.loading(
       mode === "replace" ? "Substituindo planilha…" : "Importando planilha…",
@@ -1694,7 +1697,6 @@ async function saveCell(id: string, key: string, value: string) {
       if (data.unknownColumns?.length) parts.push(`${data.unknownColumns.length} coluna(s) não reconhecida(s)`);
       const resumo = parts.join(" · ") || "Nada a importar";
       toast.success(mode === "replace" ? "Substituição concluída" : "Importação concluída", resumo);
-      setMessage(resumo);
       if (data.eventoId) setUndoInfo({ eventoId: data.eventoId, resumo });
       router.refresh();
       if (data.imported > 0 || data.completados > 0) {
@@ -1712,7 +1714,6 @@ async function saveCell(id: string, key: string, value: string) {
           }`
         : data.error || `Erro ${res.status}.`;
       toast.error("Falha na importação", details);
-      setMessage(details);
     }
   }
 
@@ -1729,7 +1730,6 @@ async function saveCell(id: string, key: string, value: string) {
     if (res.ok) {
       toast.success("Ação desfeita.", "A planilha voltou ao estado anterior.");
       setUndoInfo(null);
-      setMessage(null);
       router.refresh();
     } else {
       toast.error("Não foi possível desfazer.", data.error || `Erro ${res.status}.`);
@@ -2034,10 +2034,6 @@ async function saveCell(id: string, key: string, value: string) {
             setContacts((prev) => prev.map((c) => (c.id === contactId ? { ...c, ...(data as Partial<Contact>) } : c)))
           }
         />
-      )}
-
-      {message && (
-        <span className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</span>
       )}
 
       {/* 4) Tabela editável */}
