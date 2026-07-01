@@ -68,4 +68,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    // Refresca o papel (role) direto do banco a cada request (runtime Node) — assim
+    // uma mudança de cargo (ex.: virar Pré-vendedor) passa a valer SEM re-login.
+    async jwt({ token, user }) {
+      const t = token as { role?: string; id?: string };
+      if (user) {
+        const u = user as { role?: string; id?: string };
+        t.role = u.role;
+        t.id = u.id;
+        return token;
+      }
+      if (t.id) {
+        const dbUser = await prisma.user.findUnique({ where: { id: t.id }, select: { role: true } });
+        if (dbUser) t.role = dbUser.role;
+      }
+      return token;
+    },
+  },
 });
