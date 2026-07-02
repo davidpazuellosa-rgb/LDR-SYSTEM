@@ -100,7 +100,9 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
       take: 8,
     }),
     prisma.correction.findMany({ where: { ...base, resolvedAt: { gte: s14 } }, select: { resolvedAt: true } }),
-    prisma.meta.findMany({ where: { userId: meId } }) as Promise<Meta[]>,
+    prisma.meta.findMany({
+      where: { userId: meId, OR: [{ dataLimite: null }, { dataLimite: { gte: startOfDay(now) } }] },
+    }) as Promise<Meta[]>,
     prisma.base.findMany({ select: { id: true, name: true } }),
     loadProgress(),
   ]);
@@ -224,7 +226,9 @@ async function AdminMain() {
     prisma.contact.count({ where: { status: "telefone_atualizado", deletedAt: null } }),
     prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.base.findMany({ select: { id: true, name: true } }),
-    prisma.meta.findMany() as Promise<Meta[]>,
+    prisma.meta.findMany({
+      where: { OR: [{ dataLimite: null }, { dataLimite: { gte: startOfDay(now) } }] },
+    }) as Promise<Meta[]>,
     loadProgress(),
   ]);
 

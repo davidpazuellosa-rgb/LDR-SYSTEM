@@ -31,6 +31,7 @@ export async function ensureMetaTable() {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "prazo" TEXT NOT NULL DEFAULT 'semanal';`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "alvo" INTEGER NOT NULL DEFAULT 0;`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Meta" ADD COLUMN IF NOT EXISTS "dataLimite" TIMESTAMP(3);`);
   // Tabela auxiliar: quando cada LDR viu suas metas pela última vez (para "meta nova").
   await prisma.$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "MetaVisto" ("userId" TEXT NOT NULL, "vistoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "MetaVisto_pkey" PRIMARY KEY ("userId"));`

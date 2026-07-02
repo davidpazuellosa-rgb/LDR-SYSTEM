@@ -62,7 +62,13 @@ function janelasPassadas(prazo: string, now: Date, quantas: number) {
   return wins;
 }
 
-type MetaComData = Meta & { criadoEm: Date };
+type MetaComData = Meta & { criadoEm: Date; dataLimite: Date | null };
+
+// Meta ativa = sem data-limite ou ainda dentro do prazo (a partir de hoje).
+function isAtiva(m: MetaComData, now: Date): boolean {
+  if (!m.dataLimite) return true;
+  return m.dataLimite >= startOfDay(now);
+}
 
 async function lerVistoEm(userId: string): Promise<Date | null> {
   const rows = await prisma.$queryRaw<{ vistoEm: Date }[]>`SELECT "vistoEm" FROM "MetaVisto" WHERE "userId" = ${userId}`;
@@ -121,16 +127,17 @@ export async function statusMinhasMetas(userId: string): Promise<{ status: Statu
   const now = new Date();
   const desde = new Date(Math.min(startOfWeek(now).getTime(), startOfMonth(now).getTime()));
   const { metas, fills, corrections } = await carregar(userId, desde);
-  if (metas.length === 0) return { status: null, nova: false };
+  const ativas = metas.filter((m) => isAtiva(m, now));
+  if (ativas.length === 0) return { status: null, nova: false };
   let worst: StatusMeta | null = null;
-  for (const m of metas) {
+  for (const m of ativas) {
     const ini = periodStart(m.prazo, now);
     const fim = periodEnd(m.prazo, now);
     const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
     const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
     worst = pior(worst, statusDe(feito, m.alvo, decorrido));
   }
-  const nova = temMetaNova(metas, await lerVistoEm(userId));
+  const nova = temMetaNova(ativas, await lerVistoEm(userId));
   return { status: worst, nova };
 }
 
@@ -192,7 +199,11 @@ export async function buildMinhasMetas(userId: string) {
   const snaps = await prisma.metaSnapshot.findMany({ where: { userId }, select: { chave: true, feito: true, alvo: true } });
   const snapByChave = new Map(snaps.map((s) => [s.chave, s] as const));
 
-  const ativas = metas.map((m) => {
+  // Ativas entram na criação/edição e no progresso; encerradas ficam só como histórico.
+  const metasAtivas = metas.filter((m) => isAtiva(m, now));
+  const metasEncerradas = metas.filter((m) => !isAtiva(m, now));
+
+  const ativas = metasAtivas.map((m) => {
     const ini = periodStart(m.prazo, now);
     const fim = periodEnd(m.prazo, now);
     const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
@@ -205,7 +216,7 @@ export async function buildMinhasMetas(userId: string) {
     };
   });
 
-  const historico = metas.map((m) => {
+  const historico = metasAtivas.map((m) => {
     const quantas = m.prazo === "mensal" ? 6 : m.prazo === "diaria" ? 14 : 8;
     const periodos = janelasPassadas(m.prazo, now, quantas).map((w) => {
       // Usa o snapshot congelado se existir; senão recalcula retroativamente.
@@ -230,10 +241,22 @@ export async function buildMinhasMetas(userId: string) {
     melhorSequencia: historico.reduce((acc, h) => Math.max(acc, h.streak), 0),
   };
 
+  // Metas encerradas (prazo passou): read-only, ficam salvas como histórico.
+  const encerradas = metasEncerradas
+    .map((m) => ({
+      id: m.id,
+      tipo: m.tipo,
+      prazo: m.prazo,
+      rotulo: rotuloMeta(m, baseName),
+      alvo: m.alvo,
+      dataLimite: m.dataLimite ? m.dataLimite.toISOString().slice(0, 10) : null,
+    }))
+    .sort((a, b) => (b.dataLimite || "").localeCompare(a.dataLimite || ""));
+
   const status = ativas.reduce<StatusMeta | null>((acc, a) => pior(acc, a.status), null);
 
   // Abrir a página = "vi minhas metas": limpa o sinal de meta nova na sidebar.
   if (userId && metas.length > 0) await marcarVisto(userId);
 
-  return { ativas, historico, conquistas, status };
+  return { ativas, historico, conquistas, encerradas, status };
 }

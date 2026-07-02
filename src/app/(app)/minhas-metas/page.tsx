@@ -67,11 +67,11 @@ export default async function MinhasMetasPage() {
 
   // LDR: "Minhas Metas" — as próprias metas.
   const userId = u.id || "";
-  const { ativas, historico, conquistas } = await buildMinhasMetas(userId);
+  const { ativas, historico, conquistas, encerradas } = await buildMinhasMetas(userId);
 
   const fill = ativas.filter((a) => a.tipo !== "correcao");
   const corr = ativas.filter((a) => a.tipo === "correcao");
-  const semMetas = ativas.length === 0 && historico.length === 0;
+  const semMetas = ativas.length === 0 && historico.length === 0 && encerradas.length === 0;
 
   return (
     <>
@@ -173,6 +173,27 @@ export default async function MinhasMetasPage() {
                 ))}
               </div>
             </section>
+
+            {/* Metas encerradas (prazo passou) — só leitura, ficam salvas */}
+            {encerradas.length > 0 && (
+              <section className={CARD}>
+                <h2 className={TITLE}>Metas encerradas</h2>
+                <p className={`mb-3 ${SUB}`}>Prazo já passou · ficam salvas para consulta</p>
+                <div className="space-y-2">
+                  {encerradas.map((m) => (
+                    <div key={m.id} className="flex items-baseline justify-between gap-3 border-b border-slate-50 pb-2 text-xs last:border-0">
+                      <span className="min-w-0 truncate text-slate-500">
+                        {m.rotulo}
+                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">{prazoLabel(m.prazo)}</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-slate-400">
+                        meta {m.alvo}{m.dataLimite ? ` · encerrou ${m.dataLimite.split("-").reverse().join("/")}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </main>

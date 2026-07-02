@@ -6,8 +6,8 @@ import { useToast } from "@/components/Toast";
 
 type RegiaoOpt = { regiao: string; baseId: string; estados: string[] };
 type TipoOpt = { tipo: string; regioes: RegiaoOpt[] };
-type FillRow = { tipo: string; regiao: string; estado: string; baseId: string; prazo: string; alvo: string };
-type CorrRow = { campanha: string; prazo: string; alvo: string };
+type FillRow = { tipo: string; regiao: string; estado: string; baseId: string; prazo: string; alvo: string; dataLimite: string };
+type CorrRow = { campanha: string; prazo: string; alvo: string; dataLimite: string };
 
 type MetaIn = {
   tipo?: string;
@@ -17,7 +17,11 @@ type MetaIn = {
   campanha?: string | null;
   prazo?: string;
   alvo?: number;
+  dataLimite?: string | null;
 };
+
+// Data (ISO) -> yyyy-mm-dd para o <input type="date">.
+const dataInput = (v: string | null | undefined) => (v ? String(v).slice(0, 10) : "");
 
 const selCls =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-indigo-500 disabled:bg-slate-50";
@@ -57,6 +61,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 baseId: m.baseId || "",
                 prazo: m.prazo === "mensal" ? "mensal" : m.prazo === "diaria" ? "diaria" : "semanal",
                 alvo: String(m.alvo ?? 0),
+                dataLimite: dataInput(m.dataLimite),
               }))
           );
           setCorrRows(
@@ -66,6 +71,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 campanha: m.campanha || "",
                 prazo: m.prazo === "mensal" ? "mensal" : m.prazo === "diaria" ? "diaria" : "semanal",
                 alvo: String(m.alvo ?? 0),
+                dataLimite: dataInput(m.dataLimite),
               }))
           );
         }
@@ -91,10 +97,10 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     setCorrRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
   function addFill() {
-    setFillRows((prev) => [...prev, { tipo: tipos[0]?.tipo || "", regiao: "", estado: "", baseId: "", prazo: "semanal", alvo: "" }]);
+    setFillRows((prev) => [...prev, { tipo: tipos[0]?.tipo || "", regiao: "", estado: "", baseId: "", prazo: "semanal", alvo: "", dataLimite: "" }]);
   }
   function addCorr() {
-    setCorrRows((prev) => [...prev, { campanha: campanhas[0] || "", prazo: "semanal", alvo: "" }]);
+    setCorrRows((prev) => [...prev, { campanha: campanhas[0] || "", prazo: "semanal", alvo: "", dataLimite: "" }]);
   }
 
   async function save() {
@@ -105,10 +111,10 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
       const metas = [
         ...fillRows
           .filter((r) => r.baseId && r.regiao && r.estado)
-          .map((r) => ({ tipo: "preenchimento", baseId: r.baseId, regiao: r.regiao, estado: r.estado, prazo: r.prazo, alvo: r.alvo })),
+          .map((r) => ({ tipo: "preenchimento", baseId: r.baseId, regiao: r.regiao, estado: r.estado, prazo: r.prazo, alvo: r.alvo, dataLimite: r.dataLimite || null })),
         ...corrRows
           .filter((r) => r.campanha)
-          .map((r) => ({ tipo: "correcao", campanha: r.campanha, prazo: r.prazo, alvo: r.alvo })),
+          .map((r) => ({ tipo: "correcao", campanha: r.campanha, prazo: r.prazo, alvo: r.alvo, dataLimite: r.dataLimite || null })),
       ];
       const res = await fetch(apiPath(`/api/metas/${userId}`), {
         method: "PUT",
@@ -155,17 +161,18 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
               {/* ───── Preenchimento ───── */}
               <section>
                 <h3 className="mb-2 text-sm font-semibold text-slate-700">Preenchimento de contatos</h3>
-                <div className="mb-2 grid grid-cols-[1.3fr_1fr_0.7fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+                <div className="mb-2 grid grid-cols-[1.3fr_1fr_0.6fr_0.8fr_0.6fr_0.9fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
                   <div>Tipo de órgão</div>
                   <div>Região</div>
                   <div>Estado</div>
                   <div>Prazo</div>
                   <div>Meta</div>
+                  <div>Até</div>
                   <div />
                 </div>
                 <div className="space-y-2">
                   {fillRows.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[1.3fr_1fr_0.7fr_0.85fr_0.8fr_auto] items-center gap-2">
+                    <div key={i} className="grid grid-cols-[1.3fr_1fr_0.6fr_0.8fr_0.6fr_0.9fr_auto] items-center gap-2">
                       <select value={r.tipo} onChange={(e) => updFill(i, { tipo: e.target.value, regiao: "", estado: "", baseId: "" })} className={selCls}>
                         <option value="">Selecione…</option>
                         {tipos.map((t) => (
@@ -204,6 +211,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                         <option value="mensal">Mensal</option>
                       </select>
                       <input type="number" min={0} value={r.alvo} onChange={(e) => updFill(i, { alvo: e.target.value })} placeholder="0" className={numCls} />
+                      <input type="date" value={r.dataLimite} onChange={(e) => updFill(i, { dataLimite: e.target.value })} title="Data-limite (opcional)" className={numCls} />
                       <button onClick={() => setFillRows((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover linha">
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
@@ -220,15 +228,16 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
               {/* ───── Correção ───── */}
               <section>
                 <h3 className="mb-2 text-sm font-semibold text-slate-700">Correção de contatos</h3>
-                <div className="mb-2 grid grid-cols-[2fr_0.85fr_0.8fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
+                <div className="mb-2 grid grid-cols-[2fr_0.8fr_0.6fr_0.9fr_auto] gap-2 px-1 text-xs font-medium text-slate-400">
                   <div>Campanha (HubSpot)</div>
                   <div>Prazo</div>
                   <div>Meta</div>
+                  <div>Até</div>
                   <div />
                 </div>
                 <div className="space-y-2">
                   {corrRows.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[2fr_0.85fr_0.8fr_auto] items-center gap-2">
+                    <div key={i} className="grid grid-cols-[2fr_0.8fr_0.6fr_0.9fr_auto] items-center gap-2">
                       <select value={r.campanha} onChange={(e) => updCorr(i, { campanha: e.target.value })} className={selCls}>
                         <option value="">Selecione…</option>
                         {campanhas.map((c) => (
@@ -241,6 +250,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                         <option value="mensal">Mensal</option>
                       </select>
                       <input type="number" min={0} value={r.alvo} onChange={(e) => updCorr(i, { alvo: e.target.value })} placeholder="0" className={numCls} />
+                      <input type="date" value={r.dataLimite} onChange={(e) => updCorr(i, { dataLimite: e.target.value })} title="Data-limite (opcional)" className={numCls} />
                       <button onClick={() => setCorrRows((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover linha">
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6 7v12.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
