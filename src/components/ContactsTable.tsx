@@ -197,6 +197,8 @@ export default function ContactsTable({
   initialFormats = {},
   initialHeaders = {},
   initialMerges = [],
+  initialCols = [],
+  initialCustomValues = {},
   initialSavedAt = null,
   canDelete = true,
   canImport = true,
@@ -208,6 +210,8 @@ export default function ContactsTable({
   initialFormats?: Record<string, Record<string, CellFmt>>;
   initialHeaders?: Record<string, string>;
   initialMerges?: MergeRegion[];
+  initialCols?: { key: string; label: string }[];
+  initialCustomValues?: Record<string, Record<string, string>>;
   initialSavedAt?: string | null;
   canDelete?: boolean;
   canImport?: boolean;
@@ -288,6 +292,63 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     },
     [baseId, markSaving, markSaved, markSaveError],
   );
+
+  // ---- Colunas personalizadas (bloco à direita) ----
+  const [customCols, setCustomCols] = useState<{ key: string; label: string }[]>(initialCols);
+  const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(initialCustomValues);
+  const customValOf = (contactId: string, key: string) => customValues[contactId]?.[key] ?? "";
+
+  // Estrutura das colunas (admin): cria/renomeia/move/exclui. Persiste em headers.__cols__.
+  const saveCols = useCallback(
+    (next: { key: string; label: string }[]) => {
+      setCustomCols(next);
+      markSaving();
+      fetch(apiPath(`/api/bases/${baseId}/colunas`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cols: next }),
+      })
+        .then((r) => (r.ok ? markSaved() : markSaveError()))
+        .catch(() => markSaveError());
+    },
+    [baseId, markSaving, markSaved, markSaveError],
+  );
+  function addCustomCol() {
+    const label = window.prompt("Nome da nova coluna:")?.trim();
+    if (!label) return;
+    const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    saveCols([...customCols, { key, label }]);
+  }
+  function renameCustomCol(key: string, label: string) {
+    const l = label.trim();
+    if (!l) return;
+    saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
+  }
+  function moveCustomCol(key: string, dir: -1 | 1) {
+    const i = customCols.findIndex((c) => c.key === key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= customCols.length) return;
+    const next = [...customCols];
+    [next[i], next[j]] = [next[j], next[i]];
+    saveCols(next);
+  }
+  function deleteCustomCol(key: string) {
+    const col = customCols.find((c) => c.key === key);
+    if (!col || !confirm(`Excluir a coluna "${col.label}"? Os dados dela serão perdidos.`)) return;
+    saveCols(customCols.filter((c) => c.key !== key));
+  }
+  // Valor de uma célula personalizada (qualquer usuário) — otimista + persiste.
+  function saveCustomValue(contactId: string, key: string, valor: string) {
+    setCustomValues((prev) => ({ ...prev, [contactId]: { ...(prev[contactId] || {}), [key]: valor } }));
+    markSaving();
+    fetch(apiPath(`/api/contacts/${contactId}/custom`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colKey: key, valor }),
+    })
+      .then((r) => (r.ok ? markSaved() : markSaveError()))
+      .catch(() => markSaveError());
+  }
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   // Atalhos comuns de planilha (Ctrl/Cmd+Z/Y = desfazer/refazer, B = negrito,
@@ -2089,6 +2150,21 @@ async function saveCell(id: string, key: string, value: string) {
                 );
               })}
               <th className="bg-emerald-700 px-2 py-1" />
+              {/* Colunas personalizadas (bloco à direita) — linha das letras */}
+              {customCols.map((col) => (
+                <th key={col.key} className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-white" style={{ minWidth: 140 }} />
+              ))}
+              {canEditHeaders && (
+                <th className="bg-emerald-700 px-1 py-1">
+                  <button
+                    onClick={addCustomCol}
+                    title="Adicionar coluna personalizada"
+                    className="grid h-5 w-6 place-items-center rounded bg-white/15 text-white hover:bg-white/25"
+                  >
+                    +
+                  </button>
+                </th>
+              )}
             </tr>
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
@@ -2130,6 +2206,31 @@ async function saveCell(id: string, key: string, value: string) {
                 );
               })}
               <th className="bg-slate-200 px-3 py-3 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]">Status</th>
+              {/* Colunas personalizadas — rótulos (editáveis pelo admin) */}
+              {customCols.map((col, ci) => (
+                <th
+                  key={col.key}
+                  className="border-l border-slate-300 bg-indigo-50 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
+                  style={{ minWidth: 140 }}
+                >
+                  {canEditHeaders ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        defaultValue={col.label}
+                        onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold uppercase text-indigo-700 outline-none hover:border-indigo-200 focus:border-indigo-400 focus:bg-white"
+                      />
+                      <button onClick={() => moveCustomCol(col.key, -1)} disabled={ci === 0} title="Mover para a esquerda" className="shrink-0 px-0.5 text-indigo-400 hover:text-indigo-700 disabled:opacity-30">‹</button>
+                      <button onClick={() => moveCustomCol(col.key, 1)} disabled={ci === customCols.length - 1} title="Mover para a direita" className="shrink-0 px-0.5 text-indigo-400 hover:text-indigo-700 disabled:opacity-30">›</button>
+                      <button onClick={() => deleteCustomCol(col.key)} title="Excluir coluna" className="shrink-0 px-0.5 text-rose-400 hover:text-rose-600">×</button>
+                    </div>
+                  ) : (
+                    <span className="block px-1 py-0.5 text-xs font-bold uppercase text-indigo-700">{col.label}</span>
+                  )}
+                </th>
+              ))}
+              {canEditHeaders && <th className="bg-slate-200 px-2" />}
             </tr>
           </thead>
           <tbody>
@@ -2340,6 +2441,21 @@ async function saveCell(id: string, key: string, value: string) {
                   <td className="px-3 py-1">
                     <StatusBadge status={c.status} />
                   </td>
+                  {/* Células das colunas personalizadas — editáveis por qualquer usuário */}
+                  {customCols.map((col) => (
+                    <td key={col.key} className={`border-l border-slate-300 px-1 ${padY}`} style={{ minWidth: 140 }}>
+                      <input
+                        defaultValue={customValOf(c.id, col.key)}
+                        onBlur={(e) => {
+                          const v = e.currentTarget.value;
+                          if (v !== customValOf(c.id, col.key)) saveCustomValue(c.id, col.key, v);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        className="w-full rounded border border-transparent bg-transparent px-2 py-0.5 text-slate-700 outline-none hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
+                      />
+                    </td>
+                  ))}
+                  {canEditHeaders && <td />}
                 </tr>
                 );
               })
@@ -2592,6 +2708,11 @@ async function saveCell(id: string, key: string, value: string) {
                 <>
                   <div className="my-1 h-px bg-slate-200" />
                   <MenuRow
+                    icon={<span className="text-base leading-none">+</span>}
+                    label="Inserir coluna personalizada"
+                    onClick={() => { addCustomCol(); setMenu(null); }}
+                  />
+                  <MenuRow
                     icon={
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path d="M3 3l18 18" strokeLinecap="round" />
@@ -2602,6 +2723,18 @@ async function saveCell(id: string, key: string, value: string) {
                     }
                     label={selCols > 1 ? `Ocultar ${selCols} colunas` : "Ocultar coluna"}
                     onClick={() => hideColumns(selColIndices)}
+                  />
+                  <MenuRow
+                    icon={
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="M3 6h18" strokeLinecap="round" />
+                        <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+                      </svg>
+                    }
+                    label={selCols > 1 ? `Excluir ${selCols} colunas` : "Excluir coluna"}
+                    onClick={() => excluirColunas(selColIndices)}
                   />
                 </>
               )}

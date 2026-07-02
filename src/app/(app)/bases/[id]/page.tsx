@@ -8,6 +8,7 @@ import { can, isAdmin } from "@/lib/permissions";
 import { isComplete, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
+import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +54,27 @@ export default async function BaseDetailPage({
   // headers guarda rótulos de coluna E, na chave reservada __merges__, as mesclas
   // visuais (estilo Excel) compartilhadas pelo time. Separa as duas coisas aqui.
   const rawHeaders = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
-  const { __merges__: rawMerges, ...labelHeaders } = rawHeaders;
+  const { __merges__: rawMerges, __cols__: _rawCols, ...labelHeaders } = rawHeaders;
+  void _rawCols;
   const initialHeaders = labelHeaders as ComponentProps<typeof ContactsTable>["initialHeaders"];
   const initialMerges = (Array.isArray(rawMerges) ? rawMerges : []) as ComponentProps<
     typeof ContactsTable
   >["initialMerges"];
+
+  // Colunas personalizadas (bloco à direita): definições em headers.__cols__ e valores
+  // por contato na tabela ContactCustomValue (ambos sem migration).
+  const initialCols = parseCustomCols(rawHeaders) as ComponentProps<typeof ContactsTable>["initialCols"];
+  await ensureContactCustomTable();
+  const customRows = rows.length
+    ? await prisma.contactCustomValue.findMany({
+        where: { contactId: { in: rows.map((c) => c.id) } },
+        select: { contactId: true, colKey: true, valor: true },
+      })
+    : [];
+  const initialCustomValues: Record<string, Record<string, string>> = {};
+  for (const cv of customRows) {
+    (initialCustomValues[cv.contactId] ||= {})[cv.colKey] = cv.valor ?? "";
+  }
 
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.
@@ -106,6 +123,8 @@ export default async function BaseDetailPage({
           initialFormats={initialFormats}
           initialHeaders={initialHeaders}
           initialMerges={initialMerges}
+          initialCols={initialCols}
+          initialCustomValues={initialCustomValues}
           initialSavedAt={lastSaved?.toISOString() ?? null}
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}

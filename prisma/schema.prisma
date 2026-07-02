@@ -162,6 +162,18 @@ model Meta {
   @@index([userId])
 }
 
+// Valores das COLUNAS PERSONALIZADAS (bloco à direita da planilha). As definições
+// das colunas (chave + rótulo + ordem) ficam em Base.headers.__cols__; aqui só os
+// valores por contato. Tabela criada sob demanda — sem migration na produção.
+model ContactCustomValue {
+  contactId String
+  colKey    String
+  valor     String?
+
+  @@id([contactId, colKey])
+  @@index([contactId])
+}
+
 // Resultado CONGELADO de uma meta num período já encerrado (gravado pelo cron de
 // snapshot). O histórico de Minhas Metas usa isto quando existe; senão, recalcula.
 // Tabela criada sob demanda (ensureMetaTable) — sem migration na produção.
