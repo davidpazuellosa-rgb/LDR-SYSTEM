@@ -10,6 +10,7 @@ import { STATUS_META, STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
+import { useRealtimeSheet, type EditItem } from "@/lib/useRealtimeSheet";
 
 type Contact = {
   id: string;
@@ -200,6 +201,7 @@ export default function ContactsTable({
   initialCols = [],
   initialCustomValues = {},
   initialSavedAt = null,
+  me = { id: "", nome: "" },
   canDelete = true,
   canImport = true,
   canExport = true,
@@ -207,6 +209,7 @@ export default function ContactsTable({
 }: {
   baseId: string;
   initialContacts: Contact[];
+  me?: { id: string; nome: string };
   initialFormats?: Record<string, Record<string, CellFmt>>;
   initialHeaders?: Record<string, string>;
   initialMerges?: MergeRegion[];
@@ -340,6 +343,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // Valor de uma célula personalizada (qualquer usuário) — otimista + persiste.
   function saveCustomValue(contactId: string, key: string, valor: string) {
     setCustomValues((prev) => ({ ...prev, [contactId]: { ...(prev[contactId] || {}), [key]: valor } }));
+    broadcastRef.current([{ id: contactId, key, value: valor, custom: true }]);
     markSaving();
     fetch(apiPath(`/api/contacts/${contactId}/custom`), {
       method: "POST",
@@ -355,6 +359,33 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // I = itálico) a nível de JANELA — funcionam mesmo sem o foco estar na grade.
   // Guardado em ref para o handler usar sempre os estados/funções atuais.
   const shortcutRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  // Broadcast das edições para os outros usuários (tempo real). Guardado em ref para
+  // as funções de salvar usarem sempre a versão atual, sem problema de ordem.
+  const broadcastRef = useRef<(edits: EditItem[]) => void>(() => {});
+
+  // Aplica na tela as edições que CHEGAM de outros usuários (sem re-salvar/re-broadcast).
+  const applyRemote = useCallback((edits: EditItem[]) => {
+    const fixos = edits.filter((e) => !e.custom);
+    const custom = edits.filter((e) => e.custom);
+    if (fixos.length) {
+      setContacts((prev) =>
+        prev.map((c) => {
+          const mine = fixos.filter((e) => e.id === c.id);
+          return mine.length ? mine.reduce<Contact>((acc, e) => ({ ...acc, [e.key]: e.value }), c) : c;
+        }),
+      );
+    }
+    if (custom.length) {
+      setCustomValues((prev) => {
+        const next = { ...prev };
+        for (const e of custom) next[e.id] = { ...(next[e.id] || {}), [e.key]: e.value };
+        return next;
+      });
+    }
+  }, []);
+
+  const { peers, broadcast } = useRealtimeSheet(baseId, me, applyRemote);
+  broadcastRef.current = broadcast;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => shortcutRef.current(e);
     window.addEventListener("keydown", onKey);
@@ -636,6 +667,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       );
     })
   );
+  broadcastRef.current(edits.map((e) => ({ id: e.id, key: e.key, value: useNext ? e.next : e.prev })));
 
   const byId = new Map<string, Record<string, string>>();
   for (const edit of edits) {
@@ -1348,6 +1380,7 @@ async function saveCell(id: string, key: string, value: string) {
     setContacts((prev) =>
       prev.map((c) => (c.id === id ? { ...c, [key]: value } : c))
     );
+    broadcastRef.current([{ id, key, value }]);
     markSaving();
     try {
       const res = await fetch(apiPath(`/api/contacts/${id}`), {
@@ -1388,6 +1421,7 @@ async function saveCell(id: string, key: string, value: string) {
         );
       })
     );
+    broadcastRef.current(updates.map((u) => ({ id: u.id, key: u.key, value: u.value })));
 
     markSaving();
     try {
@@ -2037,6 +2071,26 @@ async function saveCell(id: string, key: string, value: string) {
 
         {/* Histórico · Importar · Exportar — ações destacadas à direita */}
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Quem está com a planilha aberta (tempo real) — à esquerda do histórico */}
+          {peers.length > 0 && (
+            <div className="mr-1 flex items-center -space-x-1.5">
+              {peers.slice(0, 5).map((p) => (
+                <span
+                  key={p.id}
+                  title={p.nome + (p.id === me.id ? " (você)" : "")}
+                  className="grid h-7 w-7 place-items-center rounded-full border-2 border-white text-xs font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: p.cor }}
+                >
+                  {p.inicial}
+                </span>
+              ))}
+              {peers.length > 5 && (
+                <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-400 text-xs font-semibold text-white">
+                  +{peers.length - 5}
+                </span>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setHistoricoOpen(true)}

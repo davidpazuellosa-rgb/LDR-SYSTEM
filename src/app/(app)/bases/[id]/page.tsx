@@ -125,6 +125,10 @@ export default async function BaseDetailPage({
           initialMerges={initialMerges}
           initialCols={initialCols}
           initialCustomValues={initialCustomValues}
+          me={{
+            id: (session?.user as { id?: string } | undefined)?.id || "",
+            nome: session?.user?.name || session?.user?.email || "Usuário",
+          }}
           initialSavedAt={lastSaved?.toISOString() ?? null}
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}
