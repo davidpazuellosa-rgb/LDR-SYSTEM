@@ -263,6 +263,7 @@ const [menu, setMenu] = useState<
   | { type: "cell"; x: number; y: number }
   | { type: "column"; x: number; y: number; col: number }
   | { type: "row"; x: number; y: number; row: number }
+  | { type: "customcolumn"; x: number; y: number; colKey: string }
   | null
 >(null);
 const [pasteSpecialOpen, setPasteSpecialOpen] = useState(false);
@@ -319,14 +320,6 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const l = label.trim();
     if (!l) return;
     saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
-  }
-  function moveCustomCol(key: string, dir: -1 | 1) {
-    const i = customCols.findIndex((c) => c.key === key);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= customCols.length) return;
-    const next = [...customCols];
-    [next[i], next[j]] = [next[j], next[i]];
-    saveCols(next);
   }
   const dragCustomColKeyRef = useRef<string | null>(null);
   function handleCustomColDrop(targetKey: string) {
@@ -2274,7 +2267,7 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              {/* Colunas personalizadas — agora com letra e integradas à planilha */}
+              {/* Colunas personalizadas — agora são colunas comuns, iguais às demais */}
               {customCols.map((col, ci) => (
                 <th
                   key={col.key}
@@ -2288,8 +2281,12 @@ async function saveCell(id: string, key: string, value: string) {
                     e.preventDefault();
                     handleCustomColDrop(col.key);
                   }}
-                  title="Arraste para reordenar"
-                  className="cursor-grab border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-center text-white active:cursor-grabbing"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ type: "customcolumn", x: e.clientX, y: e.clientY, colKey: col.key });
+                  }}
+                  title="Arraste para reordenar · botão direito para mais opções"
+                  className="cursor-grab bg-emerald-700 px-1 py-1 text-center text-white hover:bg-emerald-800 active:cursor-grabbing"
                   style={{ minWidth: 140 }}
                 >
                   {colLetter(visibleFields.length + ci)}
@@ -2347,27 +2344,38 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              {/* Colunas personalizadas — rótulos (editáveis pelo admin) */}
-              {customCols.map((col, ci) => (
+              {/* Colunas personalizadas — agora uma coluna comum, mesmo visual e edição das demais */}
+              {customCols.map((col) => (
                 <th
                   key={col.key}
-                  className="border-l border-slate-300 bg-indigo-50 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
+                  className="bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
                   style={{ minWidth: 140 }}
                 >
                   {canEditHeaders ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        defaultValue={col.label}
-                        onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                        className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold uppercase text-indigo-700 outline-none hover:border-indigo-200 focus:border-indigo-400 focus:bg-white"
-                      />
-                      <button onClick={() => moveCustomCol(col.key, -1)} disabled={ci === 0} title="Mover para a esquerda" className="shrink-0 px-0.5 text-indigo-400 hover:text-indigo-700 disabled:opacity-30">‹</button>
-                      <button onClick={() => moveCustomCol(col.key, 1)} disabled={ci === customCols.length - 1} title="Mover para a direita" className="shrink-0 px-0.5 text-indigo-400 hover:text-indigo-700 disabled:opacity-30">›</button>
-                      <button onClick={() => deleteCustomCol(col.key)} title="Excluir coluna" className="shrink-0 px-0.5 text-rose-400 hover:text-rose-600">×</button>
-                    </div>
+                    <input
+                      defaultValue={col.label}
+                      title="Editar cabeçalho"
+                      aria-label={`Editar cabeçalho ${col.label}`}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.currentTarget.value = col.label;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                    />
                   ) : (
-                    <span className="block px-1 py-0.5 text-xs font-bold uppercase text-indigo-700">{col.label}</span>
+                    <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={col.label}>
+                      {col.label}
+                    </span>
                   )}
                 </th>
               ))}
@@ -2706,6 +2714,24 @@ async function saveCell(id: string, key: string, value: string) {
                   }
                   label={selCols > 1 ? `Excluir ${selCols} colunas` : "Excluir coluna"}
                   onClick={() => excluirColunas(selColIndices.length ? selColIndices : [menu.col])}
+                />
+              </>
+            ) : menu.type === "customcolumn" ? (
+              <>
+                <MenuRow
+                  icon={
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M3 6h18" strokeLinecap="round" />
+                      <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+                    </svg>
+                  }
+                  label="Excluir coluna"
+                  onClick={() => {
+                    deleteCustomCol(menu.colKey);
+                    setMenu(null);
+                  }}
                 />
               </>
             ) : (
