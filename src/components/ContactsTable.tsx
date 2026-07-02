@@ -313,10 +313,28 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     },
     [baseId, markSaving, markSaved, markSaveError],
   );
+  // Cria a nova coluna logo depois da coluna selecionada:
+  // - Se a seleção é uma coluna personalizada, entra logo após ela.
+  // - Se a seleção é uma coluna fixa, entra no início do bloco de personalizadas
+  //   (a posição mais próxima possível — colunas personalizadas não podem ficar
+  //   "no meio" das fixas, são blocos separados no banco).
+  // - Sem seleção nenhuma, mantém o comportamento antigo: acrescenta no final.
   function addCustomCol() {
     const label = window.prompt("Nome da nova coluna:")?.trim();
     if (!label) return;
     const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    if (selectedCustomCol) {
+      const i = customCols.findIndex((c) => c.key === selectedCustomCol);
+      const next = [...customCols];
+      next.splice(i === -1 ? next.length : i + 1, 0, { key, label });
+      saveCols(next);
+      return;
+    }
+    const nativeColSelected = !!selBounds && selBounds.startCol === selBounds.endCol;
+    if (nativeColSelected) {
+      saveCols([{ key, label }, ...customCols]);
+      return;
+    }
     saveCols([...customCols, { key, label }]);
   }
   function renameCustomCol(key: string, label: string) {
