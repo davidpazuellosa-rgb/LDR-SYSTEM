@@ -158,6 +158,7 @@ model Meta {
   prazo    String  @default("semanal") // semanal | mensal
   alvo     Int     @default(0) // quantidade da meta no prazo
   criadoEm DateTime @default(now()) // para sinalizar "meta nova" ao LDR
+  dataLimite DateTime? // data-fim da meta; passou -> sai do editor, mas fica salva
 
   @@index([userId])
 }

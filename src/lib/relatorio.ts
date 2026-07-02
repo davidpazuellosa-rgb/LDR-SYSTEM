@@ -61,7 +61,9 @@ export async function buildRelatorio(f: RelatorioFiltros) {
 
   const [ldrs, metasAll, contactsAll, fillRowsAll, corrRowsAll, pendRows, bases] = await Promise.all([
     prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
-    prisma.meta.findMany() as Promise<Meta[]>,
+    prisma.meta.findMany({
+      where: { OR: [{ dataLimite: null }, { dataLimite: { gte: startOfDay(now) } }] },
+    }) as Promise<Meta[]>,
     prisma.contact.findMany({
       where: { deletedAt: null },
       select: {

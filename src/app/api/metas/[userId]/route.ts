@@ -9,6 +9,12 @@ import { sanitizeMetas } from "@/lib/metas-input";
 
 export const dynamic = "force-dynamic";
 
+function inicioDeHoje(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // Ordem preferida dos tipos de órgão (igual ao nível 1 da página de Bases).
 const TIPO_ORDER = ["Prefeitura", "Secretaria de Educação", "Secretaria de Saúde", "SENAI"];
 const tipoRank = (t: string) => {
@@ -27,8 +33,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
 
   const [metas, bases, pares, comCampanha] = await Promise.all([
     prisma.meta.findMany({
-      where: { userId },
-      select: { tipo: true, baseId: true, regiao: true, estado: true, campanha: true, prazo: true, alvo: true },
+      // Editor mostra só metas ATIVAS (sem data-limite ou ainda dentro do prazo).
+      // As encerradas ficam salvas, mas somem da criação/edição.
+      where: { userId, OR: [{ dataLimite: null }, { dataLimite: { gte: inicioDeHoje() } }] },
+      select: { tipo: true, baseId: true, regiao: true, estado: true, campanha: true, prazo: true, alvo: true, dataLimite: true },
     }),
     prisma.base.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.contact.findMany({
@@ -97,8 +105,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ userId: 
   const body = await req.json().catch(() => ({}));
   const final = sanitizeMetas(body?.metas, userId);
 
+  // Substitui só as metas ATIVAS; as encerradas (data-limite no passado) ficam salvas.
   await prisma.$transaction([
-    prisma.meta.deleteMany({ where: { userId } }),
+    prisma.meta.deleteMany({ where: { userId, OR: [{ dataLimite: null }, { dataLimite: { gte: inicioDeHoje() } }] } }),
     ...(final.length ? [prisma.meta.createMany({ data: final })] : []),
   ]);
 
