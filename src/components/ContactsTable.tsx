@@ -328,6 +328,19 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [next[i], next[j]] = [next[j], next[i]];
     saveCols(next);
   }
+  const dragCustomColKeyRef = useRef<string | null>(null);
+  function handleCustomColDrop(targetKey: string) {
+    const draggedKey = dragCustomColKeyRef.current;
+    dragCustomColKeyRef.current = null;
+    if (!draggedKey || draggedKey === targetKey) return;
+    const from = customCols.findIndex((c) => c.key === draggedKey);
+    const to = customCols.findIndex((c) => c.key === targetKey);
+    if (from === -1 || to === -1) return;
+    const next = [...customCols];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    saveCols(next);
+  }
   function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
     if (!col || !confirm(`Excluir a coluna "${col.label}"? Os dados dela serão perdidos.`)) return;
@@ -425,6 +438,57 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       // localStorage indisponível ou JSON inválido — ignora
     }
   }, [baseId]);
+
+  // Ordem das colunas fixas — reordenável arrastando a letra da coluna;
+  // guardada por base no navegador (localStorage), sem mexer no banco.
+  const [fieldOrder, setFieldOrder] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`colorder:${baseId}`);
+      if (saved) setFieldOrder(JSON.parse(saved));
+    } catch {
+      // localStorage indisponível ou JSON inválido — ignora
+    }
+  }, [baseId]);
+  const dragColKeyRef = useRef<string | null>(null);
+  function handleColumnDrop(targetKey: string) {
+    const draggedKey = dragColKeyRef.current;
+    dragColKeyRef.current = null;
+    if (!draggedKey || draggedKey === targetKey) return;
+    const currentOrder = visibleFields.map((f) => f.key);
+    const from = currentOrder.indexOf(draggedKey);
+    const to = currentOrder.indexOf(targetKey);
+    if (from === -1 || to === -1) return;
+    const next = [...currentOrder];
+    next.splice(from, 1);
+    next.splice(to, 0, draggedKey);
+    const hiddenKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
+    const full = [...next, ...hiddenKeys];
+    setFieldOrder(full);
+    try {
+      localStorage.setItem(`colorder:${baseId}`, JSON.stringify(full));
+    } catch {
+      // ignora
+    }
+  }
+
+  // Arrastar o número da linha reordena as linhas (só nesta tela/sessão —
+  // não existe campo de ordenação manual no banco ainda).
+  const dragRowIdRef = useRef<string | null>(null);
+  function handleRowDrop(targetId: string) {
+    const draggedId = dragRowIdRef.current;
+    dragRowIdRef.current = null;
+    if (!draggedId || draggedId === targetId) return;
+    setContacts((prev) => {
+      const from = prev.findIndex((c) => c.id === draggedId);
+      const to = prev.findIndex((c) => c.id === targetId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
   const colW = (col: { key: string; width?: number }) => colWidths[col.key] ?? col.width ?? 150;
   function startColResize(e: React.MouseEvent, col: { key: string; width?: number }) {
     e.preventDefault();
@@ -480,10 +544,14 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const NO_UF = "__no_uf__";
   // Colunas exibidas (todas menos as ocultas). Todo o índice de coluna (seleção,
   // copiar/colar, letras) usa esta lista, então ocultar uma coluna "funciona" inteiro.
-  const visibleFields = useMemo(
-    () => CONTACT_FIELDS.filter((f) => !hiddenColumns.has(f.key)),
-    [hiddenColumns]
-  );
+  const visibleFields = useMemo(() => {
+    const base = CONTACT_FIELDS.filter((f) => !hiddenColumns.has(f.key));
+    if (!fieldOrder.length) return base;
+    const orderIndex = new Map(fieldOrder.map((k, i) => [k, i]));
+    return [...base].sort(
+      (a, b) => (orderIndex.get(a.key) ?? 999) - (orderIndex.get(b.key) ?? 999)
+    );
+  }, [hiddenColumns, fieldOrder]);
   const headerLabelFor = useCallback(
     (key: string, fallback: string) => headerLabels[key] || fallback,
     [headerLabels]
@@ -2174,10 +2242,20 @@ async function saveCell(id: string, key: string, value: string) {
                 return (
                   <th
                     key={col.key}
+                    draggable
+                    onDragStart={(e) => {
+                      dragColKeyRef.current = col.key;
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleColumnDrop(col.key);
+                    }}
                     onClick={(e) => selectColumn(i, e.shiftKey)}
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
-                    title={`Selecionar coluna ${colLetter(i)}`}
-                    className={`relative cursor-pointer px-1 py-1 ${
+                    title={`Selecionar coluna ${colLetter(i)} · arraste para reordenar`}
+                    className={`relative cursor-grab px-1 py-1 active:cursor-grabbing ${
                       activeCol ? "bg-emerald-300 text-emerald-900" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ width: colW(col), minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
@@ -2198,7 +2276,22 @@ async function saveCell(id: string, key: string, value: string) {
               })}
               {/* Colunas personalizadas — agora com letra e integradas à planilha */}
               {customCols.map((col, ci) => (
-                <th key={col.key} className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-center text-white" style={{ minWidth: 140 }}>
+                <th
+                  key={col.key}
+                  draggable
+                  onDragStart={(e) => {
+                    dragCustomColKeyRef.current = col.key;
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleCustomColDrop(col.key);
+                  }}
+                  title="Arraste para reordenar"
+                  className="cursor-grab border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-center text-white active:cursor-grabbing"
+                  style={{ minWidth: 140 }}
+                >
                   {colLetter(visibleFields.length + ci)}
                 </th>
               ))}
@@ -2297,13 +2390,23 @@ async function saveCell(id: string, key: string, value: string) {
                 <tr key={c.id} className={rowIndex % 2 === 1 ? "bg-sky-50/70" : "bg-white"}>
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
+                    draggable
+                    onDragStart={(e) => {
+                      dragRowIdRef.current = c.id;
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleRowDrop(c.id);
+                    }}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       selectRow(rowIndex, e.shiftKey);
                     }}
                     onContextMenu={(e) => openRowContextMenu(e, rowIndex)}
-                    title="Selecionar linha inteira"
-                    className={`sticky left-0 z-10 w-12 min-w-[3rem] cursor-pointer select-none border-r border-slate-300 px-1 text-center text-xs ${padY} ${
+                    title="Selecionar linha inteira · arraste para reordenar"
+                    className={`sticky left-0 z-10 w-12 min-w-[3rem] cursor-grab select-none border-r border-slate-300 px-1 text-center text-xs active:cursor-grabbing ${padY} ${
                       rowActive
                         ? "bg-emerald-300 font-semibold text-emerald-900"
                         : "bg-emerald-700 text-white hover:bg-emerald-800"
