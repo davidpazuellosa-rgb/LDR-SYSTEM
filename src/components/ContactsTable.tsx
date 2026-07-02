@@ -333,8 +333,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [baseId, markSaving, markSaved, markSaveError],
   );
   function selectedColumnKey() {
-    if (!anchorCell) return null;
-    return fieldKeys[anchorCell.col] || null;
+    if (!anchorCell && !focusCell) return null;
+    const lastCol = Math.max(anchorCell?.col ?? 0, focusCell?.col ?? anchorCell?.col ?? 0);
+    return fieldKeys[lastCol] || null;
   }
   const saveColOrder = useCallback(
     (next: string[]) => {
