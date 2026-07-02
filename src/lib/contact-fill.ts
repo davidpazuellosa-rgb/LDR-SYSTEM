@@ -59,9 +59,10 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
 
 // Reprocessa a conclusão de TODOS os contatos de uma base — usado quando o admin
 // cria/exclui uma coluna personalizada (a régua muda). Remove o crédito dos que
-// deixaram de estar completos. Não fabrica crédito novo (quem completou/quando não
-// existe num recálculo em massa; as contagens ao vivo já refletem a mudança).
-export async function reprocessarConclusaoDaBase(baseId: string) {
+// deixaram de estar completos e, se `meId` for informado, concede crédito (data de
+// agora, atribuído a quem fez a alteração) aos que voltaram a ficar completos e ainda
+// não tinham crédito (skipDuplicates preserva o crédito de quem já tinha).
+export async function reprocessarConclusaoDaBase(baseId: string, meId: string | null = null) {
   const base = await prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } });
   const cols = parseCustomCols(base?.headers as Record<string, unknown> | null);
   const contatos = await prisma.contact.findMany({
@@ -83,11 +84,20 @@ export async function reprocessarConclusaoDaBase(baseId: string) {
   }
 
   const keys = cols.map((c) => c.key);
-  const incompletos = contatos
-    .filter((c) => !(isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, valsByContact.get(c.id))))
-    .map((c) => c.id);
+  const completos: string[] = [];
+  const incompletos: string[] = [];
+  for (const c of contatos) {
+    const ok = isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, valsByContact.get(c.id));
+    (ok ? completos : incompletos).push(c.id);
+  }
 
   await ensureContactFillTable();
   if (incompletos.length) await prisma.contactFill.deleteMany({ where: { contactId: { in: incompletos } } });
-  return { revisados: contatos.length, semCredito: incompletos.length };
+  if (meId && completos.length) {
+    await prisma.contactFill.createMany({
+      data: completos.map((contactId) => ({ contactId, preenchidoPorId: meId, concluidoEm: new Date() })),
+      skipDuplicates: true, // preserva o crédito de quem já tinha; cria só p/ os sem crédito
+    });
+  }
+  return { revisados: contatos.length, completos: completos.length, semCredito: incompletos.length };
 }

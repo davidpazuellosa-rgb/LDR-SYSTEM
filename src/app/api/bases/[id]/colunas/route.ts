@@ -10,8 +10,9 @@ const COLS_KEY = "__cols__";
 // Definições das colunas personalizadas (bloco à direita) — guardadas em
 // Base.headers.__cols__. Só admin altera a estrutura. Sem coluna nova no banco.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { deny } = await requireAdmin();
+  const { session, deny } = await requireAdmin();
   if (deny) return deny;
+  const meId = (session.user as { id?: string }).id || null;
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -30,6 +31,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const current = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
   await prisma.base.update({ where: { id }, data: { headers: { ...current, [COLS_KEY]: cols } } });
   // A régua mudou (coluna criada/excluída): recalcula a conclusão de todos os contatos.
-  await reprocessarConclusaoDaBase(id);
+  await reprocessarConclusaoDaBase(id, meId);
   return NextResponse.json({ ok: true, cols });
 }
