@@ -1,7 +1,8 @@
 // Agregação dos relatórios do admin — reusada pela página /relatorios e pela
 // exportação CSV (/api/relatorios/export), para não duplicar a lógica.
 import { prisma } from "@/lib/prisma";
-import { isComplete, tipoOrgao } from "@/lib/completude";
+import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
+import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
 import {
@@ -76,7 +77,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
       select: { resolvedById: true, resolvedAt: true, contact: { select: { campanha: true } } },
     }),
     prisma.correction.findMany({ where: { status: "pending" }, select: { createdAt: true } }),
-    prisma.base.findMany({ select: { id: true, name: true } }),
+    prisma.base.findMany({ select: { id: true, name: true, headers: true } }),
   ]);
 
   // Lista de campanhas (para o filtro) — distintas e não vazias.
@@ -219,11 +220,25 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   ];
   const funilMax = Math.max(1, contacts.length);
 
-  // ---- Completude por base ----
+  // ---- Completude por base (7 fixos + TODAS as colunas personalizadas) ----
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
+  const customByContact = new Map<string, Record<string, string>>();
+  if ([...baseKeys.values()].some((ks) => ks.length)) {
+    await ensureContactCustomTable();
+    const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
+    for (const r of cv) {
+      const m = customByContact.get(r.contactId) ?? {};
+      m[r.colKey] = r.valor ?? "";
+      customByContact.set(r.contactId, m);
+    }
+  }
   const completudePorBase = bases
     .map((b) => {
       const doBase = contacts.filter((c) => c.baseId === b.id);
-      const completos = doBase.filter((c) => isComplete(c as Parameters<typeof isComplete>[0])).length;
+      const keys = baseKeys.get(b.id) ?? [];
+      const completos = doBase.filter(
+        (c) => isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, customByContact.get(c.id)),
+      ).length;
       return { id: b.id, nome: b.name, total: doBase.length, completos, p: doBase.length ? Math.round((completos / doBase.length) * 100) : 0 };
     })
     .filter((b) => b.total > 0)

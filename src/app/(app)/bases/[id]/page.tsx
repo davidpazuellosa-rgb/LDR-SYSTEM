@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { currentRole } from "@/lib/current-role";
 import { can, isAdmin } from "@/lib/permissions";
-import { isComplete, tipoOrgao } from "@/lib/completude";
+import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
@@ -34,9 +34,6 @@ export default async function BaseDetailPage({
   // Quando vem de um card de região, mostra só as prefeituras daquela região.
   const norm = (r: string | null) => (r && r.trim()) || "Sem região";
   const rows = regiao ? base.contacts.filter((c) => norm(c.regiao) === regiao) : base.contacts;
-  // Contagem para o cabeçalho: concluído = todos os campos da régua preenchidos.
-  const concluidos = rows.filter((c) => isComplete(c)).length;
-  const aPreencher = rows.length - concluidos;
 
   const contacts = rows.map(({ createdAt, updatedAt, formats, deletedAt, ...contact }) => {
     void formats;
@@ -75,6 +72,11 @@ export default async function BaseDetailPage({
   for (const cv of customRows) {
     (initialCustomValues[cv.contactId] ||= {})[cv.colKey] = cv.valor ?? "";
   }
+
+  // Conclusão do cabeçalho: 7 campos fixos + TODAS as colunas personalizadas preenchidas.
+  const customKeys = (initialCols ?? []).map((c) => c.key);
+  const concluidos = rows.filter((c) => isComplete(c) && customsCompletos(customKeys, initialCustomValues[c.id])).length;
+  const aPreencher = rows.length - concluidos;
 
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.

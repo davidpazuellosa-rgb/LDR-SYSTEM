@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import RegioesGrid from "@/components/RegioesGrid";
-import { isComplete, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { isComplete, customsCompletos, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 //   3. /bases/[id]           → abre a planilha daquela região
 // A régua de conclusão + cores ficam em @/lib/completude (compartilhado).
 
-type ContactRow = ReqRow & { baseId: string; regiao: string | null };
+type ContactRow = ReqRow & { id: string; baseId: string; regiao: string | null };
 type RegiaoAgg = { regiao: string; total: number; done: number };
 type BaseAgg = { total: number; done: number; regioes: Map<string, RegiaoAgg> };
 
@@ -68,6 +69,7 @@ export default async function BasesPage({
   const contacts = (await prisma.contact.findMany({
     where: { deletedAt: null },
     select: {
+      id: true,
       baseId: true,
       regiao: true,
       cidade: true,
@@ -80,11 +82,24 @@ export default async function BasesPage({
     },
   })) as ContactRow[];
 
+  // Colunas personalizadas contam na conclusão: chaves por base + valores por contato.
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
+  const customByContact = new Map<string, Record<string, string>>();
+  if ([...baseKeys.values()].some((ks) => ks.length)) {
+    await ensureContactCustomTable();
+    const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
+    for (const r of cv) {
+      const m = customByContact.get(r.contactId) ?? {};
+      m[r.colKey] = r.valor ?? "";
+      customByContact.set(r.contactId, m);
+    }
+  }
+
   const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, regioes: new Map() }]));
   for (const c of contacts) {
     const b = agg.get(c.baseId);
     if (!b) continue;
-    const ok = isComplete(c);
+    const ok = isComplete(c) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
     b.total += 1;
     if (ok) b.done += 1;
     const reg = (c.regiao && c.regiao.trim()) || "Sem região";

@@ -3,8 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
-import { REQUIRED_FIELDS, isComplete } from "@/lib/completude";
-import { ensureContactFillTable } from "@/lib/contact-fill";
+import { REQUIRED_FIELDS } from "@/lib/completude";
+import { atualizarConclusao } from "@/lib/contact-fill";
 import { ensureBaseEventoTable } from "@/lib/base-eventos";
 
 // Quantas edições de célula o histórico guarda por base (rodízio).
@@ -76,16 +76,7 @@ export async function PATCH(
   // completar fica com o crédito (upsert sem sobrescrever).
   const touchedRequired = REQUIRED_FIELDS.some((f) => f in data);
   if (touchedRequired && meId) {
-    await ensureContactFillTable();
-    if (isComplete(contact)) {
-      await prisma.contactFill.upsert({
-        where: { contactId: id },
-        create: { contactId: id, preenchidoPorId: meId, concluidoEm: new Date() },
-        update: {},
-      });
-    } else {
-      await prisma.contactFill.deleteMany({ where: { contactId: id } });
-    }
+    await atualizarConclusao(id, meId);
   }
 
   return NextResponse.json(contact);

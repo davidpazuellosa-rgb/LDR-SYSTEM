@@ -24,6 +24,9 @@ export type ReqRow = Record<(typeof REQUIRED_FIELDS)[number], string | null>;
 
 const nonEmpty = (v: string | null) => !!(v && v.trim());
 export const isComplete = (c: ReqRow) => REQUIRED_FIELDS.every((f) => nonEmpty(c[f]));
+// Todas as colunas personalizadas da base preenchidas para este contato.
+export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined) =>
+  customKeys.every((k) => !!(vals?.[k] && vals[k].trim()));
 export const pctOf = (done: number, total: number) => (total ? Math.round((done / total) * 100) : 0);
 
 // Cores por conclusão: 0 vermelho · 1-49 amarelo · 50-99 laranja · 100 verde.
