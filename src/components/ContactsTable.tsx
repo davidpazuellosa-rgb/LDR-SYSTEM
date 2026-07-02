@@ -2438,6 +2438,8 @@ async function saveCell(id: string, key: string, value: string) {
                 {canEditHeaders ? (
                   <input
                     defaultValue={headerRowName}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                     onBlur={(e) => saveHeaderRowName(e.currentTarget.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -2466,6 +2468,8 @@ async function saveCell(id: string, key: string, value: string) {
                     {canEditHeaders ? (
                       <input
                         defaultValue={label}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                         onFocus={() => {
                           setSelectedHeaderKey(col.key);
                           setAnchorCell(null);
@@ -2474,8 +2478,6 @@ async function saveCell(id: string, key: string, value: string) {
                         style={headerStyle(col.key)}
                         title="Editar cabeçalho"
                         aria-label={`Editar cabeçalho ${label}`}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
                         onBlur={(e) =>
                           col.custom
                             ? renameCustomCol(col.key, e.currentTarget.value)
@@ -2513,6 +2515,8 @@ async function saveCell(id: string, key: string, value: string) {
                     <div className="flex items-center gap-1">
                         <input
                           defaultValue={col.label}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
                           onFocus={() => {
                             setSelectedHeaderKey(col.key);
                             setAnchorCell(null);

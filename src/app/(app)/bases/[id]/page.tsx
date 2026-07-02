@@ -137,7 +137,7 @@ export default async function BaseDetailPage({
           canDelete={can(role, "contacts.delete")}
           canImport={can(role, "data.import")}
           canExport={can(role, "data.export")}
-          canEditHeaders={isAdmin(role)}
+          canEditHeaders={isAdmin(role) || can(role, "users.manage")}
         />
       </div>
     </div>
