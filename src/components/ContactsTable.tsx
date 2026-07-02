@@ -32,6 +32,7 @@ type CellFmt = {
   align?: "left" | "center" | "right";
 };
 type CustomCol = { key: string; label: string; afterKey?: string };
+type SheetCol = { key: string; label: string; width?: number; custom?: boolean };
 const HEADER_FORMATS_KEY = "__headerFormats__";
 const HEADER_ROW_NAME_KEY = "__headerRowName__";
 
@@ -574,11 +575,45 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const missing = CONTACT_FIELDS.filter((field) => !colOrder.includes(field.key));
     return [...ordered, ...missing].filter((field) => !hiddenColumns.has(field.key));
   }, [colOrder, hiddenColumns]);
+  const sheetColumns = useMemo<SheetCol[]>(() => {
+    const pending = new Map(customCols.map((col) => [col.key, { ...col, custom: true as const }]));
+    const result: SheetCol[] = [];
+
+    const appendCustomAfter = (key: string) => {
+      let added = true;
+      while (added) {
+        added = false;
+        for (const col of customCols) {
+          if (!pending.has(col.key) || col.afterKey !== key) continue;
+          const next = pending.get(col.key)!;
+          pending.delete(col.key);
+          result.push(next);
+          appendCustomAfter(col.key);
+          added = true;
+        }
+      }
+    };
+
+    for (const col of visibleFields) {
+      result.push(col);
+      appendCustomAfter(col.key);
+    }
+
+    for (const col of customCols) {
+      const pendingCol = pending.get(col.key);
+      if (!pendingCol) continue;
+      pending.delete(col.key);
+      result.push(pendingCol);
+      appendCustomAfter(col.key);
+    }
+
+    return result;
+  }, [customCols, visibleFields]);
   const headerLabelFor = useCallback(
     (key: string, fallback: string) => headerLabels[key] || fallback,
     [headerLabels]
   );
-  const fieldKeys = useMemo(() => visibleFields.map((field) => field.key), [visibleFields]);
+  const fieldKeys = useMemo(() => sheetColumns.map((field) => field.key), [sheetColumns]);
 
   const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
 
@@ -1506,6 +1541,10 @@ function hideRows(rowIndices: number[]) {
 }
 
 async function saveCell(id: string, key: string, value: string) {
+    if (customCols.some((col) => col.key === key)) {
+      saveCustomValue(id, key, value);
+      return;
+    }
     setContacts((prev) =>
       prev.map((c) => (c.id === id ? { ...c, [key]: value } : c))
     );
@@ -2305,7 +2344,7 @@ async function saveCell(id: string, key: string, value: string) {
               >
                 <span className="inline-block h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-white/70 align-middle" />
               </th>
-              {visibleFields.map((col, i) => {
+              {sheetColumns.map((col, i) => {
                 const activeCol = !!selBounds && i >= selBounds.startCol && i <= selBounds.endCol;
                 return (
                   <th
@@ -2351,9 +2390,9 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-emerald-700 px-2 py-1 text-white">{colLetter(visibleFields.length)}</th>
+              <th className="bg-emerald-700 px-2 py-1 text-white">{colLetter(sheetColumns.length)}</th>
               {/* Colunas personalizadas (bloco à direita) — linha das letras */}
-              {customCols.map((col, ci) => (
+              {false && customCols.map((col, ci) => (
                 <th
                   key={col.key}
                   draggable={canEditHeaders}
@@ -2416,8 +2455,8 @@ async function saveCell(id: string, key: string, value: string) {
                   <span className="block truncate text-[10px] uppercase">{headerRowName}</span>
                 )}
               </th>
-              {visibleFields.map((col, i) => {
-                const label = headerLabelFor(col.key, col.label);
+                {sheetColumns.map((col, i) => {
+                  const label = col.custom ? col.label : headerLabelFor(col.key, col.label);
                 return (
                   <th
                     key={col.key}
@@ -2437,7 +2476,11 @@ async function saveCell(id: string, key: string, value: string) {
                         aria-label={`Editar cabeçalho ${label}`}
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
-                        onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
+                        onBlur={(e) =>
+                          col.custom
+                            ? renameCustomCol(col.key, e.currentTarget.value)
+                            : saveHeaderLabel(col.key, col.label, e.currentTarget.value)
+                        }
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -2460,7 +2503,7 @@ async function saveCell(id: string, key: string, value: string) {
               })}
               <th className="bg-slate-200 px-3 py-3 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]">Status</th>
               {/* Colunas personalizadas — rótulos (editáveis pelo admin) */}
-              {customCols.map((col, ci) => (
+              {false && customCols.map((col, ci) => (
                 <th
                   key={col.key}
                   className="border-l border-slate-300 bg-indigo-50 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
@@ -2550,7 +2593,7 @@ async function saveCell(id: string, key: string, value: string) {
                   >
                     {rowIndex + 1}
                   </td>
-                  {visibleFields.map((col, colIndex) => {
+                    {sheetColumns.map((col, colIndex) => {
                     // Mescla: célula coberta (não-âncora) não é desenhada; a âncora ganha span.
                     if (mergeLayout.skip.has(`${rowIndex}:${colIndex}`)) return null;
                     const span = mergeLayout.spanAt.get(`${rowIndex}:${colIndex}`);
@@ -2729,7 +2772,7 @@ async function saveCell(id: string, key: string, value: string) {
                     <StatusBadge status={c.status} />
                   </td>
                   {/* Células das colunas personalizadas — editáveis por qualquer usuário */}
-                  {customCols.map((col) => (
+                  {false && customCols.map((col) => (
                     <td key={col.key} className={`border-l border-slate-300 px-1 ${padY}`} style={{ minWidth: 140 }}>
                       <input
                         defaultValue={customValOf(c.id, col.key)}
