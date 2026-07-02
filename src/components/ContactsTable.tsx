@@ -31,6 +31,7 @@ type CellFmt = {
   bg?: string;
   align?: "left" | "center" | "right";
 };
+type CustomCol = { key: string; label: string; afterKey?: string };
 
 // Uma alteração de valor de célula; o histórico guarda LOTES (um lote por ação),
 // para que desfazer/refazer revertam edição única, colar, limpar, recortar e mesclar.
@@ -213,7 +214,7 @@ export default function ContactsTable({
   initialFormats?: Record<string, Record<string, CellFmt>>;
   initialHeaders?: Record<string, string>;
   initialMerges?: MergeRegion[];
-  initialCols?: { key: string; label: string }[];
+  initialCols?: CustomCol[];
   initialCustomValues?: Record<string, Record<string, string>>;
   initialSavedAt?: string | null;
   canDelete?: boolean;
@@ -297,13 +298,15 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   );
 
   // ---- Colunas personalizadas (bloco à direita) ----
-  const [customCols, setCustomCols] = useState<{ key: string; label: string }[]>(initialCols);
+  const [customCols, setCustomCols] = useState<CustomCol[]>(initialCols);
+  const [dragCustomColKey, setDragCustomColKey] = useState<string | null>(null);
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(initialCustomValues);
   const customValOf = (contactId: string, key: string) => customValues[contactId]?.[key] ?? "";
 
   // Estrutura das colunas (admin): cria/renomeia/move/exclui. Persiste em headers.__cols__.
   const saveCols = useCallback(
-    (next: { key: string; label: string }[]) => {
+    (next: CustomCol[]) => {
       setCustomCols(next);
       markSaving();
       fetch(apiPath(`/api/bases/${baseId}/colunas`), {
@@ -316,11 +319,25 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     },
     [baseId, markSaving, markSaved, markSaveError],
   );
-  function addCustomCol() {
+  function selectedColumnKey() {
+    if (!anchorCell) return null;
+    return fieldKeys[anchorCell.col] || null;
+  }
+  function addCustomCol(afterKey = selectedColumnKey()) {
     const label = window.prompt("Nome da nova coluna:")?.trim();
     if (!label) return;
     const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    saveCols([...customCols, { key, label }]);
+    const nextCol: CustomCol = { key, label, ...(afterKey ? { afterKey } : {}) };
+    if (!afterKey) {
+      saveCols([...customCols, nextCol]);
+      return;
+    }
+    const afterIndex = customCols.findIndex((c) => c.key === afterKey);
+    if (afterIndex >= 0) {
+      saveCols([...customCols.slice(0, afterIndex + 1), nextCol, ...customCols.slice(afterIndex + 1)]);
+      return;
+    }
+    saveCols([nextCol, ...customCols]);
   }
   function renameCustomCol(key: string, label: string) {
     const l = label.trim();
@@ -334,6 +351,28 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const next = [...customCols];
     [next[i], next[j]] = [next[j], next[i]];
     saveCols(next);
+  }
+  function moveCustomColTo(key: string, targetKey: string) {
+    if (key === targetKey) return;
+    const from = customCols.findIndex((c) => c.key === key);
+    const to = customCols.findIndex((c) => c.key === targetKey);
+    if (from < 0 || to < 0) return;
+    const next = [...customCols];
+    const [col] = next.splice(from, 1);
+    next.splice(to, 0, col);
+    saveCols(next);
+  }
+  function moveRowTo(rowId: string, targetId: string) {
+    if (rowId === targetId) return;
+    setContacts((prev) => {
+      const from = prev.findIndex((c) => c.id === rowId);
+      const to = prev.findIndex((c) => c.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [row] = next.splice(from, 1);
+      next.splice(to, 0, row);
+      return next;
+    });
   }
   function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
@@ -2203,15 +2242,40 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-emerald-700 px-2 py-1" />
+              <th className="bg-emerald-700 px-2 py-1 text-white">{colLetter(visibleFields.length)}</th>
               {/* Colunas personalizadas (bloco à direita) — linha das letras */}
-              {customCols.map((col) => (
-                <th key={col.key} className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-white" style={{ minWidth: 140 }} />
+              {customCols.map((col, ci) => (
+                <th
+                  key={col.key}
+                  draggable={canEditHeaders}
+                  onDragStart={(e) => {
+                    if (!canEditHeaders) return;
+                    setDragCustomColKey(col.key);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", col.key);
+                  }}
+                  onDragOver={(e) => {
+                    if (!canEditHeaders || !dragCustomColKey || dragCustomColKey === col.key) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const key = dragCustomColKey || e.dataTransfer.getData("text/plain");
+                    setDragCustomColKey(null);
+                    if (canEditHeaders && key) moveCustomColTo(key, col.key);
+                  }}
+                  onDragEnd={() => setDragCustomColKey(null)}
+                  className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-white"
+                  style={{ minWidth: 140 }}
+                >
+                  {colLetter(visibleFields.length + 1 + ci)}
+                </th>
               ))}
               {canEditHeaders && (
                 <th className="bg-emerald-700 px-1 py-1">
                   <button
-                    onClick={addCustomCol}
+                    onClick={() => addCustomCol()}
                     title="Adicionar coluna personalizada"
                     className="grid h-5 w-6 place-items-center rounded bg-white/15 text-white hover:bg-white/25"
                   >
@@ -2272,7 +2336,16 @@ async function saveCell(id: string, key: string, value: string) {
                       <input
                         defaultValue={col.label}
                         onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            e.currentTarget.value = col.label;
+                            e.currentTarget.blur();
+                          }
+                        }}
                         className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-bold uppercase text-indigo-700 outline-none hover:border-indigo-200 focus:border-indigo-400 focus:bg-white"
                       />
                       <button onClick={() => moveCustomCol(col.key, -1)} disabled={ci === 0} title="Mover para a esquerda" className="shrink-0 px-0.5 text-indigo-400 hover:text-indigo-700 disabled:opacity-30">‹</button>
@@ -2290,7 +2363,7 @@ async function saveCell(id: string, key: string, value: string) {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={visibleFields.length + 2} className="px-3 py-10 text-center text-slate-400">
+                <td colSpan={visibleFields.length + customCols.length + 2} className="px-3 py-10 text-center text-slate-400">
                   {contacts.length === 0
                     ? "Nenhum contato. Importe uma planilha ou adicione manualmente."
                     : "Nenhum contato neste estado."}
@@ -2303,6 +2376,25 @@ async function saveCell(id: string, key: string, value: string) {
                 <tr key={c.id} className={rowIndex % 2 === 1 ? "bg-sky-50/70" : "bg-white"}>
                   {/* Número da linha (clique seleciona a linha inteira) */}
                   <td
+                    draggable={canEditHeaders}
+                    onDragStart={(e) => {
+                      if (!canEditHeaders) return;
+                      setDragRowId(c.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", c.id);
+                    }}
+                    onDragOver={(e) => {
+                      if (!canEditHeaders || !dragRowId || dragRowId === c.id) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const id = dragRowId || e.dataTransfer.getData("text/plain");
+                      setDragRowId(null);
+                      if (canEditHeaders && id) moveRowTo(id, c.id);
+                    }}
+                    onDragEnd={() => setDragRowId(null)}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       selectRow(rowIndex, e.shiftKey);
