@@ -32,6 +32,8 @@ type CellFmt = {
   align?: "left" | "center" | "right";
 };
 type CustomCol = { key: string; label: string; afterKey?: string };
+const HEADER_FORMATS_KEY = "__headerFormats__";
+const HEADER_ROW_NAME_KEY = "__headerRowName__";
 
 // Uma alteração de valor de célula; o histórico guarda LOTES (um lote por ação),
 // para que desfazer/refazer revertam edição única, colar, limpar, recortar e mesclar.
@@ -244,6 +246,13 @@ export default function ContactsTable({
     setContacts(initialContacts);
   }, [initialContacts]);
   const [headerLabels, setHeaderLabels] = useState<Record<string, string>>(initialHeaders);
+  const [headerFormats, setHeaderFormats] = useState<Record<string, CellFmt>>(
+    ((initialHeaders as Record<string, unknown>)[HEADER_FORMATS_KEY] as Record<string, CellFmt> | undefined) || {},
+  );
+  const [headerRowName, setHeaderRowName] = useState(
+    String((initialHeaders as Record<string, unknown>)[HEADER_ROW_NAME_KEY] || "Cabeçalho"),
+  );
+  const [selectedHeaderKey, setSelectedHeaderKey] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -703,6 +712,48 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     }
   }
 
+  function headerFmtOf(key: string): CellFmt {
+    return headerFormats[key] || {};
+  }
+
+  function headerStyle(key: string): React.CSSProperties {
+    const f = headerFmtOf(key);
+    return {
+      color: f.color || undefined,
+      backgroundColor: f.bg || undefined,
+      fontWeight: f.b ? 700 : undefined,
+      fontStyle: f.i ? "italic" : undefined,
+      textDecoration: f.s ? "line-through" : undefined,
+      textAlign: f.align || undefined,
+    };
+  }
+
+  function persistHeaderMeta(nextFormats = headerFormats, nextName = headerRowName) {
+    markSaving();
+    fetch(apiPath(`/api/bases/${baseId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ headers: { [HEADER_FORMATS_KEY]: nextFormats, [HEADER_ROW_NAME_KEY]: nextName } }),
+    })
+      .then((r) => (r.ok ? markSaved() : markSaveError()))
+      .catch(() => markSaveError());
+  }
+
+  function saveHeaderRowName(nextRaw: string) {
+    const next = nextRaw.trim() || "Cabeçalho";
+    if (next === headerRowName) return;
+    setHeaderRowName(next);
+    persistHeaderMeta(headerFormats, next);
+  }
+
+  function applyHeaderFormat(producer: (current: CellFmt) => CellFmt) {
+    if (!selectedHeaderKey || !canEditHeaders) return false;
+    const next = { ...headerFormats, [selectedHeaderKey]: producer(headerFmtOf(selectedHeaderKey)) };
+    setHeaderFormats(next);
+    persistHeaderMeta(next, headerRowName);
+    return true;
+  }
+
   // Encerra o arraste de seleção mesmo quando o botão é solto fora da grade.
   useEffect(() => {
     const onUp = () => setIsDragging(false);
@@ -1001,6 +1052,7 @@ function openRowContextMenu(e: React.MouseEvent, rowIndex: number) {
   // ---- Formatação por célula (estilo planilha) ----
   
 function selectionAllHave(pred: (fmt: CellFmt) => boolean) {
+  if (selectedHeaderKey) return pred(headerFmtOf(selectedHeaderKey));
   return selectedCells.length > 0 && selectedCells.every((cell) => pred(fmtOf(cell.contact.id, cell.key)));
 }
 
@@ -1055,6 +1107,7 @@ function applyFormatBatch(edits: FormatEdit[], useNext: boolean) {
 }
 
 function applyFormat(producer: (current: CellFmt) => CellFmt) {
+  if (applyHeaderFormat(producer)) return;
   if (selectedCells.length === 0) return;
 
   const edits: FormatEdit[] = [];
@@ -1191,8 +1244,9 @@ function setAlign(align: CellFmt["align"]) {
     requestAnimationFrame(() => gridRef.current?.focus());
   }
 
-  function selectCell(row: number, col: number, extend = false) {
-    const next = { row, col };
+function selectCell(row: number, col: number, extend = false) {
+  setSelectedHeaderKey(null);
+  const next = { row, col };
     if (extend && anchorCell) {
       setFocusCell(next);
     } else {
@@ -1246,7 +1300,8 @@ function setAlign(align: CellFmt["align"]) {
   }
 
   // Seleciona uma coluna inteira (clicando na letra da coluna).
-  function selectColumn(col: number, extend = false) {
+function selectColumn(col: number, extend = false) {
+    setSelectedHeaderKey(null);
     if (visible.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
@@ -2339,7 +2394,27 @@ async function saveCell(id: string, key: string, value: string) {
             </tr>
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
-              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]" />
+              <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]">
+                {canEditHeaders ? (
+                  <input
+                    defaultValue={headerRowName}
+                    onBlur={(e) => saveHeaderRowName(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        e.currentTarget.value = headerRowName;
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-white outline-none hover:border-white/30 focus:border-white/60 focus:bg-white/10"
+                  />
+                ) : (
+                  <span className="block truncate text-[10px] uppercase">{headerRowName}</span>
+                )}
+              </th>
               {visibleFields.map((col, i) => {
                 const label = headerLabelFor(col.key, col.label);
                 return (
@@ -2351,6 +2426,12 @@ async function saveCell(id: string, key: string, value: string) {
                     {canEditHeaders ? (
                       <input
                         defaultValue={label}
+                        onFocus={() => {
+                          setSelectedHeaderKey(col.key);
+                          setAnchorCell(null);
+                          setFocusCell(null);
+                        }}
+                        style={headerStyle(col.key)}
                         title="Editar cabeçalho"
                         aria-label={`Editar cabeçalho ${label}`}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -2369,7 +2450,7 @@ async function saveCell(id: string, key: string, value: string) {
                         className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
                       />
                     ) : (
-                      <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={label}>
+                      <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" style={headerStyle(col.key)} title={label}>
                         {label}
                       </span>
                     )}
@@ -2386,9 +2467,15 @@ async function saveCell(id: string, key: string, value: string) {
                 >
                   {canEditHeaders ? (
                     <div className="flex items-center gap-1">
-                      <input
-                        defaultValue={col.label}
-                        onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
+                        <input
+                          defaultValue={col.label}
+                          onFocus={() => {
+                            setSelectedHeaderKey(col.key);
+                            setAnchorCell(null);
+                            setFocusCell(null);
+                          }}
+                          style={headerStyle(col.key)}
+                          onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -2406,7 +2493,7 @@ async function saveCell(id: string, key: string, value: string) {
                       <button onClick={() => deleteCustomCol(col.key)} title="Excluir coluna" className="shrink-0 px-0.5 text-rose-400 hover:text-rose-600">×</button>
                     </div>
                   ) : (
-                    <span className="block px-1 py-0.5 text-xs font-bold uppercase text-indigo-700">{col.label}</span>
+                    <span className="block px-1 py-0.5 text-xs font-bold uppercase text-indigo-700" style={headerStyle(col.key)}>{col.label}</span>
                   )}
                 </th>
               ))}
