@@ -248,6 +248,9 @@ export default function ContactsTable({
   };
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
+  // Coluna personalizada selecionada (clique na letra) — highlight próprio,
+  // pois ela não faz parte do mesmo índice row/col das colunas fixas.
+  const [selectedCustomCol, setSelectedCustomCol] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<HistoryAction[]>([]);
@@ -320,6 +323,16 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const l = label.trim();
     if (!l) return;
     saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
+  }
+  // Seleciona uma coluna personalizada inteira (clicando na letra) — visual
+  // próprio, já que ela não faz parte do índice row/col das colunas fixas.
+  function selectCustomColumn(key: string) {
+    commitActiveEdit();
+    setEditingCell(null);
+    setAnchorCell(null);
+    setFocusCell(null);
+    setSelectedCustomCol(key);
+    focusGrid();
   }
   const dragCustomColKeyRef = useRef<string | null>(null);
   function handleCustomColDrop(targetKey: string) {
@@ -1216,6 +1229,7 @@ function setAlign(align: CellFmt["align"]) {
     if (visible.length === 0 || fieldKeys.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
+    setSelectedCustomCol(null);
     if (extend && anchorCell) {
       setAnchorCell({ row: anchorCell.row, col: 0 });
       setFocusCell({ row, col: fieldKeys.length - 1 });
@@ -1231,6 +1245,7 @@ function setAlign(align: CellFmt["align"]) {
     if (visible.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
+    setSelectedCustomCol(null);
     if (extend && anchorCell) {
       setAnchorCell({ row: 0, col: anchorCell.col });
       setFocusCell({ row: visible.length - 1, col });
@@ -1246,6 +1261,7 @@ function setAlign(align: CellFmt["align"]) {
     if (visible.length === 0 || fieldKeys.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
+    setSelectedCustomCol(null);
     setAnchorCell({ row: 0, col: 0 });
     setFocusCell({ row: visible.length - 1, col: fieldKeys.length - 1 });
     focusGrid();
@@ -2285,8 +2301,13 @@ async function saveCell(id: string, key: string, value: string) {
                     e.preventDefault();
                     setMenu({ type: "customcolumn", x: e.clientX, y: e.clientY, colKey: col.key });
                   }}
-                  title="Arraste para reordenar · botão direito para mais opções"
-                  className="cursor-grab bg-emerald-700 px-1 py-1 text-center text-white hover:bg-emerald-800 active:cursor-grabbing"
+                  onClick={() => selectCustomColumn(col.key)}
+                  title={`Selecionar coluna ${colLetter(visibleFields.length + ci)} · arraste para reordenar`}
+                  className={`cursor-grab px-1 py-1 text-center active:cursor-grabbing ${
+                    selectedCustomCol === col.key
+                      ? "bg-emerald-300 text-emerald-900"
+                      : "bg-emerald-700 text-white hover:bg-emerald-800"
+                  }`}
                   style={{ minWidth: 140 }}
                 >
                   {colLetter(visibleFields.length + ci)}
@@ -2599,7 +2620,13 @@ async function saveCell(id: string, key: string, value: string) {
                   })}
                   {/* Células das colunas personalizadas — editáveis por qualquer usuário */}
                   {customCols.map((col) => (
-                    <td key={col.key} className={`border-l border-slate-300 px-1 ${padY}`} style={{ minWidth: 140 }}>
+                    <td
+                      key={col.key}
+                      className={`border-l border-slate-300 px-1 ${padY} ${
+                        selectedCustomCol === col.key ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300" : ""
+                      }`}
+                      style={{ minWidth: 140 }}
+                    >
                       <input
                         defaultValue={customValOf(c.id, col.key)}
                         onBlur={(e) => {
