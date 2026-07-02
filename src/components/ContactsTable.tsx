@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
-import { STATUS_META, STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
+import { STATUS_INCORRETO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -69,13 +69,6 @@ type Clip = {
 type MergeRegion = { anchorId: string; anchorKey: string; rowIds: string[]; colKeys: string[] };
 const cellKey = (id: string, key: string) => `${id}::${key}`;
 const regionCells = (m: MergeRegion) => m.rowIds.flatMap((id) => m.colKeys.map((k) => cellKey(id, k)));
-
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_META[status] || STATUS_META[STATUS_OK];
-  return (
-    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${s.badge}`}>{s.label}</span>
-  );
-}
 
 // Dica visual ao passar o mouse (renderizada via portal para não ser cortada
 // pelo overflow da barra de ferramentas). Mostra rápido, ~120ms.
@@ -2203,10 +2196,11 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-emerald-700 px-2 py-1" />
-              {/* Colunas personalizadas (bloco à direita) — linha das letras */}
-              {customCols.map((col) => (
-                <th key={col.key} className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-white" style={{ minWidth: 140 }} />
+              {/* Colunas personalizadas — agora com letra e integradas à planilha */}
+              {customCols.map((col, ci) => (
+                <th key={col.key} className="border-l border-emerald-600 bg-emerald-700 px-1 py-1 text-center text-white" style={{ minWidth: 140 }}>
+                  {colLetter(visibleFields.length + ci)}
+                </th>
               ))}
               {canEditHeaders && (
                 <th className="bg-emerald-700 px-1 py-1">
@@ -2240,6 +2234,7 @@ async function saveCell(id: string, key: string, value: string) {
                         onClick={(e) => e.stopPropagation()}
                         onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
                         onKeyDown={(e) => {
+                          e.stopPropagation(); // não deixa a tecla vazar pro handler da grade (senão "pula" pra outra célula)
                           if (e.key === "Enter") {
                             e.preventDefault();
                             e.currentTarget.blur();
@@ -2259,7 +2254,6 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              <th className="bg-slate-200 px-3 py-3 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]">Status</th>
               {/* Colunas personalizadas — rótulos (editáveis pelo admin) */}
               {customCols.map((col, ci) => (
                 <th
@@ -2290,7 +2284,7 @@ async function saveCell(id: string, key: string, value: string) {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={visibleFields.length + 2} className="px-3 py-10 text-center text-slate-400">
+                <td colSpan={visibleFields.length + customCols.length + 1} className="px-3 py-10 text-center text-slate-400">
                   {contacts.length === 0
                     ? "Nenhum contato. Importe uma planilha ou adicione manualmente."
                     : "Nenhum contato neste estado."}
@@ -2492,9 +2486,6 @@ async function saveCell(id: string, key: string, value: string) {
                     </td>
                     );
                   })}
-                  <td className="px-3 py-1">
-                    <StatusBadge status={c.status} />
-                  </td>
                   {/* Células das colunas personalizadas — editáveis por qualquer usuário */}
                   {customCols.map((col) => (
                     <td key={col.key} className={`border-l border-slate-300 px-1 ${padY}`} style={{ minWidth: 140 }}>
