@@ -21,11 +21,17 @@ export async function PATCH(
 
   const clean: Record<string, string> = {};
   for (const [key, value] of Object.entries(incoming)) {
+    if (key === "__colOrder__") continue;
     if (!CONTACT_FIELD_KEYS.includes(key)) continue;
     clean[key] = String(value ?? "").trim().slice(0, 80);
   }
+  const allowedHeaderKeys = new Set<string>(CONTACT_FIELD_KEYS);
+  const rawColOrder = (incoming as Record<string, unknown>).__colOrder__;
+  const colOrder = Array.isArray(rawColOrder)
+    ? rawColOrder.map((key: unknown) => String(key).slice(0, 40)).filter((key) => allowedHeaderKeys.has(key))
+    : null;
 
-  if (Object.keys(clean).length === 0) {
+  if (Object.keys(clean).length === 0 && !colOrder) {
     return NextResponse.json({ error: "Nenhum cabeçalho válido" }, { status: 400 });
   }
 
@@ -41,7 +47,7 @@ export async function PATCH(
   const current = ((base.headers as Record<string, string> | null) || {}) as Record<string, string>;
   const updated = await prisma.base.update({
     where: { id },
-    data: { headers: { ...current, ...clean } },
+    data: { headers: { ...current, ...clean, ...(colOrder ? { __colOrder__: colOrder } : {}) } },
     select: { headers: true },
   });
 

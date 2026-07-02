@@ -200,6 +200,7 @@ export default function ContactsTable({
   initialHeaders = {},
   initialMerges = [],
   initialCols = [],
+  initialColOrder = [],
   initialCustomValues = {},
   initialSavedAt = null,
   me = { id: "", nome: "" },
@@ -215,6 +216,7 @@ export default function ContactsTable({
   initialHeaders?: Record<string, string>;
   initialMerges?: MergeRegion[];
   initialCols?: CustomCol[];
+  initialColOrder?: string[];
   initialCustomValues?: Record<string, Record<string, string>>;
   initialSavedAt?: string | null;
   canDelete?: boolean;
@@ -300,6 +302,8 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // ---- Colunas personalizadas (bloco à direita) ----
   const [customCols, setCustomCols] = useState<CustomCol[]>(initialCols);
   const [dragCustomColKey, setDragCustomColKey] = useState<string | null>(null);
+  const [dragNativeColKey, setDragNativeColKey] = useState<string | null>(null);
+  const [colOrder, setColOrder] = useState<string[]>(initialColOrder);
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(initialCustomValues);
   const customValOf = (contactId: string, key: string) => customValues[contactId]?.[key] ?? "";
@@ -322,6 +326,34 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   function selectedColumnKey() {
     if (!anchorCell) return null;
     return fieldKeys[anchorCell.col] || null;
+  }
+  const saveColOrder = useCallback(
+    (next: string[]) => {
+      setColOrder(next);
+      markSaving();
+      fetch(apiPath(`/api/bases/${baseId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ headers: { __colOrder__: next } }),
+      })
+        .then((r) => (r.ok ? markSaved() : markSaveError()))
+        .catch(() => markSaveError());
+    },
+    [baseId, markSaveError, markSaved, markSaving],
+  );
+  function moveNativeColTo(key: string, targetKey: string) {
+    if (key === targetKey) return;
+    const baseOrder = [
+      ...colOrder.filter((item) => CONTACT_FIELDS.some((field) => field.key === item)),
+      ...CONTACT_FIELDS.map((field) => field.key).filter((item) => !colOrder.includes(item)),
+    ];
+    const from = baseOrder.indexOf(key);
+    const to = baseOrder.indexOf(targetKey);
+    if (from < 0 || to < 0) return;
+    const next = [...baseOrder];
+    const [col] = next.splice(from, 1);
+    next.splice(to, 0, col);
+    saveColOrder(next);
   }
   function addCustomCol(afterKey = selectedColumnKey()) {
     const label = window.prompt("Nome da nova coluna:")?.trim();
@@ -526,10 +558,12 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   const NO_UF = "__no_uf__";
   // Colunas exibidas (todas menos as ocultas). Todo o índice de coluna (seleção,
   // copiar/colar, letras) usa esta lista, então ocultar uma coluna "funciona" inteiro.
-  const visibleFields = useMemo(
-    () => CONTACT_FIELDS.filter((f) => !hiddenColumns.has(f.key)),
-    [hiddenColumns]
-  );
+  const visibleFields = useMemo(() => {
+    const byKey = new Map(CONTACT_FIELDS.map((field) => [field.key, field]));
+    const ordered = colOrder.map((key) => byKey.get(key)).filter(Boolean) as typeof CONTACT_FIELDS;
+    const missing = CONTACT_FIELDS.filter((field) => !colOrder.includes(field.key));
+    return [...ordered, ...missing].filter((field) => !hiddenColumns.has(field.key));
+  }, [colOrder, hiddenColumns]);
   const headerLabelFor = useCallback(
     (key: string, fallback: string) => headerLabels[key] || fallback,
     [headerLabels]
@@ -2220,6 +2254,25 @@ async function saveCell(id: string, key: string, value: string) {
                 return (
                   <th
                     key={col.key}
+                    draggable={canEditHeaders}
+                    onDragStart={(e) => {
+                      if (!canEditHeaders) return;
+                      setDragNativeColKey(col.key);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", col.key);
+                    }}
+                    onDragOver={(e) => {
+                      if (!canEditHeaders || !dragNativeColKey || dragNativeColKey === col.key) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const key = dragNativeColKey || e.dataTransfer.getData("text/plain");
+                      setDragNativeColKey(null);
+                      if (canEditHeaders && key) moveNativeColTo(key, col.key);
+                    }}
+                    onDragEnd={() => setDragNativeColKey(null)}
                     onClick={(e) => selectColumn(i, e.shiftKey)}
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
                     title={`Selecionar coluna ${colLetter(i)}`}

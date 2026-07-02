@@ -54,7 +54,7 @@ export default async function BaseDetailPage({
   // headers guarda rótulos de coluna E, na chave reservada __merges__, as mesclas
   // visuais (estilo Excel) compartilhadas pelo time. Separa as duas coisas aqui.
   const rawHeaders = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
-  const { __merges__: rawMerges, __cols__: _rawCols, ...labelHeaders } = rawHeaders;
+  const { __merges__: rawMerges, __cols__: _rawCols, __colOrder__: rawColOrder, ...labelHeaders } = rawHeaders;
   void _rawCols;
   const initialHeaders = labelHeaders as ComponentProps<typeof ContactsTable>["initialHeaders"];
   const initialMerges = (Array.isArray(rawMerges) ? rawMerges : []) as ComponentProps<
@@ -64,6 +64,9 @@ export default async function BaseDetailPage({
   // Colunas personalizadas (bloco à direita): definições em headers.__cols__ e valores
   // por contato na tabela ContactCustomValue (ambos sem migration).
   const initialCols = parseCustomCols(rawHeaders) as ComponentProps<typeof ContactsTable>["initialCols"];
+  const initialColOrder = (Array.isArray(rawColOrder) ? rawColOrder.filter((key): key is string => typeof key === "string") : []) as ComponentProps<
+    typeof ContactsTable
+  >["initialColOrder"];
   await ensureContactCustomTable();
   const customRows = rows.length
     ? await prisma.contactCustomValue.findMany({
@@ -124,6 +127,7 @@ export default async function BaseDetailPage({
           initialHeaders={initialHeaders}
           initialMerges={initialMerges}
           initialCols={initialCols}
+          initialColOrder={initialColOrder}
           initialCustomValues={initialCustomValues}
           me={{
             id: (session?.user as { id?: string } | undefined)?.id || "",
