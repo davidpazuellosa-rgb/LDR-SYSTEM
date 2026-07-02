@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isComplete, REQUIRED_SELECT } from "@/lib/completude";
+import { isComplete, customsCompletos, REQUIRED_SELECT } from "@/lib/completude";
 import { parseCustomCols } from "@/lib/custom-columns";
 
 let ensured = false;
@@ -55,4 +55,39 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
   } else if (!completo) {
     await prisma.contactFill.deleteMany({ where: { contactId } });
   }
+}
+
+// Reprocessa a conclusão de TODOS os contatos de uma base — usado quando o admin
+// cria/exclui uma coluna personalizada (a régua muda). Remove o crédito dos que
+// deixaram de estar completos. Não fabrica crédito novo (quem completou/quando não
+// existe num recálculo em massa; as contagens ao vivo já refletem a mudança).
+export async function reprocessarConclusaoDaBase(baseId: string) {
+  const base = await prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } });
+  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null);
+  const contatos = await prisma.contact.findMany({
+    where: { baseId, deletedAt: null },
+    select: { id: true, ...REQUIRED_SELECT },
+  });
+
+  const valsByContact = new Map<string, Record<string, string>>();
+  if (cols.length) {
+    const cv = await prisma.contactCustomValue.findMany({
+      where: { contactId: { in: contatos.map((c) => c.id) } },
+      select: { contactId: true, colKey: true, valor: true },
+    });
+    for (const r of cv) {
+      const m = valsByContact.get(r.contactId) ?? {};
+      m[r.colKey] = r.valor ?? "";
+      valsByContact.set(r.contactId, m);
+    }
+  }
+
+  const keys = cols.map((c) => c.key);
+  const incompletos = contatos
+    .filter((c) => !(isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, valsByContact.get(c.id))))
+    .map((c) => c.id);
+
+  await ensureContactFillTable();
+  if (incompletos.length) await prisma.contactFill.deleteMany({ where: { contactId: { in: incompletos } } });
+  return { revisados: contatos.length, semCredito: incompletos.length };
 }

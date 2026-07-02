@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
+import { reprocessarConclusaoDaBase } from "@/lib/contact-fill";
 
 export const dynamic = "force-dynamic";
 
@@ -28,5 +29,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const current = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
   await prisma.base.update({ where: { id }, data: { headers: { ...current, [COLS_KEY]: cols } } });
+  // A régua mudou (coluna criada/excluída): recalcula a conclusão de todos os contatos.
+  await reprocessarConclusaoDaBase(id);
   return NextResponse.json({ ok: true, cols });
 }
