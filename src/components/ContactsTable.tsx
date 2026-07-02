@@ -313,27 +313,34 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     },
     [baseId, markSaving, markSaved, markSaveError],
   );
-  // Cria a nova coluna logo depois da coluna selecionada:
-  // - Se a seleção é uma coluna personalizada, entra logo após ela.
-  // - Se a seleção é uma coluna fixa, entra no início do bloco de personalizadas
-  //   (a posição mais próxima possível — colunas personalizadas não podem ficar
-  //   "no meio" das fixas, são blocos separados no banco).
-  // - Sem seleção nenhuma, mantém o comportamento antigo: acrescenta no final.
+  // Cria a nova coluna logo depois da coluna selecionada (fixa ou personalizada,
+  // tanto faz) — a posição visual das duas é controlada pela mesma ordem
+  // unificada (`fieldOrder`). Sem seleção nenhuma, entra no final.
   function addCustomCol() {
     const label = window.prompt("Nome da nova coluna:")?.trim();
     if (!label) return;
     const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    let anchorKey: string | null = null;
     if (selectedCustomCol) {
-      const i = customCols.findIndex((c) => c.key === selectedCustomCol);
-      const next = [...customCols];
-      next.splice(i === -1 ? next.length : i + 1, 0, { key, label });
-      saveCols(next);
-      return;
+      anchorKey = selectedCustomCol;
+    } else if (selBounds && selBounds.startCol === selBounds.endCol) {
+      anchorKey = visibleFields[selBounds.startCol]?.key ?? null;
     }
-    const nativeColSelected = !!selBounds && selBounds.startCol === selBounds.endCol;
-    if (nativeColSelected) {
-      saveCols([{ key, label }, ...customCols]);
-      return;
+    const currentOrder = unifiedCols.map((c) => c.key);
+    const next = [...currentOrder];
+    if (anchorKey) {
+      const i = next.indexOf(anchorKey);
+      next.splice(i === -1 ? next.length : i + 1, 0, key);
+    } else {
+      next.push(key);
+    }
+    const hiddenNativeKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
+    const full = [...next, ...hiddenNativeKeys];
+    setFieldOrder(full);
+    try {
+      localStorage.setItem(`colorder:${baseId}`, JSON.stringify(full));
+    } catch {
+      // ignora
     }
     saveCols([...customCols, { key, label }]);
   }
@@ -351,19 +358,6 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     setFocusCell(null);
     setSelectedCustomCol(key);
     focusGrid();
-  }
-  const dragCustomColKeyRef = useRef<string | null>(null);
-  function handleCustomColDrop(targetKey: string) {
-    const draggedKey = dragCustomColKeyRef.current;
-    dragCustomColKeyRef.current = null;
-    if (!draggedKey || draggedKey === targetKey) return;
-    const from = customCols.findIndex((c) => c.key === draggedKey);
-    const to = customCols.findIndex((c) => c.key === targetKey);
-    if (from === -1 || to === -1) return;
-    const next = [...customCols];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    saveCols(next);
   }
   function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
@@ -474,20 +468,23 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       // localStorage indisponível ou JSON inválido — ignora
     }
   }, [baseId]);
+  // Uma única ref/handler de arrastar para QUALQUER coluna (fixa ou
+  // personalizada) — dá pra soltar uma sobre a outra livremente, pois as
+  // duas compartilham a mesma ordem visual unificada (`fieldOrder`).
   const dragColKeyRef = useRef<string | null>(null);
   function handleColumnDrop(targetKey: string) {
     const draggedKey = dragColKeyRef.current;
     dragColKeyRef.current = null;
     if (!draggedKey || draggedKey === targetKey) return;
-    const currentOrder = visibleFields.map((f) => f.key);
+    const currentOrder = unifiedCols.map((c) => c.key);
     const from = currentOrder.indexOf(draggedKey);
     const to = currentOrder.indexOf(targetKey);
     if (from === -1 || to === -1) return;
     const next = [...currentOrder];
     next.splice(from, 1);
     next.splice(to, 0, draggedKey);
-    const hiddenKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
-    const full = [...next, ...hiddenKeys];
+    const hiddenNativeKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
+    const full = [...next, ...hiddenNativeKeys];
     setFieldOrder(full);
     try {
       localStorage.setItem(`colorder:${baseId}`, JSON.stringify(full));
@@ -581,6 +578,39 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [headerLabels]
   );
   const fieldKeys = useMemo(() => visibleFields.map((field) => field.key), [visibleFields]);
+
+  // Ordem visual UNIFICADA (fixas + personalizadas intercaladas) — só para
+  // desenhar a grade (letras/posição das colunas). Seleção, navegação por
+  // teclado e copiar/colar continuam operando só sobre `visibleFields`/
+  // `fieldKeys` (colunas personalizadas nunca fizeram parte disso, e não é
+  // seguro misturar agora); a interposição aqui é puramente de renderização.
+  type UnifiedCol =
+    | { kind: "native"; key: string; nativeIndex: number; field: (typeof CONTACT_FIELDS)[number] }
+    | { kind: "custom"; key: string; col: { key: string; label: string } };
+  const unifiedCols = useMemo<UnifiedCol[]>(() => {
+    const nativeItems: UnifiedCol[] = visibleFields.map((field, nativeIndex) => ({
+      kind: "native",
+      key: field.key,
+      nativeIndex,
+      field,
+    }));
+    const customItems: UnifiedCol[] = customCols.map((col) => ({ kind: "custom", key: col.key, col }));
+    const all = [...nativeItems, ...customItems];
+    const orderIndex = new Map(fieldOrder.map((k, i) => [k, i]));
+    return all
+      .map((item, i) => ({ item, i }))
+      .sort((a, b) => {
+        const ao = orderIndex.has(a.item.key) ? (orderIndex.get(a.item.key) as number) : 100000 + a.i;
+        const bo = orderIndex.has(b.item.key) ? (orderIndex.get(b.item.key) as number) : 100000 + b.i;
+        return ao - bo;
+      })
+      .map((x) => x.item);
+  }, [visibleFields, customCols, fieldOrder]);
+  const unifiedIndexOf = useMemo(() => {
+    const m = new Map<string, number>();
+    unifiedCols.forEach((c, i) => m.set(c.key, i));
+    return m;
+  }, [unifiedCols]);
 
   const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
 
@@ -2264,7 +2294,41 @@ async function saveCell(id: string, key: string, value: string) {
               >
                 <span className="inline-block h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-white/70 align-middle" />
               </th>
-              {visibleFields.map((col, i) => {
+              {unifiedCols.map((item) => {
+                if (item.kind === "custom") {
+                  const col = item.col;
+                  return (
+                    <th
+                      key={col.key}
+                      draggable
+                      onDragStart={(e) => {
+                        dragColKeyRef.current = col.key;
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleColumnDrop(col.key);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({ type: "customcolumn", x: e.clientX, y: e.clientY, colKey: col.key });
+                      }}
+                      onClick={() => selectCustomColumn(col.key)}
+                      title={`Selecionar coluna ${colLetter(unifiedIndexOf.get(col.key) ?? 0)} · arraste para reordenar`}
+                      className={`cursor-grab px-1 py-1 text-center active:cursor-grabbing ${
+                        selectedCustomCol === col.key
+                          ? "bg-emerald-300 text-emerald-900"
+                          : "bg-emerald-700 text-white hover:bg-emerald-800"
+                      }`}
+                      style={{ minWidth: 140 }}
+                    >
+                      {colLetter(unifiedIndexOf.get(col.key) ?? 0)}
+                    </th>
+                  );
+                }
+                const col = item.field;
+                const i = item.nativeIndex;
                 const activeCol = !!selBounds && i >= selBounds.startCol && i <= selBounds.endCol;
                 return (
                   <th
@@ -2281,13 +2345,13 @@ async function saveCell(id: string, key: string, value: string) {
                     }}
                     onClick={(e) => selectColumn(i, e.shiftKey)}
                     onContextMenu={(e) => openColumnContextMenu(e, i)}
-                    title={`Selecionar coluna ${colLetter(i)} · arraste para reordenar`}
+                    title={`Selecionar coluna ${colLetter(unifiedIndexOf.get(col.key) ?? i)} · arraste para reordenar`}
                     className={`relative cursor-grab px-1 py-1 active:cursor-grabbing ${
                       activeCol ? "bg-emerald-300 text-emerald-900" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ width: colW(col), minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
-                    {colLetter(i)}
+                    {colLetter(unifiedIndexOf.get(col.key) ?? i)}
                     <span
                       onMouseDown={(e) => startColResize(e, col)}
                       onDoubleClick={(e) => {
@@ -2301,36 +2365,6 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              {/* Colunas personalizadas — agora são colunas comuns, iguais às demais */}
-              {customCols.map((col, ci) => (
-                <th
-                  key={col.key}
-                  draggable
-                  onDragStart={(e) => {
-                    dragCustomColKeyRef.current = col.key;
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handleCustomColDrop(col.key);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMenu({ type: "customcolumn", x: e.clientX, y: e.clientY, colKey: col.key });
-                  }}
-                  onClick={() => selectCustomColumn(col.key)}
-                  title={`Selecionar coluna ${colLetter(visibleFields.length + ci)} · arraste para reordenar`}
-                  className={`cursor-grab px-1 py-1 text-center active:cursor-grabbing ${
-                    selectedCustomCol === col.key
-                      ? "bg-emerald-300 text-emerald-900"
-                      : "bg-emerald-700 text-white hover:bg-emerald-800"
-                  }`}
-                  style={{ minWidth: 140 }}
-                >
-                  {colLetter(visibleFields.length + ci)}
-                </th>
-              ))}
               {canEditHeaders && (
                 <th className="bg-emerald-700 px-1 py-1">
                   <button
@@ -2346,7 +2380,46 @@ async function saveCell(id: string, key: string, value: string) {
             {/* Rótulos das colunas */}
             <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
               <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]" />
-              {visibleFields.map((col, i) => {
+              {unifiedCols.map((item) => {
+                if (item.kind === "custom") {
+                  const col = item.col;
+                  return (
+                    <th
+                      key={col.key}
+                      className="bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
+                      style={{ minWidth: 140 }}
+                    >
+                      {canEditHeaders ? (
+                        <input
+                          defaultValue={col.label}
+                          title="Editar cabeçalho"
+                          aria-label={`Editar cabeçalho ${col.label}`}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              e.currentTarget.value = col.label;
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                        />
+                      ) : (
+                        <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={col.label}>
+                          {col.label}
+                        </span>
+                      )}
+                    </th>
+                  );
+                }
+                const col = item.field;
+                const i = item.nativeIndex;
                 const label = headerLabelFor(col.key, col.label);
                 return (
                   <th
@@ -2383,41 +2456,6 @@ async function saveCell(id: string, key: string, value: string) {
                   </th>
                 );
               })}
-              {/* Colunas personalizadas — agora uma coluna comum, mesmo visual e edição das demais */}
-              {customCols.map((col) => (
-                <th
-                  key={col.key}
-                  className="bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
-                  style={{ minWidth: 140 }}
-                >
-                  {canEditHeaders ? (
-                    <input
-                      defaultValue={col.label}
-                      title="Editar cabeçalho"
-                      aria-label={`Editar cabeçalho ${col.label}`}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.currentTarget.blur();
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          e.currentTarget.value = col.label;
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  ) : (
-                    <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={col.label}>
-                      {col.label}
-                    </span>
-                  )}
-                </th>
-              ))}
               {canEditHeaders && <th className="bg-slate-200 px-2" />}
             </tr>
           </thead>
@@ -2461,7 +2499,31 @@ async function saveCell(id: string, key: string, value: string) {
                   >
                     {rowIndex + 1}
                   </td>
-                  {visibleFields.map((col, colIndex) => {
+                  {unifiedCols.map((item) => {
+                    if (item.kind === "custom") {
+                      const col = item.col;
+                      return (
+                        <td
+                          key={col.key}
+                          className={`border-l border-slate-300 px-1 ${padY} ${
+                            selectedCustomCol === col.key ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300" : ""
+                          }`}
+                          style={{ minWidth: 140 }}
+                        >
+                          <input
+                            defaultValue={customValOf(c.id, col.key)}
+                            onBlur={(e) => {
+                              const v = e.currentTarget.value;
+                              if (v !== customValOf(c.id, col.key)) saveCustomValue(c.id, col.key, v);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                            className="w-full rounded border border-transparent bg-transparent px-2 py-0.5 text-slate-700 outline-none hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
+                          />
+                        </td>
+                      );
+                    }
+                    const col = item.field;
+                    const colIndex = item.nativeIndex;
                     // Mescla: célula coberta (não-âncora) não é desenhada; a âncora ganha span.
                     if (mergeLayout.skip.has(`${rowIndex}:${colIndex}`)) return null;
                     const span = mergeLayout.spanAt.get(`${rowIndex}:${colIndex}`);
@@ -2636,26 +2698,6 @@ async function saveCell(id: string, key: string, value: string) {
                     </td>
                     );
                   })}
-                  {/* Células das colunas personalizadas — editáveis por qualquer usuário */}
-                  {customCols.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`border-l border-slate-300 px-1 ${padY} ${
-                        selectedCustomCol === col.key ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300" : ""
-                      }`}
-                      style={{ minWidth: 140 }}
-                    >
-                      <input
-                        defaultValue={customValOf(c.id, col.key)}
-                        onBlur={(e) => {
-                          const v = e.currentTarget.value;
-                          if (v !== customValOf(c.id, col.key)) saveCustomValue(c.id, col.key, v);
-                        }}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                        className="w-full rounded border border-transparent bg-transparent px-2 py-0.5 text-slate-700 outline-none hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
-                      />
-                    </td>
-                  ))}
                   {canEditHeaders && <td />}
                 </tr>
                 );
