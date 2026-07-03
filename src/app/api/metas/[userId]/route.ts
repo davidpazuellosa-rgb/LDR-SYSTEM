@@ -97,6 +97,41 @@ export async function PUT(req: Request, { params }: { params: Promise<{ userId: 
   const body = await req.json().catch(() => ({}));
   const final = sanitizeMetas(body?.metas, userId);
 
+  // Preenchimento: o progresso no dashboard é atribuído por TERRITÓRIO (base+região+
+  // estado), não por quem digitou — cada território só pode ser de 1 LDR, senão os
+  // dois mostrariam a mesma contagem de "concluídos". Barra aqui antes que aconteça.
+  const territorios = final.filter((m) => m.tipo === "preenchimento");
+  if (territorios.length) {
+    const conflitos = await prisma.meta.findMany({
+      where: {
+        tipo: "preenchimento",
+        userId: { not: userId },
+        OR: territorios.map((m) => ({ baseId: m.baseId, regiao: m.regiao, estado: m.estado })),
+      },
+      select: { baseId: true, regiao: true, estado: true, userId: true },
+    });
+    if (conflitos.length) {
+      const userIds = Array.from(new Set(conflitos.map((c) => c.userId)));
+      const baseIds = Array.from(new Set(conflitos.map((c) => c.baseId).filter((b): b is string => !!b)));
+      const [users, baseRows] = await Promise.all([
+        prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }),
+        prisma.base.findMany({ where: { id: { in: baseIds } }, select: { id: true, name: true } }),
+      ]);
+      const userNameOf = new Map(users.map((u) => [u.id, u.name || u.email]));
+      const baseNameOf = new Map(baseRows.map((b) => [b.id, b.name]));
+      const labels = conflitos.map((c) => {
+        const label = `${tipoOrgao(baseNameOf.get(c.baseId || "") || "")} · ${c.regiao} · ${ufSigla(c.estado || "") || c.estado}`;
+        return `${label} (já é de ${userNameOf.get(c.userId) || "outro LDR"})`;
+      });
+      return NextResponse.json(
+        {
+          error: `Território já atribuído a outro LDR: ${labels.join("; ")}. Ajuste a meta dele antes de atribuir esse território aqui também.`,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   await prisma.$transaction([
     prisma.meta.deleteMany({ where: { userId } }),
     ...(final.length ? [prisma.meta.createMany({ data: final })] : []),
