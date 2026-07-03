@@ -248,6 +248,9 @@ export default function ContactsTable({
   };
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
+  // Título da coluna: clique só SELECIONA (igual ao Google Sheets); só entra em
+  // modo de digitar com duplo-clique — não é mais um <input> sempre aberto.
+  const [editingHeaderKey, setEditingHeaderKey] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<HistoryAction[]>([]);
@@ -2442,22 +2445,32 @@ async function saveCell(id: string, key: string, value: string) {
             <tr className="border-b border-slate-200 bg-slate-200 text-left text-xs uppercase text-slate-600">
               <th className="sticky left-0 z-30 w-12 min-w-[3rem] bg-emerald-700 px-1 py-3 font-semibold text-white shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]" />
               {unifiedCols.map((item) => {
+                const uidx = unifiedIndexOf.get(item.key) ?? 0;
+                const activeCol = !!selBounds && uidx >= selBounds.startCol && uidx <= selBounds.endCol;
                 if (item.kind === "custom") {
                   const col = item.col;
+                  const isEditingHeader = editingHeaderKey === col.key;
                   return (
                     <th
                       key={col.key}
-                      className="bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)]"
-                      style={{ minWidth: 140 }}
+                      className={`px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
+                        activeCol ? "bg-indigo-100" : "bg-slate-200"
+                      }`}
+                      style={{ minWidth: colW(col) }}
                     >
-                      {canEditHeaders ? (
+                      {canEditHeaders && isEditingHeader ? (
                         <input
+                          autoFocus
                           defaultValue={col.label}
                           title="Editar cabeçalho"
                           aria-label={`Editar cabeçalho ${col.label}`}
+                          onFocus={(e) => e.currentTarget.select()}
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
-                          onBlur={(e) => renameCustomCol(col.key, e.currentTarget.value)}
+                          onBlur={(e) => {
+                            renameCustomCol(col.key, e.currentTarget.value);
+                            setEditingHeaderKey(null);
+                          }}
                           onKeyDown={(e) => {
                             e.stopPropagation();
                             if (e.key === "Enter") {
@@ -2469,12 +2482,17 @@ async function saveCell(id: string, key: string, value: string) {
                               e.currentTarget.blur();
                             }
                           }}
-                          className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                          className="w-full rounded border border-indigo-300 bg-white px-1 py-1 text-sm font-bold uppercase text-slate-700 outline-none ring-2 ring-indigo-100"
                         />
                       ) : (
-                        <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={col.label}>
+                        <div
+                          onClick={(e) => selectColumn(uidx, e.shiftKey)}
+                          onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
+                          title={col.label}
+                          className="block w-full cursor-pointer select-none truncate px-1 py-1 text-sm font-bold uppercase text-slate-600"
+                        >
                           {col.label}
-                        </span>
+                        </div>
                       )}
                     </th>
                   );
@@ -2482,20 +2500,28 @@ async function saveCell(id: string, key: string, value: string) {
                 const col = item.field;
                 const i = item.nativeIndex;
                 const label = headerLabelFor(col.key, col.label);
+                const isEditingHeader = editingHeaderKey === col.key;
                 return (
                   <th
                     key={col.key}
-                    className={`bg-slate-200 px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${frozen && i === 0 ? "sticky z-20" : ""}`}
+                    className={`px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
+                      activeCol ? "bg-indigo-100" : "bg-slate-200"
+                    } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
-                    {canEditHeaders ? (
+                    {canEditHeaders && isEditingHeader ? (
                       <input
+                        autoFocus
                         defaultValue={label}
                         title="Editar cabeçalho"
                         aria-label={`Editar cabeçalho ${label}`}
+                        onFocus={(e) => e.currentTarget.select()}
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
-                        onBlur={(e) => saveHeaderLabel(col.key, col.label, e.currentTarget.value)}
+                        onBlur={(e) => {
+                          saveHeaderLabel(col.key, col.label, e.currentTarget.value);
+                          setEditingHeaderKey(null);
+                        }}
                         onKeyDown={(e) => {
                           e.stopPropagation(); // não deixa a tecla vazar pro handler da grade (senão "pula" pra outra célula)
                           if (e.key === "Enter") {
@@ -2507,12 +2533,17 @@ async function saveCell(id: string, key: string, value: string) {
                             e.currentTarget.blur();
                           }
                         }}
-                        className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-bold uppercase text-slate-600 outline-none transition hover:border-slate-200 hover:bg-white focus:border-indigo-300 focus:bg-white focus:text-slate-700 focus:ring-2 focus:ring-indigo-100"
+                        className="w-full rounded border border-indigo-300 bg-white px-1 py-1 text-sm font-bold uppercase text-slate-700 outline-none ring-2 ring-indigo-100"
                       />
                     ) : (
-                      <span className="block w-full px-1 py-1 text-sm font-bold uppercase text-slate-600" title={label}>
+                      <div
+                        onClick={(e) => selectColumn(uidx, e.shiftKey)}
+                        onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
+                        title={label}
+                        className="block w-full cursor-pointer select-none truncate px-1 py-1 text-sm font-bold uppercase text-slate-600"
+                      >
                         {label}
-                      </span>
+                      </div>
                     )}
                   </th>
                 );
