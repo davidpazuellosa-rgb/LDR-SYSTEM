@@ -2516,7 +2516,17 @@ async function saveCell(id: string, key: string, value: string) {
                               const v = e.currentTarget.value;
                               if (v !== customValOf(c.id, col.key)) saveCustomValue(c.id, col.key, v);
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                            onKeyDown={(e) => {
+                              e.stopPropagation(); // não deixa a tecla vazar pro atalho da grade (senão "pula" pra outra célula)
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                e.currentTarget.blur();
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                e.currentTarget.value = customValOf(c.id, col.key);
+                                e.currentTarget.blur();
+                              }
+                            }}
                             className="w-full rounded border border-transparent bg-transparent px-2 py-0.5 text-slate-700 outline-none hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
                           />
                         </td>
