@@ -221,6 +221,20 @@ export default function ContactsTable({
   const markSaving = useCallback(() => setSaved({ state: "saving", at: Date.now() }), [setSaved]);
   const markSaved = useCallback(() => setSaved({ state: "saved", at: Date.now() }), [setSaved]);
   const markSaveError = useCallback(() => setSaved({ state: "error", at: Date.now() }), [setSaved]);
+  // O contador de "concluídos" no cabeçalho da página é calculado no servidor
+  // (Server Component) e só chega de novo via router.refresh(). Sem isso, uma
+  // linha que acabou de ficar completa continua contada como "a preencher" até
+  // o usuário recarregar. Debounced pra não martelar o servidor a cada tecla.
+  const completionRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleCompletionRefresh = useCallback(() => {
+    if (completionRefreshTimer.current) clearTimeout(completionRefreshTimer.current);
+    completionRefreshTimer.current = setTimeout(() => router.refresh(), 1200);
+  }, [router]);
+  useEffect(() => {
+    return () => {
+      if (completionRefreshTimer.current) clearTimeout(completionRefreshTimer.current);
+    };
+  }, []);
   // Mostra a última data salva ao abrir (persistida no updatedAt dos contatos);
   // limpa o indicador ao sair da planilha (outras telas não mostram nada).
   useEffect(() => {
@@ -363,7 +377,14 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ colKey: key, valor }),
     })
-      .then((r) => (r.ok ? markSaved() : markSaveError()))
+      .then((r) => {
+        if (r.ok) {
+          markSaved();
+          scheduleCompletionRefresh();
+        } else {
+          markSaveError();
+        }
+      })
       .catch(() => markSaveError());
   }
   const fileRef = useRef<HTMLInputElement>(null);
@@ -829,8 +850,12 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
         })
       ),
     ]);
-    if (results.every((r) => r.ok)) markSaved();
-    else markSaveError();
+    if (results.every((r) => r.ok)) {
+      markSaved();
+      scheduleCompletionRefresh();
+    } else {
+      markSaveError();
+    }
   } catch {
     markSaveError();
   }
@@ -1533,8 +1558,12 @@ async function saveCell(id: string, key: string, value: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: value }),
       });
-      if (res.ok) markSaved();
-      else markSaveError();
+      if (res.ok) {
+        markSaved();
+        scheduleCompletionRefresh();
+      } else {
+        markSaveError();
+      }
     } catch {
       markSaveError();
     }
@@ -1616,8 +1645,12 @@ async function saveCell(id: string, key: string, value: string) {
         ),
       ]);
 
-      if (results.every((res) => res.ok)) markSaved();
-      else markSaveError();
+      if (results.every((res) => res.ok)) {
+        markSaved();
+        scheduleCompletionRefresh();
+      } else {
+        markSaveError();
+      }
     } catch {
       markSaveError();
     }
