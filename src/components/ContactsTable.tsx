@@ -2759,7 +2759,7 @@ async function saveCell(id: string, key: string, value: string) {
                             color: f.color || undefined,
                             textAlign: f.align || undefined,
                           }}
-                          className={`w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded border border-indigo-400 bg-white px-2 ${padY} leading-snug outline-none ${
+                          className={`w-full resize-none overflow-hidden whitespace-pre-wrap break-words bg-transparent px-2 ${padY} leading-snug outline-none ${
                             !f.color && col.key === "telefonePrefeitura" && c.status === STATUS_INCORRETO
                               ? "text-amber-700"
                               : "text-slate-700"
