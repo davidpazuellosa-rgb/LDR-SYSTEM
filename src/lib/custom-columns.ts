@@ -15,6 +15,8 @@ export async function ensureContactCustomTable() {
     );`
   );
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactCustomValue_contactId_idx" ON "ContactCustomValue" ("contactId");`);
+  // Usado por "reprocessar conclusão" e afins ao filtrar por coluna (colKey) sozinha.
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactCustomValue_colKey_idx" ON "ContactCustomValue" ("colKey");`);
   ensured = true;
 }
 

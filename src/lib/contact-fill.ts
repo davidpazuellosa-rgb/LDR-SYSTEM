@@ -19,6 +19,11 @@ export async function ensureContactFillTable() {
   );
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactFill_preenchidoPorId_idx" ON "ContactFill" ("preenchidoPorId");`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactFill_concluidoEm_idx" ON "ContactFill" ("concluidoEm");`);
+  // Índice composto pra acelerar a query mais comum (contatos de uma base, não
+  // excluídos) — hoje o Postgres só tinha índices separados em baseId e deletedAt.
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "Contact_baseId_deletedAt_idx" ON "Contact" ("baseId", "deletedAt");`
+  );
   ensured = true;
 }
 
@@ -27,10 +32,13 @@ export async function ensureContactFillTable() {
 // ContactFill (quem completou/quando) de acordo. Chamado ao salvar campo fixo ou
 // valor de coluna personalizada.
 export async function atualizarConclusao(contactId: string, meId: string | null) {
-  const contact = await prisma.contact.findUnique({
-    where: { id: contactId },
-    select: { baseId: true, ...REQUIRED_SELECT },
-  });
+  // Busca o contato, os valores personalizados (independem um do outro — os dois
+  // só precisam do contactId, que já temos) e garante a tabela, tudo em paralelo.
+  const [contact, vals] = await Promise.all([
+    prisma.contact.findUnique({ where: { id: contactId }, select: { baseId: true, ...REQUIRED_SELECT } }),
+    prisma.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } }),
+    ensureContactFillTable(),
+  ]);
   if (!contact) return;
 
   const base = await prisma.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
@@ -38,14 +46,12 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
 
   let customOk = true;
   if (cols.length) {
-    const vals = await prisma.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } });
     const map = new Map(vals.map((v) => [v.colKey, v.valor]));
     customOk = cols.every((c) => !!(map.get(c.key) || "").trim());
   }
 
   const completo = isComplete(contact as Parameters<typeof isComplete>[0]) && customOk;
 
-  await ensureContactFillTable();
   if (completo && meId) {
     await prisma.contactFill.upsert({
       where: { contactId },
@@ -63,12 +69,15 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
 // agora, atribuído a quem fez a alteração) aos que voltaram a ficar completos e ainda
 // não tinham crédito (skipDuplicates preserva o crédito de quem já tinha).
 export async function reprocessarConclusaoDaBase(baseId: string, meId: string | null = null) {
-  const base = await prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } });
+  // Base e contatos não dependem um do outro — busca os dois em paralelo.
+  const [base, contatos] = await Promise.all([
+    prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } }),
+    prisma.contact.findMany({
+      where: { baseId, deletedAt: null },
+      select: { id: true, ...REQUIRED_SELECT },
+    }),
+  ]);
   const cols = parseCustomCols(base?.headers as Record<string, unknown> | null);
-  const contatos = await prisma.contact.findMany({
-    where: { baseId, deletedAt: null },
-    select: { id: true, ...REQUIRED_SELECT },
-  });
 
   const valsByContact = new Map<string, Record<string, string>>();
   if (cols.length) {

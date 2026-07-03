@@ -389,6 +389,20 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   }
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  // Arrastar pra selecionar um intervalo dispara onMouseEnter em toda célula que o
+  // cursor cruza — sem isso, cada uma delas re-renderiza a tabela inteira na hora.
+  // Junta tudo num só update por frame (~60x/s no máximo, não 1 por célula cruzada).
+  const dragFocusRef = useRef<CellRef | null>(null);
+  const dragRafPendingRef = useRef(false);
+  function scheduleDragFocus(cell: CellRef) {
+    dragFocusRef.current = cell;
+    if (dragRafPendingRef.current) return;
+    dragRafPendingRef.current = true;
+    requestAnimationFrame(() => {
+      dragRafPendingRef.current = false;
+      if (dragFocusRef.current) setFocusCell(dragFocusRef.current);
+    });
+  }
   // Atalhos comuns de planilha (Ctrl/Cmd+Z/Y = desfazer/refazer, B = negrito,
   // I = itálico) a nível de JANELA — funcionam mesmo sem o foco estar na grade.
   // Guardado em ref para o handler usar sempre os estados/funções atuais.
@@ -2688,7 +2702,7 @@ async function saveCell(id: string, key: string, value: string) {
                         // inclusive ao retornar à grade após o ponteiro sair dela.
                         if ((isDragging || e.buttons === 1) && anchorCell) {
                           if (!isDragging) setIsDragging(true);
-                          setFocusCell({ row: rowIndex, col: colIndex });
+                          scheduleDragFocus({ row: rowIndex, col: colIndex });
                         }
                       }}
                       onDoubleClick={() => startEditing(rowIndex, colIndex)}
