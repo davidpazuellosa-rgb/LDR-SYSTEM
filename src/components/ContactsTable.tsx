@@ -248,9 +248,6 @@ export default function ContactsTable({
   };
   const [anchorCell, setAnchorCell] = useState<CellRef | null>(null);
   const [focusCell, setFocusCell] = useState<CellRef | null>(null);
-  // Coluna personalizada selecionada (clique na letra) — highlight próprio,
-  // pois ela não faz parte do mesmo índice row/col das colunas fixas.
-  const [selectedCustomCol, setSelectedCustomCol] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<HistoryAction[]>([]);
@@ -296,7 +293,10 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // ---- Colunas personalizadas (bloco à direita) ----
   const [customCols, setCustomCols] = useState<{ key: string; label: string }[]>(initialCols);
   const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(initialCustomValues);
-  const customValOf = (contactId: string, key: string) => customValues[contactId]?.[key] ?? "";
+  const customValOf = useCallback(
+    (contactId: string, key: string) => customValues[contactId]?.[key] ?? "",
+    [customValues]
+  );
 
   // Estrutura das colunas (admin): cria/renomeia/move/exclui. Persiste em headers.__cols__.
   const saveCols = useCallback(
@@ -320,12 +320,8 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const label = window.prompt("Nome da nova coluna:")?.trim();
     if (!label) return;
     const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    let anchorKey: string | null = null;
-    if (selectedCustomCol) {
-      anchorKey = selectedCustomCol;
-    } else if (selBounds && selBounds.startCol === selBounds.endCol) {
-      anchorKey = visibleFields[selBounds.startCol]?.key ?? null;
-    }
+    const anchorKey =
+      selBounds && selBounds.startCol === selBounds.endCol ? unifiedCols[selBounds.startCol]?.key ?? null : null;
     const currentOrder = unifiedCols.map((c) => c.key);
     const next = [...currentOrder];
     if (anchorKey) {
@@ -348,16 +344,6 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const l = label.trim();
     if (!l) return;
     saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
-  }
-  // Seleciona uma coluna personalizada inteira (clicando na letra) — visual
-  // próprio, já que ela não faz parte do índice row/col das colunas fixas.
-  function selectCustomColumn(key: string) {
-    commitActiveEdit();
-    setEditingCell(null);
-    setAnchorCell(null);
-    setFocusCell(null);
-    setSelectedCustomCol(key);
-    focusGrid();
   }
   function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
@@ -577,13 +563,10 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     (key: string, fallback: string) => headerLabels[key] || fallback,
     [headerLabels]
   );
-  const fieldKeys = useMemo(() => visibleFields.map((field) => field.key), [visibleFields]);
-
-  // Ordem visual UNIFICADA (fixas + personalizadas intercaladas) — só para
-  // desenhar a grade (letras/posição das colunas). Seleção, navegação por
-  // teclado e copiar/colar continuam operando só sobre `visibleFields`/
-  // `fieldKeys` (colunas personalizadas nunca fizeram parte disso, e não é
-  // seguro misturar agora); a interposição aqui é puramente de renderização.
+  // Ordem visual UNIFICADA (fixas + personalizadas intercaladas): usada tanto
+  // pra desenhar a grade quanto pelo motor de seleção/navegação/copiar-colar/
+  // desfazer — colunas personalizadas são colunas de verdade, só o local onde
+  // o valor mora (contato vs. tabela própria) muda, via `cellValue`/`saveCellValue`.
   type UnifiedCol =
     | { kind: "native"; key: string; nativeIndex: number; field: (typeof CONTACT_FIELDS)[number] }
     | { kind: "custom"; key: string; col: { key: string; label: string } };
@@ -594,7 +577,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       nativeIndex,
       field,
     }));
-    const customItems: UnifiedCol[] = customCols.map((col) => ({ kind: "custom", key: col.key, col }));
+    const customItems: UnifiedCol[] = customCols
+      .filter((col) => !hiddenColumns.has(col.key))
+      .map((col) => ({ kind: "custom", key: col.key, col }));
     const all = [...nativeItems, ...customItems];
     const orderIndex = new Map(fieldOrder.map((k, i) => [k, i]));
     return all
@@ -605,12 +590,29 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
         return ao - bo;
       })
       .map((x) => x.item);
-  }, [visibleFields, customCols, fieldOrder]);
+  }, [visibleFields, customCols, fieldOrder, hiddenColumns]);
   const unifiedIndexOf = useMemo(() => {
     const m = new Map<string, number>();
     unifiedCols.forEach((c, i) => m.set(c.key, i));
     return m;
   }, [unifiedCols]);
+  const unifiedKeys = useMemo(() => unifiedCols.map((c) => c.key), [unifiedCols]);
+  // Toda coluna personalizada participa do MESMO motor de seleção/edição/histórico
+  // das fixas; só o local onde o valor mora (e o endpoint que salva) muda.
+  const customKeySet = useMemo(() => new Set(customCols.map((c) => c.key)), [customCols]);
+  const cellValue = useCallback(
+    (contact: Contact, key: string): string =>
+      customKeySet.has(key) ? customValOf(contact.id, key) : (contact[key] as string) || "",
+    [customKeySet, customValOf]
+  );
+  const saveCellValue = useCallback(
+    (id: string, key: string, value: string) => {
+      if (customKeySet.has(key)) saveCustomValue(id, key, value);
+      else saveCell(id, key, value);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customKeySet]
+  );
 
   const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
 
@@ -694,10 +696,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const skip = new Set<string>();
     if (merges.length === 0) return { spanAt, skip };
     const idToRow = new Map(visible.map((c, i) => [c.id, i] as const));
-    const keyToCol = new Map(fieldKeys.map((k, i) => [k, i] as const));
     for (const m of merges) {
       const rows = m.rowIds.map((id) => idToRow.get(id)).filter((x): x is number => x !== undefined);
-      const cols = m.colKeys.map((k) => keyToCol.get(k)).filter((x): x is number => x !== undefined);
+      const cols = m.colKeys.map((k) => unifiedIndexOf.get(k)).filter((x): x is number => x !== undefined);
       if (rows.length !== m.rowIds.length || cols.length !== m.colKeys.length) continue;
       rows.sort((a, b) => a - b);
       cols.sort((a, b) => a - b);
@@ -709,7 +710,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       for (const r of rows) for (const c of cols) if (!(r === top && c === left)) skip.add(`${r}:${c}`);
     }
     return { spanAt, skip };
-  }, [merges, visible, fieldKeys]);
+  }, [merges, visible, unifiedIndexOf]);
 
   // Limpa a seleção quando o conjunto visível muda (troca de aba/filtro/busca):
   // os índices anchor/focus apontam para posições em `visible` e, sem isso,
@@ -772,20 +773,36 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   async function applyBatch(edits: CellEdit[], useNext: boolean) {
   if (edits.length === 0) return;
 
-  setContacts((prev) =>
-    prev.map((contact) => {
-      const mine = edits.filter((edit) => edit.id === contact.id);
-      if (mine.length === 0) return contact;
-      return mine.reduce<Contact>(
-        (acc, edit) => ({ ...acc, [edit.key]: useNext ? edit.next : edit.prev }),
-        contact
-      );
-    })
+  const nativeEdits = edits.filter((e) => !customKeySet.has(e.key));
+  const customEdits = edits.filter((e) => customKeySet.has(e.key));
+
+  if (nativeEdits.length) {
+    setContacts((prev) =>
+      prev.map((contact) => {
+        const mine = nativeEdits.filter((edit) => edit.id === contact.id);
+        if (mine.length === 0) return contact;
+        return mine.reduce<Contact>(
+          (acc, edit) => ({ ...acc, [edit.key]: useNext ? edit.next : edit.prev }),
+          contact
+        );
+      })
+    );
+  }
+  if (customEdits.length) {
+    setCustomValues((prev) => {
+      const next = { ...prev };
+      for (const edit of customEdits) {
+        next[edit.id] = { ...(next[edit.id] || {}), [edit.key]: useNext ? edit.next : edit.prev };
+      }
+      return next;
+    });
+  }
+  broadcastRef.current(
+    edits.map((e) => ({ id: e.id, key: e.key, value: useNext ? e.next : e.prev, custom: customKeySet.has(e.key) }))
   );
-  broadcastRef.current(edits.map((e) => ({ id: e.id, key: e.key, value: useNext ? e.next : e.prev })));
 
   const byId = new Map<string, Record<string, string>>();
-  for (const edit of edits) {
+  for (const edit of nativeEdits) {
     const data = byId.get(edit.id) || {};
     data[edit.key] = useNext ? edit.next : edit.prev;
     byId.set(edit.id, data);
@@ -793,15 +810,22 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
 
   markSaving();
   try {
-    const results = await Promise.all(
-      Array.from(byId).map(([id, data]) =>
+    const results = await Promise.all([
+      ...Array.from(byId).map(([id, data]) =>
         fetch(apiPath(`/api/contacts/${id}`), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         })
-      )
-    );
+      ),
+      ...customEdits.map((edit) =>
+        fetch(apiPath(`/api/contacts/${edit.id}/custom`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ colKey: edit.key, valor: useNext ? edit.next : edit.prev }),
+        })
+      ),
+    ]);
     if (results.every((r) => r.ok)) markSaved();
     else markSaveError();
   } catch {
@@ -1032,7 +1056,7 @@ function openRowContextMenu(e: React.MouseEvent, rowIndex: number) {
   const keepRows =
     !!selBounds &&
     selBounds.startCol === 0 &&
-    selBounds.endCol === fieldKeys.length - 1 &&
+    selBounds.endCol === unifiedCols.length - 1 &&
     rowIndex >= selBounds.startRow &&
     rowIndex <= selBounds.endRow;
   if (!keepRows) selectRow(rowIndex, e.shiftKey);
@@ -1186,13 +1210,13 @@ function setAlign(align: CellFmt["align"]) {
       const contact = visible[row];
       if (!contact) continue;
       for (let col = startCol; col <= endCol; col++) {
-        const key = fieldKeys[col];
+        const key = unifiedKeys[col];
         if (key) cells.push({ row, col, contact, key });
       }
     }
 
     return cells;
-  }, [anchorCell, fieldKeys, focusCell, visible]);
+  }, [anchorCell, unifiedKeys, focusCell, visible]);
 
   const selectedCount = selectedCells.length;
 
@@ -1274,26 +1298,25 @@ function setAlign(align: CellFmt["align"]) {
 
   // Seleciona uma linha inteira (clicando no número da linha).
   function selectRow(row: number, extend = false) {
-    if (visible.length === 0 || fieldKeys.length === 0) return;
+    if (visible.length === 0 || unifiedCols.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
-    setSelectedCustomCol(null);
     if (extend && anchorCell) {
       setAnchorCell({ row: anchorCell.row, col: 0 });
-      setFocusCell({ row, col: fieldKeys.length - 1 });
+      setFocusCell({ row, col: unifiedCols.length - 1 });
     } else {
       setAnchorCell({ row, col: 0 });
-      setFocusCell({ row, col: fieldKeys.length - 1 });
+      setFocusCell({ row, col: unifiedCols.length - 1 });
     }
     focusGrid();
   }
 
-  // Seleciona uma coluna inteira (clicando na letra da coluna).
+  // Seleciona uma coluna inteira (clicando na letra da coluna) — funciona
+  // igual pra fixa ou personalizada, já que as duas vivem no mesmo índice unificado.
   function selectColumn(col: number, extend = false) {
     if (visible.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
-    setSelectedCustomCol(null);
     if (extend && anchorCell) {
       setAnchorCell({ row: 0, col: anchorCell.col });
       setFocusCell({ row: visible.length - 1, col });
@@ -1306,25 +1329,24 @@ function setAlign(align: CellFmt["align"]) {
 
   // Seleciona tudo (clicando no canto superior esquerdo).
   function selectAll() {
-    if (visible.length === 0 || fieldKeys.length === 0) return;
+    if (visible.length === 0 || unifiedCols.length === 0) return;
     commitActiveEdit();
     setEditingCell(null);
-    setSelectedCustomCol(null);
     setAnchorCell({ row: 0, col: 0 });
-    setFocusCell({ row: visible.length - 1, col: fieldKeys.length - 1 });
+    setFocusCell({ row: visible.length - 1, col: unifiedCols.length - 1 });
     focusGrid();
   }
 
 // Limpa o conteúdo de N colunas inteiras (todas as linhas visíveis) num lote só.
 async function clearColumns(colIndices: number[]) {
-  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  const keys = colIndices.map((i) => unifiedKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
   const edits = visible
     .flatMap((contact) =>
       keys.map((key) => ({
         id: contact.id,
         key,
-        prev: String(contact[key] ?? ""),
+        prev: cellValue(contact, key),
         next: "",
       }))
     )
@@ -1338,9 +1360,10 @@ async function clearColumns(colIndices: number[]) {
   setMenu(null);
 }
 
-// Oculta N colunas da visão de uma vez (os campos continuam no banco).
+// Oculta N colunas da visão de uma vez (os campos continuam no banco — ou,
+// no caso das personalizadas, na tabela delas).
 function hideColumns(colIndices: number[]) {
-  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  const keys = colIndices.map((i) => unifiedKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
   setHiddenColumns((prev) => {
     const next = new Set(prev);
@@ -1356,12 +1379,13 @@ function hideColumns(colIndices: number[]) {
 // Excluir coluna (só admin — o menu de coluna já é admin-only): limpa o conteúdo E
 // oculta a(s) coluna(s) como UMA ação. Desfazer (Ctrl+Z) restaura tudo (valores + colunas).
 async function excluirColunas(colIndices: number[]) {
-  const keys = colIndices.map((i) => fieldKeys[i]).filter(Boolean) as string[];
+  const keys = colIndices.map((i) => unifiedKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
   const nomes = colIndices
     .map((i) => {
-      const k = fieldKeys[i];
-      return k ? headerLabelFor(k, visibleFields[i]?.label || k) : "";
+      const item = unifiedCols[i];
+      if (!item) return "";
+      return item.kind === "custom" ? item.col.label : headerLabelFor(item.key, item.field.label);
     })
     .filter(Boolean);
   const msg =
@@ -1373,7 +1397,7 @@ async function excluirColunas(colIndices: number[]) {
     return;
   }
   const edits = visible
-    .flatMap((contact) => keys.map((key) => ({ id: contact.id, key, prev: String(contact[key] ?? ""), next: "" })))
+    .flatMap((contact) => keys.map((key) => ({ id: contact.id, key, prev: cellValue(contact, key), next: "" })))
     .filter((edit) => edit.prev !== "");
   setHistory((prev) => [...prev, { kind: "coldelete" as const, edits, colKeys: keys }].slice(-100));
   setRedoStack([]);
@@ -1523,44 +1547,71 @@ async function saveCell(id: string, key: string, value: string) {
       updates.map((u) => ({
         id: u.id,
         key: u.key,
-        prev: String(before.get(u.id)?.[u.key] ?? ""),
+        prev: (() => {
+          const c = before.get(u.id);
+          return c ? cellValue(c, u.key) : "";
+        })(),
         next: u.value,
       }))
     );
 
-    setContacts((prev) =>
-      prev.map((contact) => {
-        const contactUpdates = updates.filter((update) => update.id === contact.id);
-        if (contactUpdates.length === 0) return contact;
+    const nativeUpdates = updates.filter((u) => !customKeySet.has(u.key));
+    const customUpdates = updates.filter((u) => customKeySet.has(u.key));
 
-        return contactUpdates.reduce<Contact>(
-          (next, update) => ({ ...next, [update.key]: update.value }),
-          contact
-        );
-      })
+    if (nativeUpdates.length) {
+      setContacts((prev) =>
+        prev.map((contact) => {
+          const contactUpdates = nativeUpdates.filter((update) => update.id === contact.id);
+          if (contactUpdates.length === 0) return contact;
+
+          return contactUpdates.reduce<Contact>(
+            (next, update) => ({ ...next, [update.key]: update.value }),
+            contact
+          );
+        })
+      );
+    }
+    if (customUpdates.length) {
+      setCustomValues((prev) => {
+        const next = { ...prev };
+        for (const u of customUpdates) {
+          next[u.id] = { ...(next[u.id] || {}), [u.key]: u.value };
+        }
+        return next;
+      });
+    }
+    broadcastRef.current(
+      updates.map((u) => ({ id: u.id, key: u.key, value: u.value, custom: customKeySet.has(u.key) }))
     );
-    broadcastRef.current(updates.map((u) => ({ id: u.id, key: u.key, value: u.value })));
 
     markSaving();
     try {
-      // Agrupa por contato: 1 PATCH por linha com todos os campos. Assim, quando um
+      // Agrupa por contato: 1 PATCH por linha com todos os campos fixos. Assim, quando um
       // colar completa a linha (preenche vários campos da régua de uma vez), o servidor
       // recalcula a conclusão sobre o estado final — sem corrida entre requisições.
       const byId = new Map<string, Record<string, string>>();
-      for (const u of updates) {
+      for (const u of nativeUpdates) {
         const fields = byId.get(u.id) ?? {};
         fields[u.key] = u.value;
         byId.set(u.id, fields);
       }
-      const results = await Promise.all(
-        [...byId.entries()].map(([id, fields]) =>
+      const results = await Promise.all([
+        ...[...byId.entries()].map(([id, fields]) =>
           fetch(apiPath(`/api/contacts/${id}`), {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fields),
           })
-        )
-      );
+        ),
+        // Personalizadas: cada uma tem seu próprio endpoint/tabela — 1 POST por célula.
+        ...customUpdates.map((u) =>
+          fetch(apiPath(`/api/contacts/${u.id}/custom`), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ colKey: u.key, valor: u.value }),
+          })
+        ),
+      ]);
 
       if (results.every((res) => res.ok)) markSaved();
       else markSaveError();
@@ -1578,7 +1629,7 @@ async function saveCell(id: string, key: string, value: string) {
     const rowIds: string[] = [];
     for (let r = startRow; r <= endRow; r++) if (visible[r]) rowIds.push(visible[r].id);
     const colKeys: string[] = [];
-    for (let c = startCol; c <= endCol; c++) if (fieldKeys[c]) colKeys.push(fieldKeys[c]);
+    for (let c = startCol; c <= endCol; c++) if (unifiedKeys[c]) colKeys.push(unifiedKeys[c]);
     if (rowIds.length * colKeys.length < 2) return;
 
     const region: MergeRegion = { anchorId: rowIds[0], anchorKey: colKeys[0], rowIds, colKeys };
@@ -1593,7 +1644,8 @@ async function saveCell(id: string, key: string, value: string) {
     for (const id of rowIds) {
       for (const key of colKeys) {
         if (id === region.anchorId && key === region.anchorKey) continue;
-        const prev = String(before.get(id)?.[key] ?? "");
+        const contact = before.get(id);
+        const prev = contact ? cellValue(contact, key) : "";
         if (prev !== "") edits.push({ id, key, prev, next: "" });
       }
     }
@@ -1643,8 +1695,8 @@ async function saveCell(id: string, key: string, value: string) {
       if (!contact) continue;
       const values: string[] = [];
       for (let col = startCol; col <= endCol; col++) {
-        const key = fieldKeys[col];
-        values.push(String(contact[key] || ""));
+        const key = unifiedKeys[col];
+        values.push(key ? cellValue(contact, key) : "");
       }
       lines.push(values.join("\t"));
     }
@@ -1693,7 +1745,7 @@ async function saveCell(id: string, key: string, value: string) {
         const contact = visible[r];
         if (!contact) continue;
         for (let cI = fillRect.startCol; cI <= fillRect.endCol; cI++) {
-          const key = fieldKeys[cI];
+          const key = unifiedKeys[cI];
           if (key) updates.push({ id: contact.id, key, value: v });
         }
       }
@@ -1702,7 +1754,7 @@ async function saveCell(id: string, key: string, value: string) {
         const contact = visible[row + rowOffset];
         if (!contact) return;
         line.forEach((value, colOffset) => {
-          const key = fieldKeys[col + colOffset];
+          const key = unifiedKeys[col + colOffset];
           if (!key) return;
           updates.push({ id: contact.id, key, value: value.trim() });
         });
@@ -1718,7 +1770,7 @@ async function saveCell(id: string, key: string, value: string) {
   if (editingCell) return;
 
   const maxRow = visible.length - 1;
-  const maxCol = fieldKeys.length - 1;
+  const maxCol = unifiedCols.length - 1;
   if (maxRow < 0 || maxCol < 0) return;
 
   const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -2295,6 +2347,8 @@ async function saveCell(id: string, key: string, value: string) {
                 <span className="inline-block h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-white/70 align-middle" />
               </th>
               {unifiedCols.map((item) => {
+                const uidx = unifiedIndexOf.get(item.key) ?? 0;
+                const activeCol = !!selBounds && uidx >= selBounds.startCol && uidx <= selBounds.endCol;
                 if (item.kind === "custom") {
                   const col = item.col;
                   return (
@@ -2310,26 +2364,33 @@ async function saveCell(id: string, key: string, value: string) {
                         e.preventDefault();
                         handleColumnDrop(col.key);
                       }}
+                      onClick={(e) => selectColumn(uidx, e.shiftKey)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setMenu({ type: "customcolumn", x: e.clientX, y: e.clientY, colKey: col.key });
                       }}
-                      onClick={() => selectCustomColumn(col.key)}
-                      title={`Selecionar coluna ${colLetter(unifiedIndexOf.get(col.key) ?? 0)} · arraste para reordenar`}
-                      className={`cursor-grab px-1 py-1 text-center active:cursor-grabbing ${
-                        selectedCustomCol === col.key
-                          ? "bg-emerald-300 text-emerald-900"
-                          : "bg-emerald-700 text-white hover:bg-emerald-800"
+                      title={`Selecionar coluna ${colLetter(uidx)} · arraste para reordenar`}
+                      className={`relative cursor-grab px-1 py-1 text-center active:cursor-grabbing ${
+                        activeCol ? "bg-emerald-300 text-emerald-900" : "bg-emerald-700 text-white hover:bg-emerald-800"
                       }`}
-                      style={{ minWidth: 140 }}
+                      style={{ width: colW(col), minWidth: colW(col) }}
                     >
-                      {colLetter(unifiedIndexOf.get(col.key) ?? 0)}
+                      {colLetter(uidx)}
+                      <span
+                        onMouseDown={(e) => startColResize(e, col)}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          autoFitColumn(col);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Arraste para redimensionar · duplo-clique para ajustar"
+                        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize hover:bg-white/50"
+                      />
                     </th>
                   );
                 }
                 const col = item.field;
                 const i = item.nativeIndex;
-                const activeCol = !!selBounds && i >= selBounds.startCol && i <= selBounds.endCol;
                 return (
                   <th
                     key={col.key}
@@ -2343,15 +2404,15 @@ async function saveCell(id: string, key: string, value: string) {
                       e.preventDefault();
                       handleColumnDrop(col.key);
                     }}
-                    onClick={(e) => selectColumn(i, e.shiftKey)}
-                    onContextMenu={(e) => openColumnContextMenu(e, i)}
-                    title={`Selecionar coluna ${colLetter(unifiedIndexOf.get(col.key) ?? i)} · arraste para reordenar`}
+                    onClick={(e) => selectColumn(uidx, e.shiftKey)}
+                    onContextMenu={(e) => openColumnContextMenu(e, uidx)}
+                    title={`Selecionar coluna ${colLetter(uidx)} · arraste para reordenar`}
                     className={`relative cursor-grab px-1 py-1 active:cursor-grabbing ${
                       activeCol ? "bg-emerald-300 text-emerald-900" : "bg-emerald-700 text-white hover:bg-emerald-800"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ width: colW(col), minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
                   >
-                    {colLetter(unifiedIndexOf.get(col.key) ?? i)}
+                    {colLetter(uidx)}
                     <span
                       onMouseDown={(e) => startColResize(e, col)}
                       onDoubleClick={(e) => {
@@ -2462,7 +2523,7 @@ async function saveCell(id: string, key: string, value: string) {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={visibleFields.length + customCols.length + 1} className="px-3 py-10 text-center text-slate-400">
+                <td colSpan={unifiedCols.length + 1} className="px-3 py-10 text-center text-slate-400">
                   {contacts.length === 0
                     ? "Nenhum contato. Importe uma planilha ou adicione manualmente."
                     : "Nenhum contato neste estado."}
@@ -2500,40 +2561,8 @@ async function saveCell(id: string, key: string, value: string) {
                     {rowIndex + 1}
                   </td>
                   {unifiedCols.map((item) => {
-                    if (item.kind === "custom") {
-                      const col = item.col;
-                      return (
-                        <td
-                          key={col.key}
-                          className={`border-l border-slate-300 px-1 ${padY} ${
-                            selectedCustomCol === col.key ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300" : ""
-                          }`}
-                          style={{ minWidth: 140 }}
-                        >
-                          <input
-                            defaultValue={customValOf(c.id, col.key)}
-                            onBlur={(e) => {
-                              const v = e.currentTarget.value;
-                              if (v !== customValOf(c.id, col.key)) saveCustomValue(c.id, col.key, v);
-                            }}
-                            onKeyDown={(e) => {
-                              e.stopPropagation(); // não deixa a tecla vazar pro atalho da grade (senão "pula" pra outra célula)
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                e.currentTarget.blur();
-                              } else if (e.key === "Escape") {
-                                e.preventDefault();
-                                e.currentTarget.value = customValOf(c.id, col.key);
-                                e.currentTarget.blur();
-                              }
-                            }}
-                            className="w-full rounded border border-transparent bg-transparent px-2 py-0.5 text-slate-700 outline-none hover:border-slate-200 focus:border-indigo-400 focus:bg-white"
-                          />
-                        </td>
-                      );
-                    }
-                    const col = item.field;
-                    const colIndex = item.nativeIndex;
+                    const col = item.kind === "custom" ? item.col : item.field;
+                    const colIndex = unifiedIndexOf.get(col.key) ?? 0;
                     // Mescla: célula coberta (não-âncora) não é desenhada; a âncora ganha span.
                     if (mergeLayout.skip.has(`${rowIndex}:${colIndex}`)) return null;
                     const span = mergeLayout.spanAt.get(`${rowIndex}:${colIndex}`);
@@ -2541,7 +2570,7 @@ async function saveCell(id: string, key: string, value: string) {
                     const selectedCell = isSelected(rowIndex, colIndex);
                     const isActiveCell = focusCell?.row === rowIndex && focusCell?.col === colIndex;
                     const editing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
-                    const value = (c[col.key] as string) || "";
+                    const value = cellValue(c, col.key);
                     // Marca-d'água de copiar/recortar (tracejado nas bordas do retângulo).
                     const inClip =
                       !!clip &&
@@ -2628,13 +2657,13 @@ async function saveCell(id: string, key: string, value: string) {
                             const next = e.target.value;
                             if (next !== value) {
                               recordEdit({ id: c.id, key: col.key, prev: value, next });
-                              saveCell(c.id, col.key, next);
+                              saveCellValue(c.id, col.key, next);
                             }
                             stopEditing(false);
                           }}
                           onKeyDown={(e) => {
                             const maxRow = visible.length - 1;
-                            const maxCol = fieldKeys.length - 1;
+                            const maxCol = unifiedCols.length - 1;
                             if (e.key === "Enter") {
                               e.preventDefault();
                               e.currentTarget.blur();
@@ -2818,13 +2847,41 @@ async function saveCell(id: string, key: string, value: string) {
                 <MenuRow
                   icon={
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+                    </svg>
+                  }
+                  label="Limpar coluna"
+                  onClick={() => {
+                    const idx = unifiedIndexOf.get(menu.colKey);
+                    if (idx !== undefined) clearColumns([idx]);
+                  }}
+                />
+                <MenuRow
+                  icon={
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M3 3l18 18" strokeLinecap="round" />
+                      <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" strokeLinecap="round" />
+                      <path d="M9.5 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9.5 7a12.2 12.2 0 0 1-2.3 3.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M6.6 6.7A12.4 12.4 0 0 0 2.5 12C3.5 14.5 7 19 12 19a10.8 10.8 0 0 0 4.1-.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  }
+                  label="Ocultar coluna"
+                  onClick={() => {
+                    const idx = unifiedIndexOf.get(menu.colKey);
+                    if (idx !== undefined) hideColumns([idx]);
+                  }}
+                />
+                <div className="my-1 h-px bg-slate-200" />
+                <MenuRow
+                  icon={
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M3 6h18" strokeLinecap="round" />
                       <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
                       <path d="M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
                       <path d="M10 11v5M14 11v5" strokeLinecap="round" />
                     </svg>
                   }
-                  label="Excluir coluna"
+                  label="Excluir coluna (permanente)"
                   onClick={() => {
                     deleteCustomCol(menu.colKey);
                     setMenu(null);
