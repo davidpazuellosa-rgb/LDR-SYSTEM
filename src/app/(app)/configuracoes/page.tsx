@@ -3,6 +3,7 @@ import { isAdmin } from "@/lib/permissions";
 import { isHubspotConfigured } from "@/lib/hubspot";
 import PageHeader from "@/components/PageHeader";
 import HubspotTestButton from "@/components/HubspotTestButton";
+import BackupPanel from "@/components/BackupPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,9 @@ export default async function ConfiguracoesPage() {
             </details>
           </div>
         )}
+
+        {/* Backup automático do banco — só admin */}
+        {admin && <BackupPanel />}
 
         <div className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-2 font-semibold text-slate-800">Sobre</h2>
