@@ -76,6 +76,10 @@ model Contact {
   // Exclusão reversível (soft delete): a linha some da tela mas pode ser desfeita.
   deletedAt DateTime?
 
+  // Posição na ordenação compartilhada da planilha (Classificar A→Z/Z→A no
+  // cabeçalho). null = nunca foi ordenado (cai no fim, por createdAt).
+  ordem Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -85,6 +89,7 @@ model Contact {
   @@index([baseId])
   @@index([status])
   @@index([deletedAt])
+  @@index([baseId, ordem])
 }
 
 // Fila de correção: cada vez que um telefone é marcado como incorreto,

@@ -6,6 +6,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from "@supaba
 export type Peer = { id: string; nome: string; inicial: string; cor: string };
 export type EditItem = { id: string; key: string; value: string; custom?: boolean };
 type EditPayload = { edits: EditItem[]; from: string };
+export type ReorderPayload = { ids: string[]; colKey: string; dir: "asc" | "desc"; from: string };
 
 const CORES = ["#4f46e5", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#ef4444"];
 function corDe(id: string) {
@@ -33,11 +34,14 @@ export function useRealtimeSheet(
   baseId: string,
   me: { id: string; nome: string },
   onRemote: (edits: EditItem[]) => void,
+  onRemoteReorder?: (payload: ReorderPayload) => void,
 ) {
   const [peers, setPeers] = useState<Peer[]>([]);
   const chanRef = useRef<RealtimeChannel | null>(null);
   const onRemoteRef = useRef(onRemote);
   onRemoteRef.current = onRemote;
+  const onRemoteReorderRef = useRef(onRemoteReorder);
+  onRemoteReorderRef.current = onRemoteReorder;
 
   useEffect(() => {
     const supa = getClient();
@@ -63,6 +67,11 @@ export function useRealtimeSheet(
         if (!p || p.from === me.id) return;
         onRemoteRef.current(p.edits || []);
       })
+      .on("broadcast", { event: "reorder" }, (msg) => {
+        const p = msg.payload as ReorderPayload;
+        if (!p || p.from === me.id) return;
+        onRemoteReorderRef.current?.(p);
+      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") await chan.track({ id: me.id, nome: me.nome });
       });
@@ -79,5 +88,11 @@ export function useRealtimeSheet(
     chan.send({ type: "broadcast", event: "edit", payload: { edits, from: me.id } as EditPayload });
   }
 
-  return { peers, broadcast };
+  function broadcastReorder(ids: string[], colKey: string, dir: "asc" | "desc") {
+    const chan = chanRef.current;
+    if (!chan) return;
+    chan.send({ type: "broadcast", event: "reorder", payload: { ids, colKey, dir, from: me.id } as ReorderPayload });
+  }
+
+  return { peers, broadcast, broadcastReorder };
 }

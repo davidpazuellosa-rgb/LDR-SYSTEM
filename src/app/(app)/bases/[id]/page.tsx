@@ -9,6 +9,7 @@ import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
+import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,18 @@ export default async function BaseDetailPage({
   const session = await auth();
   const role = await currentRole(session);
   if (role === "prevendedor") redirect("/dashboard"); // Pré-vendedor não acessa Bases
+
+  // "ordem" é escrita pela ordenação compartilhada (Classificar A→Z/Z→A no cabeçalho).
+  // Linhas nunca ordenadas (ordem null) caem no fim, na ordem de criação.
+  await ensureContactOrdemColuna();
   const base = await prisma.base.findUnique({
     where: { id },
-    include: { contacts: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } },
+    include: {
+      contacts: {
+        where: { deletedAt: null },
+        orderBy: [{ ordem: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+      },
+    },
   });
 
   if (!base) notFound();
@@ -35,9 +45,10 @@ export default async function BaseDetailPage({
   const norm = (r: string | null) => (r && r.trim()) || "Sem região";
   const rows = regiao ? base.contacts.filter((c) => norm(c.regiao) === regiao) : base.contacts;
 
-  const contacts = rows.map(({ createdAt, updatedAt, formats, deletedAt, ...contact }) => {
+  const contacts = rows.map(({ createdAt, updatedAt, formats, deletedAt, ordem, ...contact }) => {
     void formats;
     void deletedAt;
+    void ordem;
     return {
       ...contact,
       createdAt: createdAt.toISOString(),
@@ -61,6 +72,7 @@ export default async function BaseDetailPage({
   // Colunas personalizadas (bloco à direita): definições em headers.__cols__ e valores
   // por contato na tabela ContactCustomValue (ambos sem migration).
   const initialCols = parseCustomCols(rawHeaders) as ComponentProps<typeof ContactsTable>["initialCols"];
+  const initialSort = parseSortBy(rawHeaders);
   await ensureContactCustomTable();
   const customRows = rows.length
     ? await prisma.contactCustomValue.findMany({
@@ -127,6 +139,7 @@ export default async function BaseDetailPage({
           initialMerges={initialMerges}
           initialCols={initialCols}
           initialCustomValues={initialCustomValues}
+          initialSort={initialSort}
           me={{
             id: (session?.user as { id?: string } | undefined)?.id || "",
             nome: session?.user?.name || session?.user?.email || "Usuário",
