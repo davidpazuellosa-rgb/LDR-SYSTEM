@@ -10,7 +10,8 @@ import { STATUS_INCORRETO } from "@/lib/status";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
-import { useRealtimeSheet, type EditItem } from "@/lib/useRealtimeSheet";
+import ColumnFilterPopover from "@/components/ColumnFilterPopover";
+import { useRealtimeSheet, type EditItem, type ReorderPayload } from "@/lib/useRealtimeSheet";
 
 type Contact = {
   id: string;
@@ -51,7 +52,16 @@ type HistoryAction =
   | { kind: "merge"; prevMerges: MergeRegion[]; nextMerges: MergeRegion[]; edits: CellEdit[] }
   // Excluir coluna (soft, admin): limpa o conteúdo + oculta a(s) coluna(s) num passo só.
   // Desfazer restaura os valores e mostra as colunas de novo.
-  | { kind: "coldelete"; edits: CellEdit[]; colKeys: string[] };
+  | { kind: "coldelete"; edits: CellEdit[]; colKeys: string[] }
+  // Classificar A→Z/Z→A (compartilhado): guarda a ordem de ids antes/depois e qual
+  // coluna/direção estava ativa antes (null = nunca tinha sido ordenado).
+  | {
+      kind: "sort";
+      prevIds: string[];
+      nextIds: string[];
+      prevSort: { key: string; dir: "asc" | "desc" } | null;
+      nextSort: { key: string; dir: "asc" | "desc" };
+    };
 
 // "Marca-d'água" de copiar/recortar (estilo Google Sheets): as células ficam
 // tracejadas. No recorte, a origem só é apagada DEPOIS de colar (mover).
@@ -193,6 +203,7 @@ export default function ContactsTable({
   initialMerges = [],
   initialCols = [],
   initialCustomValues = {},
+  initialSort = null,
   initialSavedAt = null,
   me = { id: "", nome: "" },
   canDelete = true,
@@ -208,6 +219,7 @@ export default function ContactsTable({
   initialMerges?: MergeRegion[];
   initialCols?: { key: string; label: string }[];
   initialCustomValues?: Record<string, Record<string, string>>;
+  initialSort?: { key: string; dir: "asc" | "desc" } | null;
   initialSavedAt?: string | null;
   canDelete?: boolean;
   canImport?: boolean;
@@ -315,6 +327,44 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [customValues]
   );
 
+  // ---- Ordenação compartilhada + filtro pessoal por coluna (estilo Excel/Sheets) ----
+  // Ordenar é COMPARTILHADO (persistido em Contact.ordem + Base.headers.__sortBy__,
+  // visível para todo mundo). Filtrar por valores é PESSOAL (só neste navegador, via
+  // localStorage) — não afeta quem mais está editando ao mesmo tempo.
+  const [sortInfo, setSortInfo] = useState<{ key: string; dir: "asc" | "desc" } | null>(initialSort);
+  const [colFilters, setColFiltersState] = useState<Record<string, string[]>>({});
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`colfilter:${baseId}`);
+      setColFiltersState(saved ? JSON.parse(saved) : {});
+    } catch {
+      setColFiltersState({});
+    }
+  }, [baseId]);
+  const setColFilters = useCallback(
+    (next: Record<string, string[]>) => {
+      setColFiltersState(next);
+      try {
+        localStorage.setItem(`colfilter:${baseId}`, JSON.stringify(next));
+      } catch {
+        // localStorage indisponível — ignora
+      }
+    },
+    [baseId],
+  );
+  const colFilterMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const [k, arr] of Object.entries(colFilters)) if (Array.isArray(arr) && arr.length) m.set(k, new Set(arr));
+    return m;
+  }, [colFilters]);
+  const [filterPopoverKey, setFilterPopoverKey] = useState<string | null>(null);
+  const [filterAnchorRect, setFilterAnchorRect] = useState<DOMRect | null>(null);
+  function openFilterPopover(key: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setFilterAnchorRect(e.currentTarget.getBoundingClientRect());
+    setFilterPopoverKey((prev) => (prev === key ? null : key));
+  }
+
   // Estrutura das colunas (admin): cria/renomeia/move/exclui. Persiste em headers.__cols__.
   const saveCols = useCallback(
     (next: { key: string; label: string }[]) => {
@@ -410,6 +460,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // Broadcast das edições para os outros usuários (tempo real). Guardado em ref para
   // as funções de salvar usarem sempre a versão atual, sem problema de ordem.
   const broadcastRef = useRef<(edits: EditItem[]) => void>(() => {});
+  const broadcastReorderRef = useRef<(ids: string[], colKey: string, dir: "asc" | "desc") => void>(() => {});
 
   // Aplica na tela as edições que CHEGAM de outros usuários (sem re-salvar/re-broadcast).
   const applyRemote = useCallback((edits: EditItem[]) => {
@@ -432,8 +483,16 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     }
   }, []);
 
-  const { peers, broadcast } = useRealtimeSheet(baseId, me, applyRemote);
+  // Reordenação COMPARTILHADA (Classificar A→Z/Z→A) chegando de outro usuário —
+  // só reorganiza o array local pela nova sequência de ids, sem re-persistir.
+  const applyRemoteReorder = useCallback((payload: ReorderPayload) => {
+    reorderContactsTo(payload.ids);
+    setSortInfo(payload.colKey ? { key: payload.colKey, dir: payload.dir } : null);
+  }, []);
+
+  const { peers, broadcast, broadcastReorder } = useRealtimeSheet(baseId, me, applyRemote, applyRemoteReorder);
   broadcastRef.current = broadcast;
+  broadcastReorderRef.current = broadcastReorder;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => shortcutRef.current(e);
     window.addEventListener("keydown", onKey);
@@ -652,6 +711,151 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     [customKeySet]
   );
 
+  // Heurística: coluna "numérica" quando a maioria dos valores não vazios vira número
+  // (removendo separador de milhar, ex.: "125.861"). Ordena como número nesse caso;
+  // senão, ordena como texto (localeCompare pt-BR).
+  function parseNumericLoose(v: string): number | null {
+    const s = v.trim().replace(/[.,](?=\d{3}(\D|$))/g, "").replace(",", ".");
+    if (!s || !/^-?\d+(\.\d+)?$/.test(s)) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function isNumericColumn(key: string): boolean {
+    const amostra = contacts.slice(0, 200).map((c) => cellValue(c, key)).filter((v) => v.trim());
+    if (amostra.length === 0) return false;
+    const numericos = amostra.filter((v) => parseNumericLoose(v) !== null).length;
+    return numericos / amostra.length >= 0.8;
+  }
+
+  // Salva a nova ordem no servidor (Contact.ordem + Base.headers.__sortBy__).
+  // sort=null só persiste a ordem das linhas e LIMPA o indicador de coluna ativa
+  // (usado pelo desfazer, ao reverter para antes do primeiro "Classificar").
+  function persistOrder(ids: string[], sort: { key: string; dir: "asc" | "desc" } | null) {
+    markSaving();
+    fetch(apiPath(`/api/bases/${baseId}/ordenar`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colKey: sort?.key ?? null, dir: sort?.dir ?? "asc", ids }),
+    })
+      .then((r) => (r.ok ? markSaved() : markSaveError()))
+      .catch(() => markSaveError());
+  }
+
+  // Ordenação COMPARTILHADA (Classificar A→Z/Z→A no cabeçalho): reorganiza `contacts`,
+  // persiste e avisa os outros usuários em tempo real. Entra no histórico (Ctrl+Z desfaz).
+  // Reorganiza `contacts` para seguir exatamente esta sequência de ids — usado pelo
+  // desfazer/refazer da ordenação e ao aplicar uma reordenação vinda de outro usuário.
+  function reorderContactsTo(ids: string[]) {
+    setContacts((prev) => {
+      const byId = new Map(prev.map((c) => [c.id, c]));
+      const reordered = ids.map((id) => byId.get(id)).filter((c): c is Contact => !!c);
+      const idSet = new Set(ids);
+      const resto = prev.filter((c) => !idSet.has(c.id));
+      return [...reordered, ...resto];
+    });
+  }
+
+  function sortBy(key: string, dir: "asc" | "desc") {
+    const numeric = isNumericColumn(key);
+    const vazios: Contact[] = [];
+    const comValor: Contact[] = [];
+    for (const c of contacts) (cellValue(c, key).trim() ? comValor : vazios).push(c);
+    const cmp = (a: Contact, b: Contact) => {
+      const va = cellValue(a, key);
+      const vb = cellValue(b, key);
+      if (numeric) {
+        const na = parseNumericLoose(va) ?? 0;
+        const nb = parseNumericLoose(vb) ?? 0;
+        return dir === "asc" ? na - nb : nb - na;
+      }
+      const r = va.localeCompare(vb, "pt-BR", { sensitivity: "base", numeric: true });
+      return dir === "asc" ? r : -r;
+    };
+    const ordenado = [...comValor].sort(cmp);
+    const novaOrdem = [...ordenado, ...vazios]; // vazios sempre por último, nas duas direções
+
+    const prevIds = contacts.map((c) => c.id);
+    const nextIds = novaOrdem.map((c) => c.id);
+    const prevSort = sortInfo;
+    const nextSort = { key, dir } as const;
+
+    setContacts(novaOrdem);
+    setSortInfo(nextSort);
+    setHistory((items) => [...items, { kind: "sort" as const, prevIds, nextIds, prevSort, nextSort }].slice(-100));
+    setRedoStack([]);
+    persistOrder(nextIds, nextSort);
+    broadcastReorderRef.current(nextIds, key, dir);
+    setFilterPopoverKey(null);
+  }
+
+  // Valores únicos presentes na coluna (para o popover de filtro) + contagem.
+  function uniqueValuesFor(key: string): { value: string; count: number }[] {
+    const counts = new Map<string, number>();
+    for (const c of contacts) {
+      const v = cellValue(c, key);
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value, "pt-BR", { sensitivity: "base", numeric: true }));
+  }
+
+  // Filtro por valores é PESSOAL (só neste navegador) — não entra no histórico.
+  function applyColumnFilter(key: string, selected: Set<string> | null) {
+    const next = { ...colFilters };
+    if (selected === null) delete next[key];
+    else next[key] = Array.from(selected);
+    setColFilters(next);
+    setFilterPopoverKey(null);
+  }
+  function clearColumnFilter(key: string) {
+    const next = { ...colFilters };
+    delete next[key];
+    setColFilters(next);
+    setFilterPopoverKey(null);
+  }
+
+  // Ícone no cabeçalho (fixas + personalizadas): abre o popover de Classificar/Filtrar.
+  // Destacado quando a coluna tem filtro ativo; mostra ▲/▼ quando é a coluna da
+  // ordenação compartilhada atual.
+  function renderFilterIcon(key: string, colLabel: string) {
+    const hasFilter = colFilterMap.has(key);
+    const isSortCol = sortInfo?.key === key;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={(e) => openFilterPopover(key, e)}
+          title="Classificar e filtrar"
+          className={`absolute right-0.5 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md border shadow-sm hover:bg-slate-50 ${
+            hasFilter || isSortCol ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-slate-300 bg-white text-slate-600"
+          }`}
+        >
+          {isSortCol ? (
+            <span className="text-xs font-bold leading-none">{sortInfo?.dir === "asc" ? "▲" : "▼"}</span>
+          ) : (
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 5h16l-6 8v5l-4 2v-7L4 5Z" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {filterPopoverKey === key && filterAnchorRect && (
+          <ColumnFilterPopover
+            label={colLabel}
+            anchorRect={filterAnchorRect}
+            values={uniqueValuesFor(key)}
+            selected={colFilterMap.get(key) ?? null}
+            sortDir={sortInfo?.key === key ? sortInfo.dir : null}
+            onSort={(dir) => sortBy(key, dir)}
+            onApply={(sel) => applyColumnFilter(key, sel)}
+            onClear={() => clearColumnFilter(key)}
+            onClose={() => setFilterPopoverKey(null)}
+          />
+        )}
+      </>
+    );
+  }
+
   const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
 
   // Filtro por situação do telefone (nomenclatura do CRM).
@@ -713,9 +917,14 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       .filter(matchesPhone)
       .filter((c) => !hiddenRowIds.has(c.id))
       .filter((c) => !q || CONTACT_FIELDS.some((f) => String(c[f.key] || "").toLowerCase().includes(q)))
+      .filter((c) => {
+        // Filtro por valores (pessoal) — coluna só entra em colFilterMap quando ativa.
+        for (const [key, set] of colFilterMap) if (!set.has(cellValue(c, key))) return false;
+        return true;
+      })
       .map((c) => c.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds]);
+  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds, colFilterMap, cellValue]);
 
   // Mapa id -> contato ATUAL (para a tela refletir as edições na hora).
   const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
@@ -963,6 +1172,13 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       return next;
     });
   }
+  else if (action.kind === "sort") {
+    // desfazer ordenação: volta a ordem anterior (e o indicador de coluna anterior).
+    reorderContactsTo(action.prevIds);
+    setSortInfo(action.prevSort);
+    persistOrder(action.prevIds, action.prevSort);
+    broadcastReorderRef.current(action.prevIds, action.prevSort?.key ?? "", action.prevSort?.dir ?? "asc");
+  }
   else {
     // merge: volta ao conjunto de mesclas anterior e restaura os valores limpos.
     saveMerges(action.prevMerges);
@@ -990,6 +1206,13 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
       action.colKeys.forEach((k) => next.add(k));
       return next;
     });
+  }
+  else if (action.kind === "sort") {
+    // refazer ordenação: aplica a ordem seguinte de novo.
+    reorderContactsTo(action.nextIds);
+    setSortInfo(action.nextSort);
+    persistOrder(action.nextIds, action.nextSort);
+    broadcastReorderRef.current(action.nextIds, action.nextSort.key, action.nextSort.dir);
   }
   else {
     // merge: reaplica o conjunto de mesclas e limpa de novo as células não-âncora.
@@ -2500,7 +2723,7 @@ async function saveCell(id: string, key: string, value: string) {
                   return (
                     <th
                       key={col.key}
-                      className={`px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
+                      className={`relative px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
                         activeCol ? "bg-indigo-100" : "bg-slate-200"
                       }`}
                       style={{ minWidth: colW(col) }}
@@ -2536,11 +2759,12 @@ async function saveCell(id: string, key: string, value: string) {
                           onClick={(e) => selectColumn(uidx, e.shiftKey)}
                           onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
                           title={col.label}
-                          className="block w-full cursor-pointer select-none truncate px-1 py-1 text-sm font-bold uppercase text-slate-600"
+                          className="block w-full cursor-pointer select-none truncate py-1 pl-1 pr-7 text-sm font-bold uppercase text-slate-600"
                         >
                           {col.label}
                         </div>
                       )}
+                      {renderFilterIcon(col.key, col.label)}
                     </th>
                   );
                 }
@@ -2551,7 +2775,7 @@ async function saveCell(id: string, key: string, value: string) {
                 return (
                   <th
                     key={col.key}
-                    className={`px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
+                    className={`relative px-2 py-2 font-medium shadow-[inset_0_-5px_4px_-5px_rgba(15,23,42,0.13)] ${
                       activeCol ? "bg-indigo-100" : "bg-slate-200"
                     } ${frozen && i === 0 ? "sticky z-20" : ""}`}
                     style={{ minWidth: colW(col), ...(frozen && i === 0 ? { left: 48 } : {}) }}
@@ -2587,11 +2811,12 @@ async function saveCell(id: string, key: string, value: string) {
                         onClick={(e) => selectColumn(uidx, e.shiftKey)}
                         onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
                         title={label}
-                        className="block w-full cursor-pointer select-none truncate px-1 py-1 text-sm font-bold uppercase text-slate-600"
+                        className="block w-full cursor-pointer select-none truncate py-1 pl-1 pr-7 text-sm font-bold uppercase text-slate-600"
                       >
                         {label}
                       </div>
                     )}
+                    {renderFilterIcon(col.key, label)}
                   </th>
                 );
               })}
