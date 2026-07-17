@@ -234,3 +234,23 @@ model Suggestion {
   @@index([status])
   @@index([criadoEm])
 }
+
+// Marca quando cada LDR abriu "Minhas Metas" pela última vez, para sinalizar
+// "meta nova" (Meta.criadoEm mais recente que isto). Tabela criada sob demanda
+// (ensureMetaTable, em src/lib/meta.ts) — acessada só via $queryRaw/$executeRaw
+// (nunca prisma.metaVisto.*); model aqui existe só para documentar o schema
+// real do banco de produção, que este model não cria nem altera.
+model MetaVisto {
+  userId  String   @id
+  vistoEm DateTime @default(now())
+}
+
+// Proprietário (HubSpot) vinculado a cada usuário do sistema, usado para
+// filtrar dados da CRM por dono. Tabela criada sob demanda
+// (ensureUserProprietarioTable, em src/lib/user-proprietario.ts) — acessada só
+// via $queryRaw/$executeRawUnsafe (nunca prisma.userProprietario.*); model
+// aqui existe só para documentar o schema real do banco de produção.
+model UserProprietario {
+  userId       String @id
+  proprietario String
+}

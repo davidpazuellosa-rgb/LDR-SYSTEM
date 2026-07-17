@@ -62,5 +62,25 @@ export async function ensureMetaTable() {
   // O índice único antigo (base+estado) não cabe nos 2 tipos; a API deduplica em código.
   await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Meta_userId_baseId_estado_key";`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Meta_userId_idx" ON "Meta" ("userId");`);
+  // Território (base+região+estado) só pode pertencer a 1 LDR — a API já checa isso
+  // antes de gravar (route.ts), mas essa checagem sozinha não impede duas requisições
+  // concorrentes de colidir (ex.: dois admins salvando ao mesmo tempo). Este índice é
+  // a garantia de verdade, no banco; a checagem da API vira só uma mensagem de erro
+  // mais amigável antes de chegar aqui.
+  // Em try/catch de propósito: se já existir uma duplicata de território nos dados
+  // atuais (ex.: uma meta de teste antiga), o CREATE falha — e sem isso aqui, isso
+  // quebraria ensureMetaTable() inteiro (chamado antes de toda operação de metas)
+  // até alguém limpar manualmente. Preferível degradar (guard só na aplicação, como
+  // já era) a derrubar a funcionalidade inteira por causa de 1 linha duplicada.
+  try {
+    await prisma.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "Meta_territorio_unq" ON "Meta" ("baseId", "regiao", "estado") WHERE "tipo" = 'preenchimento';`
+    );
+  } catch (e) {
+    console.error(
+      "[ensureMetaTable] Não foi possível criar o índice único de território — provavelmente já existe uma duplicata nos dados. Guard de duplicidade segue só na aplicação até isso ser corrigido manualmente.",
+      e
+    );
+  }
   ensured = true;
 }

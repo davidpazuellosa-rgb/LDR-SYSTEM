@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
 import { ensureMetaTable } from "@/lib/meta";
@@ -132,10 +133,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ userId: 
     }
   }
 
-  await prisma.$transaction([
-    prisma.meta.deleteMany({ where: { userId } }),
-    ...(final.length ? [prisma.meta.createMany({ data: final })] : []),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.meta.deleteMany({ where: { userId } }),
+      ...(final.length ? [prisma.meta.createMany({ data: final })] : []),
+    ]);
+  } catch (e) {
+    // Segunda linha de defesa: o índice único de território (ensureMetaTable) pode
+    // recusar a gravação numa corrida entre duas requisições concorrentes que passou
+    // pela checagem acima antes de qualquer uma delas gravar. Mesma mensagem 409.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "Território já atribuído a outro LDR (duas alterações concorrentes colidiram). Tente salvar de novo." },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true, count: final.length });
 }
