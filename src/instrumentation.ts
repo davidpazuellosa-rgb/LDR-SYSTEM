@@ -7,10 +7,13 @@ export async function register() {
   const { syncFromCrm } = await import("./lib/crm-sync");
   const intervalMin = Number(process.env.CRM_SYNC_INTERVAL_MIN || "360"); // padrão: 6h
 
-  // Primeira sincronização alguns segundos após subir (não bloqueia o boot).
+  // Primeira sincronização um pouco após subir (não bloqueia o boot). Atrasada
+  // pra reduzir a chance de coincidir com as primeiras páginas carregando logo
+  // após o deploy — momento em que o pool de conexões (connection_limit=1,
+  // recomendado pelo Prisma com pgbouncer) fica mais disputado.
   setTimeout(() => {
     syncFromCrm().then((r) => console.log("[crm-sync] inicial:", JSON.stringify(r)));
-  }, 8000);
+  }, 30000);
 
   // Sincronizações periódicas.
   setInterval(() => {
