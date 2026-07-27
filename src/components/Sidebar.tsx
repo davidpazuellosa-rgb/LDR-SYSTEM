@@ -71,6 +71,13 @@ function Icon({ name }: { name: string }) {
           <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z" strokeLinejoin="round" />
         </svg>
       );
+    case "calendar":
+      return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="4.5" width="18" height="16" rx="2" />
+          <path d="M3 9h18M8 3v3M16 3v3" strokeLinecap="round" />
+        </svg>
+      );
     case "users":
       return (
         <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -118,6 +125,8 @@ export default function Sidebar({
 
   const nav: { href: string; label: string; icon: string; badge: number; dot?: string; pulse?: boolean }[] = [
     { href: "/dashboard", label: "Visão geral", icon: "grid", badge: 0 },
+    // Agenda: visível para todos os acessos (admin, ldr, prevendedor).
+    { href: "/agenda", label: "Agenda", icon: "calendar", badge: 0 },
     { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (metaNova ? "bg-indigo-400" : ""), pulse: metaNova },
     ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
     // Pré-vendedor não vê Bases de Dados.
