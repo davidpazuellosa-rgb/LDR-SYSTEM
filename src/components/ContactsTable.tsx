@@ -7,6 +7,7 @@ import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { STATUS_INCORRETO } from "@/lib/status";
+import { isComplete, customsCompletos, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -896,6 +897,23 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     }
     return allUfs.map((uf) => [uf, counts.get(uf) || 0] as [string, number]);
   }, [contacts, allUfs, matchesPhone]);
+
+  // Quantas linhas de cada UF já estão "preenchidas" (mesma régua do cabeçalho
+  // da tela, em src/lib/completude.ts) — mostrado nas abas como preenchidos/total.
+  // Acompanha o filtro de telefone ativo, igual ao total acima; a aba "Todas"
+  // não usa isso (continua só com o total).
+  const estadosCompletos = useMemo(() => {
+    const customKeys = customCols.map((c) => c.key);
+    const counts = new Map<string, number>();
+    for (const uf of allUfs) counts.set(uf, 0);
+    for (const c of contacts) {
+      if (!matchesPhone(c)) continue;
+      if (!isComplete(c as unknown as ReqRow)) continue;
+      if (!customsCompletos(customKeys, customValues[c.id])) continue;
+      counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
+    }
+    return counts;
+  }, [contacts, allUfs, matchesPhone, customCols, customValues]);
 
   // Total da aba "Todas" também acompanha o filtro.
   const filteredTotal = useMemo(
@@ -3074,7 +3092,7 @@ async function saveCell(id: string, key: string, value: string) {
                   : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
               }`}
             >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({n})</span>
+              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({estadosCompletos.get(uf) || 0}/{n})</span>
             </button>
           ))}
         </div>
