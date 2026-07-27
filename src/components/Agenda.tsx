@@ -63,6 +63,8 @@ export default function Agenda() {
   const [hiddenOwners, setHiddenOwners] = useState<Set<string>>(new Set());
   const [weekends, setWeekends] = useState(true);
   const [selected, setSelected] = useState<Meeting | null>(null);
+  const [openFilter, setOpenFilter] = useState<"resultado" | "responsaveis" | "view" | null>(null);
+  const [sideCollapsed, setSideCollapsed] = useState(false);
 
   const load = useCallback(async (force?: boolean) => {
     setStatus("loading");
@@ -120,6 +122,17 @@ export default function Agenda() {
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
   }, [selected]);
+
+  // Fecha o dropdown de filtro/visão aberto ao clicar fora dele (o próprio
+  // dropdown para a propagação do clique, então só chega aqui um clique fora).
+  useEffect(() => {
+    if (!openFilter) return;
+    function onDocClick() {
+      setOpenFilter(null);
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [openFilter]);
 
   function shiftRef(delta: number) {
     setRefIso((prev) => {
@@ -247,7 +260,7 @@ export default function Agenda() {
             setMiniIso(null);
             setView("dia");
           }}
-          className={`flex min-h-0 flex-col overflow-hidden border-b border-r border-slate-200 p-1 text-left hover:bg-slate-50 ${
+          className={`flex min-h-[96px] flex-col overflow-hidden border-b border-r border-slate-200 p-1 text-left hover:bg-slate-50 ${
             foraDoMes ? "bg-slate-50/60" : "bg-white"
           }`}
         >
@@ -283,21 +296,18 @@ export default function Agenda() {
     }
     corpo = (
       <div className="flex h-full min-h-0 flex-col">
-        <div
-          className="grid border-l border-t border-slate-200"
-          style={{ gridTemplateColumns: `repeat(${dows.length}, minmax(0,1fr))` }}
-        >
+        <div className="grid shrink-0" style={{ gridTemplateColumns: `repeat(${dows.length}, minmax(0,1fr))` }}>
           {dows.map((x) => (
             <div
               key={x.i}
-              className="border-b border-r border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              className="border-b border-r border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
             >
               {x.lbl}
             </div>
           ))}
         </div>
         <div
-          className="grid min-h-0 flex-1 border-l border-slate-200"
+          className="grid min-h-0 flex-1"
           style={{ gridTemplateColumns: `repeat(${dows.length}, minmax(0,1fr))`, gridAutoRows: "minmax(0, 1fr)" }}
         >
           {cells}
@@ -440,8 +450,16 @@ export default function Agenda() {
           setRefIso(dia.toISOString());
           setMiniIso(null);
         }}
-        className={`h-7 w-7 rounded-full text-xs ${
-          eSel ? "bg-indigo-600 text-white" : eHoje ? "bg-indigo-100 text-indigo-700" : fora ? "text-slate-300" : "text-slate-600 hover:bg-slate-100"
+        className={`h-7 w-7 rounded-full text-[11px] transition ${
+          eHoje && eSel
+            ? "bg-indigo-600 font-bold text-white"
+            : eSel
+              ? "font-bold text-indigo-600 ring-[1.5px] ring-inset ring-indigo-600"
+              : eHoje
+                ? "bg-slate-200 font-bold text-slate-800"
+                : fora
+                  ? "text-slate-300 hover:bg-slate-100"
+                  : "text-slate-600 hover:bg-slate-100"
         }`}
       >
         {dia.getDate()}
@@ -449,28 +467,29 @@ export default function Agenda() {
     );
   }
 
-  const viewBtn = (v: View, label: string) => (
-    <button
-      type="button"
-      onClick={() => setView(v)}
-      className={`rounded-md px-3 py-1 text-sm font-medium ${
-        view === v ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const viewLabel = view === "dia" ? "Dia" : view === "semana" ? "Semana" : "Mês";
+  const resOcultos = hiddenResults.size ? ` · ${hiddenResults.size} oculto${hiddenResults.size === 1 ? "" : "s"}` : "";
+  const ownOcultos = hiddenOwners.size ? ` · ${hiddenOwners.size} oculto${hiddenOwners.size === 1 ? "" : "s"}` : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
+    <div className="flex h-full min-h-0 flex-col bg-[#f4f5f8]">
       <PageTitle title="Agenda" />
 
       {/* Barra de ferramentas */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setSideCollapsed((v) => !v)}
+          aria-label="Recolher/expandir painel"
+          title="Recolher/expandir painel"
+          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-600 hover:border-indigo-400 hover:text-indigo-600"
+        >
+          ☰
+        </button>
         <button
           type="button"
           onClick={() => setRefIso(null)}
-          className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-indigo-400 hover:text-indigo-600"
         >
           Hoje
         </button>
@@ -478,7 +497,7 @@ export default function Agenda() {
           type="button"
           onClick={() => shiftRef(-1)}
           aria-label="Anterior"
-          className="rounded-lg border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-lg leading-none text-slate-600 hover:border-indigo-400 hover:text-indigo-600"
         >
           ‹
         </button>
@@ -486,105 +505,155 @@ export default function Agenda() {
           type="button"
           onClick={() => shiftRef(1)}
           aria-label="Próximo"
-          className="rounded-lg border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-lg leading-none text-slate-600 hover:border-indigo-400 hover:text-indigo-600"
         >
           ›
         </button>
-        <div className="ml-1 text-base font-semibold text-slate-800">{titulo}</div>
-        <div className="ml-auto flex items-center gap-1">
-          {viewBtn("dia", "Dia")}
-          {viewBtn("semana", "Semana")}
-          {viewBtn("mes", "Mês")}
+        <div className="ml-1 text-base font-bold text-slate-800">{titulo}</div>
+
+        <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
             onClick={() => load(true)}
-            className="ml-2 rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-50"
             title="Atualizar"
+            aria-label="Atualizar"
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-500 hover:border-indigo-400 hover:text-indigo-600"
           >
-            ⟳ Atualizar
+            ⟳
           </button>
+          {/* Dropdown de visão: Dia/Semana/Mês + mostrar fins de semana */}
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setOpenFilter(openFilter === "view" ? null : "view")}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-indigo-400"
+            >
+              {viewLabel} <span className={`text-[10px] text-slate-400 transition-transform ${openFilter === "view" ? "rotate-180" : ""}`}>▾</span>
+            </button>
+            {openFilter === "view" && (
+              <div className="absolute right-0 top-[calc(100%+4px)] z-50 flex min-w-[190px] flex-col rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                {(["dia", "semana", "mes"] as View[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => {
+                      setView(v);
+                      setOpenFilter(null);
+                    }}
+                    className={`rounded-lg px-2.5 py-2 text-left text-sm ${
+                      view === v ? "bg-indigo-50 font-bold text-indigo-600" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {v === "dia" ? "Dia" : v === "semana" ? "Semana" : "Mês"}
+                  </button>
+                ))}
+                <div className="my-1.5 h-px bg-slate-200" />
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  <input type="checkbox" checked={weekends} onChange={() => setWeekends((v) => !v)} /> Mostrar fins de semana
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Layout: painel + calendário */}
-      <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-slate-200 p-3 md:flex">
-          {/* Minicalendário */}
-          <div>
-            <div className="mb-1 flex items-center justify-between px-1">
-              <span className="text-sm font-semibold text-slate-700">
-                {capitalize(miniRefBase.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}
-              </span>
-              <span className="flex gap-1">
+      <div className="flex min-h-0 flex-1 gap-4 px-4 pb-4">
+        {!sideCollapsed && (
+          <aside className="hidden w-[200px] shrink-0 flex-col gap-4 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 md:flex">
+            {/* Minicalendário */}
+            <div>
+              <div className="mb-1 flex items-center justify-between px-1">
+                <span className="text-sm font-bold text-slate-700">
+                  {capitalize(miniRefBase.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}
+                </span>
+                <span className="flex gap-1">
+                  <button
+                    type="button"
+                    aria-label="Mês anterior"
+                    onClick={() => {
+                      const d = new Date(miniRefBase);
+                      d.setMonth(d.getMonth() - 1);
+                      setMiniIso(d.toISOString());
+                    }}
+                    className="rounded px-1 text-slate-500 hover:bg-slate-100 hover:text-indigo-600"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Próximo mês"
+                    onClick={() => {
+                      const d = new Date(miniRefBase);
+                      d.setMonth(d.getMonth() + 1);
+                      setMiniIso(d.toISOString());
+                    }}
+                    className="rounded px-1 text-slate-500 hover:bg-slate-100 hover:text-indigo-600"
+                  >
+                    ›
+                  </button>
+                </span>
+              </div>
+              <div className="grid grid-cols-7 place-items-center gap-y-0.5">
+                {DOW.map((d) => (
+                  <div key={d} className="text-[9px] font-bold text-slate-400">
+                    {d.charAt(0)}
+                  </div>
+                ))}
+                {miniCells}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-slate-200 pt-3">
+              {/* Filtro: Resultado (dropdown) */}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
-                  aria-label="Mês anterior"
-                  onClick={() => {
-                    const d = new Date(miniRefBase);
-                    d.setMonth(d.getMonth() - 1);
-                    setMiniIso(d.toISOString());
-                  }}
-                  className="rounded px-1 text-slate-500 hover:bg-slate-100"
+                  onClick={() => setOpenFilter(openFilter === "resultado" ? null : "resultado")}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] font-semibold text-slate-700 hover:border-indigo-400"
                 >
-                  ‹
+                  <span>Resultado{resOcultos}</span>
+                  <span className={`text-[10px] text-slate-400 transition-transform ${openFilter === "resultado" ? "rotate-180" : ""}`}>▾</span>
                 </button>
+                {openFilter === "resultado" && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                    {RESULT_ORDER.map((cat) => (
+                      <label key={cat} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                        <input type="checkbox" checked={!hiddenResults.has(cat)} onChange={() => toggleResult(cat)} />
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: RESULT_META[cat].color }} />
+                        <span className="text-slate-700">{RESULT_META[cat].label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Filtro: Responsáveis (dropdown) */}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
-                  aria-label="Próximo mês"
-                  onClick={() => {
-                    const d = new Date(miniRefBase);
-                    d.setMonth(d.getMonth() + 1);
-                    setMiniIso(d.toISOString());
-                  }}
-                  className="rounded px-1 text-slate-500 hover:bg-slate-100"
+                  onClick={() => setOpenFilter(openFilter === "responsaveis" ? null : "responsaveis")}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] font-semibold text-slate-700 hover:border-indigo-400"
                 >
-                  ›
+                  <span>Responsáveis{ownOcultos}</span>
+                  <span className={`text-[10px] text-slate-400 transition-transform ${openFilter === "responsaveis" ? "rotate-180" : ""}`}>▾</span>
                 </button>
-              </span>
+                {openFilter === "responsaveis" && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                    {ownersLista.map((o) => (
+                      <label key={o.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                        <input type="checkbox" checked={!hiddenOwners.has(o.id)} onChange={() => toggleOwner(o.id)} />
+                        <span className="truncate text-slate-700">{o.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="grid grid-cols-7 place-items-center gap-0.5">
-              {DOW.map((d) => (
-                <div key={d} className="text-[10px] text-slate-400">
-                  {d.charAt(0)}
-                </div>
-              ))}
-              {miniCells}
-            </div>
-          </div>
+          </aside>
+        )}
 
-          {/* Filtro: Resultado */}
-          <div>
-            <div className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Resultado</div>
-            <div className="flex flex-col gap-1">
-              {RESULT_ORDER.map((cat) => (
-                <label key={cat} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
-                  <input type="checkbox" checked={!hiddenResults.has(cat)} onChange={() => toggleResult(cat)} />
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: RESULT_META[cat].color }} />
-                  <span className="text-slate-700">{RESULT_META[cat].label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Filtro: Responsáveis */}
-          <div>
-            <div className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Responsáveis</div>
-            <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-              {ownersLista.map((o) => (
-                <label key={o.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
-                  <input type="checkbox" checked={!hiddenOwners.has(o.id)} onChange={() => toggleOwner(o.id)} />
-                  <span className="truncate text-slate-700">{o.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-slate-600">
-            <input type="checkbox" checked={weekends} onChange={() => setWeekends((v) => !v)} /> Mostrar fins de semana
-          </label>
-        </aside>
-
-        <div className="min-w-0 flex-1 overflow-hidden">{corpo}</div>
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white">{corpo}</div>
       </div>
 
       {/* Modal de detalhe (read-only) */}
