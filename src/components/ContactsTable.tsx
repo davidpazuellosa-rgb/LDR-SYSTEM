@@ -977,6 +977,48 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     return { spanAt, skip };
   }, [merges, visible, unifiedIndexOf]);
 
+  // Rola a tela para acompanhar a célula selecionada (setas/Tab/Enter/edição) —
+  // só o mínimo necessário pra ela ficar visível, sem recentralizar à força.
+  // Roda em rAF pra garantir que o React já terminou de renderizar a célula-alvo.
+  useEffect(() => {
+    const target = editingCell || focusCell;
+    if (!target) return;
+    let { row, col } = target;
+    // Célula coberta por mescla não tem elemento próprio no DOM — rola até a
+    // célula-âncora do merge (que é quem realmente é renderizada).
+    if (mergeLayout.skip.has(`${row}:${col}`)) {
+      for (const [key, span] of mergeLayout.spanAt) {
+        const [top, left] = key.split(":").map(Number);
+        if (row >= top && row < top + span.rowSpan && col >= left && col < left + span.colSpan) {
+          row = top;
+          col = left;
+          break;
+        }
+      }
+    }
+    requestAnimationFrame(() => {
+      const grid = gridRef.current;
+      const el = grid?.querySelector(`[data-grid-cell="${row}:${col}"]`);
+      if (!grid || !el) return;
+      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      // scrollIntoView não sabe que o cabeçalho (sticky top) e a coluna de
+      // número da linha (sticky left) cobrem parte da área "visível" — sem
+      // isso, a célula pode ficar escondida atrás deles justo na borda.
+      const headEl = grid.querySelector("thead");
+      const stickyColEl = grid.querySelector("tbody .sticky.left-0");
+      const headerH = headEl?.getBoundingClientRect().height ?? 0;
+      const stickyColW = stickyColEl?.getBoundingClientRect().width ?? 0;
+      const gridRect = grid.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      if (elRect.top < gridRect.top + headerH) {
+        grid.scrollTop -= gridRect.top + headerH - elRect.top;
+      }
+      if (elRect.left < gridRect.left + stickyColW) {
+        grid.scrollLeft -= gridRect.left + stickyColW - elRect.left;
+      }
+    });
+  }, [focusCell, editingCell, mergeLayout]);
+
   // Limpa a seleção quando o conjunto visível muda (troca de aba/filtro/busca):
   // os índices anchor/focus apontam para posições em `visible` e, sem isso,
   // passariam a referenciar contatos diferentes dos exibidos.
