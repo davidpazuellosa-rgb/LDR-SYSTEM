@@ -9,6 +9,7 @@ import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
+import { parseColOrder, parseHeaderLabels, parseHiddenCols } from "@/lib/base-columns";
 import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
 
 export const dynamic = "force-dynamic";
@@ -62,9 +63,10 @@ export default async function BaseDetailPage({
   // headers guarda rótulos de coluna E, na chave reservada __merges__, as mesclas
   // visuais (estilo Excel) compartilhadas pelo time. Separa as duas coisas aqui.
   const rawHeaders = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
-  const { __merges__: rawMerges, __cols__: _rawCols, ...labelHeaders } = rawHeaders;
-  void _rawCols;
-  const initialHeaders = labelHeaders as ComponentProps<typeof ContactsTable>["initialHeaders"];
+  const rawMerges = rawHeaders.__merges__;
+  // parseHeaderLabels descarta TODAS as chaves reservadas (__cols__, __order__,
+  // __hidden__, __sortBy__…), deixando só os rótulos renomeados de coluna.
+  const initialHeaders = parseHeaderLabels(rawHeaders) as ComponentProps<typeof ContactsTable>["initialHeaders"];
   const initialMerges = (Array.isArray(rawMerges) ? rawMerges : []) as ComponentProps<
     typeof ContactsTable
   >["initialMerges"];
@@ -73,6 +75,11 @@ export default async function BaseDetailPage({
   // por contato na tabela ContactCustomValue (ambos sem migration).
   const initialCols = parseCustomCols(rawHeaders) as ComponentProps<typeof ContactsTable>["initialCols"];
   const initialSort = parseSortBy(rawHeaders);
+  // Ordem e ocultas são COMPARTILHADAS (headers.__order__/__hidden__) — antes
+  // viviam no localStorage de cada navegador, o que fazia o CSV sair diferente
+  // do que a pessoa via na tela.
+  const initialOrder = parseColOrder(rawHeaders);
+  const initialHidden = parseHiddenCols(rawHeaders);
   await ensureContactCustomTable();
   const customRows = rows.length
     ? await prisma.contactCustomValue.findMany({
@@ -140,6 +147,9 @@ export default async function BaseDetailPage({
           initialCols={initialCols}
           initialCustomValues={initialCustomValues}
           initialSort={initialSort}
+          initialOrder={initialOrder}
+          initialHidden={initialHidden}
+          regiao={regiao ?? null}
           me={{
             id: (session?.user as { id?: string } | undefined)?.id || "",
             nome: session?.user?.name || session?.user?.email || "Usuário",

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { ufSigla } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
+import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
 import { isComplete, customsCompletos, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
@@ -205,6 +206,9 @@ export default function ContactsTable({
   initialCols = [],
   initialCustomValues = {},
   initialSort = null,
+  initialOrder = [],
+  initialHidden = [],
+  regiao = null,
   initialSavedAt = null,
   me = { id: "", nome: "" },
   canDelete = true,
@@ -221,6 +225,9 @@ export default function ContactsTable({
   initialCols?: { key: string; label: string }[];
   initialCustomValues?: Record<string, Record<string, string>>;
   initialSort?: { key: string; dir: "asc" | "desc" } | null;
+  initialOrder?: string[];
+  initialHidden?: string[];
+  regiao?: string | null;
   initialSavedAt?: string | null;
   canDelete?: boolean;
   canImport?: boolean;
@@ -299,7 +306,9 @@ const [menu, setMenu] = useState<
 const [pasteSpecialOpen, setPasteSpecialOpen] = useState(false);
 const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
 // Colunas ocultas/"excluídas" da visão (campos fixos não são apagados do banco).
-const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set());
+// COMPARTILHADAS com o time (Base.headers.__hidden__), igual às mesclas e à
+// ordenação — é o que garante que o CSV saia igual ao que está na tela.
+const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(initialHidden));
   // Células copiadas/recortadas e marcadas (tracejado tipo Google Sheets).
   const [clip, setClip] = useState<Clip | null>(null);
   // Mesclas visuais da base — compartilhadas por todo o time (salvas no banco,
@@ -318,6 +327,29 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
         .catch(() => markSaveError());
     },
     [baseId, markSaving, markSaved, markSaveError],
+  );
+
+  // ---- Layout das colunas (ordem + ocultas), compartilhado ----
+  // Salvo em Base.headers.__order__/__hidden__ via /api/bases/[id]/layout.
+  const persistLayout = useCallback(
+    (payload: { order?: string[]; hidden?: string[] }) => {
+      markSaving();
+      fetch(apiPath(`/api/bases/${baseId}/layout`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((r) => (r.ok ? markSaved() : markSaveError()))
+        .catch(() => markSaveError());
+    },
+    [baseId, markSaving, markSaved, markSaveError],
+  );
+  const changeHidden = useCallback(
+    (next: Set<string>) => {
+      setHiddenColumns(next);
+      persistLayout({ hidden: [...next] });
+    },
+    [persistLayout],
   );
 
   // ---- Colunas personalizadas (bloco à direita) ----
@@ -398,14 +430,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     } else {
       next.push(key);
     }
-    const hiddenNativeKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
-    const full = [...next, ...hiddenNativeKeys];
-    setFieldOrder(full);
-    try {
-      localStorage.setItem(`colorder:${baseId}`, JSON.stringify(full));
-    } catch {
-      // ignora
-    }
+    changeOrder(next);
     saveCols([...customCols, { key, label }]);
   }
   function renameCustomCol(key: string, label: string) {
@@ -541,17 +566,22 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     }
   }, [baseId]);
 
-  // Ordem das colunas fixas — reordenável arrastando a letra da coluna;
-  // guardada por base no navegador (localStorage), sem mexer no banco.
-  const [fieldOrder, setFieldOrder] = useState<string[]>([]);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`colorder:${baseId}`);
-      if (saved) setFieldOrder(JSON.parse(saved));
-    } catch {
-      // localStorage indisponível ou JSON inválido — ignora
-    }
-  }, [baseId]);
+  // Ordem das colunas — reordenável arrastando a letra da coluna. COMPARTILHADA
+  // com o time (Base.headers.__order__): antes era localStorage, então cada
+  // navegador via uma ordem e a exportação não tinha como saber qual era a certa.
+  const [fieldOrder, setFieldOrder] = useState<string[]>(initialOrder);
+  const changeOrder = useCallback(
+    (visibleKeys: string[]) => {
+      // Colunas ocultas também precisam de posição guardada, senão voltam pro
+      // fim quando forem reexibidas.
+      const todas = [...CONTACT_FIELDS.map((f) => f.key), ...customCols.map((c) => c.key)];
+      const full = completeOrder(visibleKeys, todas);
+      setFieldOrder(full);
+      persistLayout({ order: full });
+      return full;
+    },
+    [customCols, persistLayout],
+  );
   // Uma única ref/handler de arrastar para QUALQUER coluna (fixa ou
   // personalizada) — dá pra soltar uma sobre a outra livremente, pois as
   // duas compartilham a mesma ordem visual unificada (`fieldOrder`).
@@ -567,14 +597,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     const next = [...currentOrder];
     next.splice(from, 1);
     next.splice(to, 0, draggedKey);
-    const hiddenNativeKeys = CONTACT_FIELDS.map((f) => f.key).filter((k) => !next.includes(k));
-    const full = [...next, ...hiddenNativeKeys];
-    setFieldOrder(full);
-    try {
-      localStorage.setItem(`colorder:${baseId}`, JSON.stringify(full));
-    } catch {
-      // ignora
-    }
+    changeOrder(next);
   }
 
   // Arrastar o número da linha reordena as linhas (só nesta tela/sessão —
@@ -647,16 +670,6 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
 
   const ALL = "__all__";
   const NO_UF = "__no_uf__";
-  // Colunas exibidas (todas menos as ocultas). Todo o índice de coluna (seleção,
-  // copiar/colar, letras) usa esta lista, então ocultar uma coluna "funciona" inteiro.
-  const visibleFields = useMemo(() => {
-    const base = CONTACT_FIELDS.filter((f) => !hiddenColumns.has(f.key));
-    if (!fieldOrder.length) return base;
-    const orderIndex = new Map(fieldOrder.map((k, i) => [k, i]));
-    return [...base].sort(
-      (a, b) => (orderIndex.get(a.key) ?? 999) - (orderIndex.get(b.key) ?? 999)
-    );
-  }, [hiddenColumns, fieldOrder]);
   const headerLabelFor = useCallback(
     (key: string, fallback: string) => headerLabels[key] || fallback,
     [headerLabels]
@@ -665,30 +678,28 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   // pra desenhar a grade quanto pelo motor de seleção/navegação/copiar-colar/
   // desfazer — colunas personalizadas são colunas de verdade, só o local onde
   // o valor mora (contato vs. tabela própria) muda, via `cellValue`/`saveCellValue`.
+  //
+  // Vem de orderColumns (src/lib/base-columns.ts) — a MESMA função que a
+  // exportação usa no servidor, para o CSV nunca mais divergir da tela.
   type UnifiedCol =
     | { kind: "native"; key: string; nativeIndex: number; field: (typeof CONTACT_FIELDS)[number] }
     | { kind: "custom"; key: string; col: { key: string; label: string } };
   const unifiedCols = useMemo<UnifiedCol[]>(() => {
-    const nativeItems: UnifiedCol[] = visibleFields.map((field, nativeIndex) => ({
-      kind: "native",
-      key: field.key,
-      nativeIndex,
-      field,
-    }));
-    const customItems: UnifiedCol[] = customCols
-      .filter((col) => !hiddenColumns.has(col.key))
-      .map((col) => ({ kind: "custom", key: col.key, col }));
-    const all = [...nativeItems, ...customItems];
-    const orderIndex = new Map(fieldOrder.map((k, i) => [k, i]));
-    return all
-      .map((item, i) => ({ item, i }))
-      .sort((a, b) => {
-        const ao = orderIndex.has(a.item.key) ? (orderIndex.get(a.item.key) as number) : 100000 + a.i;
-        const bo = orderIndex.has(b.item.key) ? (orderIndex.get(b.item.key) as number) : 100000 + b.i;
-        return ao - bo;
-      })
-      .map((x) => x.item);
-  }, [visibleFields, customCols, fieldOrder, hiddenColumns]);
+    // nativeIndex = posição entre as colunas fixas visíveis (usado só pelo
+    // congelamento da primeira coluna).
+    let n = 0;
+    const nativeIdx = new Map<string, number>();
+    for (const f of CONTACT_FIELDS) if (!hiddenColumns.has(f.key)) nativeIdx.set(f.key, n++);
+    return orderColumns({
+      cols: customCols,
+      order: fieldOrder,
+      hidden: hiddenColumns,
+    }).map((c) =>
+      c.kind === "custom"
+        ? { kind: "custom", key: c.key, col: c.col }
+        : { kind: "native", key: c.key, nativeIndex: nativeIdx.get(c.key) ?? 0, field: c.field }
+    );
+  }, [customCols, fieldOrder, hiddenColumns]);
   const unifiedIndexOf = useMemo(() => {
     const m = new Map<string, number>();
     unifiedCols.forEach((c, i) => m.set(c.key, i));
@@ -876,6 +887,16 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
     return ufs[0] || ALL;
   }, [initialContacts]);
   const [tab, setTab] = useState(firstUf);
+
+  // O CSV sai da visão ativa: aba de UF + região (quando veio de um card).
+  // As colunas o servidor já resolve sozinho (headers.__cols__/__order__/__hidden__).
+  const exportHref = useMemo(() => {
+    const p = new URLSearchParams();
+    if (regiao) p.set("regiao", regiao);
+    if (tab !== ALL) p.set("uf", tab);
+    const qs = p.toString();
+    return apiPath(`/api/bases/${baseId}/export${qs ? `?${qs}` : ""}`);
+  }, [baseId, regiao, tab, ALL]);
 
   // Lista estável de UFs (as abas não somem); a contagem reflete o filtro de telefone ativo.
   const allUfs = useMemo(() => {
@@ -1226,11 +1247,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   else if (action.kind === "coldelete") {
     // desfazer excluir coluna: restaura os valores e mostra a(s) coluna(s) de novo.
     if (action.edits.length) applyBatch(action.edits, false);
-    setHiddenColumns((prev) => {
-      const next = new Set(prev);
-      action.colKeys.forEach((k) => next.delete(k));
-      return next;
-    });
+    const next = new Set(hiddenColumns);
+    action.colKeys.forEach((k) => next.delete(k));
+    changeHidden(next);
   }
   else if (action.kind === "sort") {
     // desfazer ordenação: volta a ordem anterior (e o indicador de coluna anterior).
@@ -1261,11 +1280,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set())
   else if (action.kind === "coldelete") {
     // refazer excluir coluna: limpa de novo e oculta.
     if (action.edits.length) applyBatch(action.edits, true);
-    setHiddenColumns((prev) => {
-      const next = new Set(prev);
-      action.colKeys.forEach((k) => next.add(k));
-      return next;
-    });
+    const next = new Set(hiddenColumns);
+    action.colKeys.forEach((k) => next.add(k));
+    changeHidden(next);
   }
   else if (action.kind === "sort") {
     // refazer ordenação: aplica a ordem seguinte de novo.
@@ -1690,11 +1707,9 @@ async function clearColumns(colIndices: number[]) {
 function hideColumns(colIndices: number[]) {
   const keys = colIndices.map((i) => unifiedKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
-  setHiddenColumns((prev) => {
-    const next = new Set(prev);
-    keys.forEach((k) => next.add(k));
-    return next;
-  });
+  const next = new Set(hiddenColumns);
+  keys.forEach((k) => next.add(k));
+  changeHidden(next);
   setAnchorCell(null);
   setFocusCell(null);
   setClip(null);
@@ -1727,11 +1742,9 @@ async function excluirColunas(colIndices: number[]) {
   setHistory((prev) => [...prev, { kind: "coldelete" as const, edits, colKeys: keys }].slice(-100));
   setRedoStack([]);
   if (edits.length) await applyBatch(edits, true);
-  setHiddenColumns((prev) => {
-    const next = new Set(prev);
-    keys.forEach((k) => next.add(k));
-    return next;
-  });
+  const ocultas = new Set(hiddenColumns);
+  keys.forEach((k) => ocultas.add(k));
+  changeHidden(ocultas);
   setAnchorCell(null);
   setFocusCell(null);
   setClip(null);
@@ -1739,7 +1752,7 @@ async function excluirColunas(colIndices: number[]) {
 }
 
 function showAllColumns() {
-  setHiddenColumns(new Set());
+  changeHidden(new Set());
   setAnchorCell(null);
   setFocusCell(null);
 }
@@ -2623,8 +2636,15 @@ async function saveCell(id: string, key: string, value: string) {
           )}
           {canExport && (
             <a
-              href={apiPath(`/api/bases/${baseId}/export`)}
-              onMouseEnter={(e) => showTip(e, "Exportar planilha (CSV)")}
+              href={exportHref}
+              onMouseEnter={(e) =>
+                showTip(
+                  e,
+                  tab === ALL
+                    ? "Exportar planilha (CSV)"
+                    : `Exportar ${tab === NO_UF ? "linhas sem UF" : ufSigla(tab)} (CSV)`
+                )
+              }
               onMouseLeave={() => setTip(null)}
               aria-label="Exportar"
               className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300"

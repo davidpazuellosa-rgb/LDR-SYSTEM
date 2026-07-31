@@ -145,8 +145,17 @@ export async function POST(
       await prisma.contact.updateMany({ where: { id: { in: deletedIds } }, data: { deletedAt: new Date() } });
     }
     // Rótulos das colunas: só troca se o usuário pediu (senão, mantém os atuais).
+    // As chaves reservadas (__cols__, __order__, __hidden__, __merges__, __sortBy__)
+    // são ESTRUTURA, não rótulo: sobrevivem à substituição, senão a base perde as
+    // colunas personalizadas (e elas sumiriam da tela e do CSV).
     if (replaceColumns) {
-      const newHeaders = Object.fromEntries(parsed.matchedColumns.map((c) => [c.field, c.header]));
+      const estrutura = Object.fromEntries(
+        Object.entries(oldHeaders).filter(([k]) => k.startsWith("__") && k.endsWith("__"))
+      );
+      const newHeaders = {
+        ...estrutura,
+        ...Object.fromEntries(parsed.matchedColumns.map((c) => [c.field, c.header])),
+      };
       await prisma.base.update({ where: { id }, data: { headers: newHeaders } });
     }
 
