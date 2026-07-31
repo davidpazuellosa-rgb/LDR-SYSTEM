@@ -20,15 +20,7 @@ export async function ensureContactCustomTable() {
   ensured = true;
 }
 
-export type CustomCol = { key: string; label: string };
-
-// Lê/normaliza as definições de colunas personalizadas guardadas em Base.headers.__cols__.
-export function parseCustomCols(headers: Record<string, unknown> | null | undefined): CustomCol[] {
-  const raw = (headers || {})["__cols__"];
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
-    .map((c) => ({ key: String(c.key || ""), label: String(c.label || "").slice(0, 60) }))
-    .filter((c) => c.key && c.label)
-    .slice(0, 30);
-}
+// parseCustomCols/CustomCol moraram aqui, mas este arquivo importa o prisma e a
+// planilha (client component) precisa deles: ficaram em base-columns.ts, que é
+// puro. Reexportados para não quebrar quem já importava daqui.
+export { parseCustomCols, type CustomCol } from "@/lib/base-columns";

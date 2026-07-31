@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { CONTACT_FIELDS } from "../src/lib/contact-fields";
 import { orderColumns, resolveBaseColumns, completeOrder } from "../src/lib/base-columns";
 import { buildBaseCsv, SITUACAO_LABEL } from "../src/lib/base-export";
@@ -18,6 +19,16 @@ const headers = {
   __merges__: [{ anchorId: "x" }],
   __sortBy__: { key: "cidade", dir: "asc" },
 };
+
+// A planilha é client component e importa base-columns. Se este arquivo puxar
+// qualquer coisa que carregue o prisma, o PrismaClient vai parar no bundle do
+// navegador e a página quebra em produção ("server-side exception").
+test("base-columns não pode importar nada que carregue o prisma", () => {
+  const fonte = readFileSync(new URL("../src/lib/base-columns.ts", import.meta.url), "utf8");
+  const imports = [...fonte.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
+
+  assert.deepEqual(imports, ["@/lib/contact-fields"]);
+});
 
 test("resolveBaseColumns inclui as colunas personalizadas", () => {
   const keys = resolveBaseColumns(headers).map((c) => c.key);

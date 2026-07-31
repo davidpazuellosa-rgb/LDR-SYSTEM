@@ -12,8 +12,10 @@
 //   headers.__hidden__-> colunas ocultas
 //   headers.__merges__/__sortBy__ -> mesclas e ordenação (outros arquivos)
 
+// IMPORTANTE: este arquivo é usado pela planilha, que é client component.
+// Não importe nada que puxe o prisma (ex.: custom-columns.ts) — o PrismaClient
+// iria parar no bundle do navegador e a página quebra com erro de servidor.
 import { CONTACT_FIELDS, type ContactField } from "@/lib/contact-fields";
-import { parseCustomCols, type CustomCol } from "@/lib/custom-columns";
 
 export const COLS_KEY = "__cols__";
 export const ORDER_KEY = "__order__";
@@ -27,6 +29,19 @@ export type ResolvedCol =
   | { kind: "custom"; key: string; label: string; width?: number; col: CustomCol };
 
 type Headers = Record<string, unknown> | null | undefined;
+
+export type CustomCol = { key: string; label: string };
+
+// Lê/normaliza as definições de colunas personalizadas guardadas em headers.__cols__.
+export function parseCustomCols(headers: Headers): CustomCol[] {
+  const raw = (headers || {})[COLS_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+    .map((c) => ({ key: String(c.key || ""), label: String(c.label || "").slice(0, 60) }))
+    .filter((c) => c.key && c.label)
+    .slice(0, 30);
+}
 
 function stringList(raw: unknown, max: number): string[] {
   if (!Array.isArray(raw)) return [];
