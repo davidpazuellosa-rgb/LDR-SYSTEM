@@ -5,12 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { currentRole } from "@/lib/current-role";
 import { can, isAdmin } from "@/lib/permissions";
-import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
+import { isComplete, customsCompletos, isRowVazia, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
 import { parseColOrder, parseHeaderLabels, parseHiddenCols } from "@/lib/base-columns";
 import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
+import { parseAbas } from "@/lib/base-abas";
+import { garantirLinhasIniciais } from "@/lib/linhas-iniciais";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,12 @@ export default async function BaseDetailPage({
   // "ordem" é escrita pela ordenação compartilhada (Classificar A→Z/Z→A no cabeçalho).
   // Linhas nunca ordenadas (ordem null) caem no fim, na ordem de criação.
   await ensureContactOrdemColuna();
+  // Planilha vazia abre com linhas em branco em vez de "Nenhum contato" (uma vez só
+  // por base — ver headers.__semeada__). Antes do findUnique pra já vir com elas.
+  await garantirLinhasIniciais(id, {
+    regiao: regiao ?? null,
+    createdById: (session?.user as { id?: string } | undefined)?.id ?? null,
+  });
   const base = await prisma.base.findUnique({
     where: { id },
     include: {
@@ -80,6 +88,8 @@ export default async function BaseDetailPage({
   // do que a pessoa via na tela.
   const initialOrder = parseColOrder(rawHeaders);
   const initialHidden = parseHiddenCols(rawHeaders);
+  // Páginas (abas) guardadas: existem mesmo sem nenhuma linha na UF ainda.
+  const initialAbas = parseAbas(rawHeaders);
   await ensureContactCustomTable();
   const customRows = rows.length
     ? await prisma.contactCustomValue.findMany({
@@ -95,7 +105,10 @@ export default async function BaseDetailPage({
   // Conclusão do cabeçalho: 7 campos fixos + TODAS as colunas personalizadas preenchidas.
   const customKeys = (initialCols ?? []).map((c) => c.key);
   const concluidos = rows.filter((c) => isComplete(c) && customsCompletos(customKeys, initialCustomValues[c.id])).length;
-  const aPreencher = rows.length - concluidos;
+  // Linha ainda em branco não é trabalho pendente — senão uma planilha recém-criada
+  // já nasceria mostrando "50 a preencher" sem ninguém ter deixado nada por fazer.
+  const comDado = rows.filter((c) => !isRowVazia(c as unknown as Record<string, unknown>, initialCustomValues[c.id]));
+  const aPreencher = comDado.length - concluidos;
 
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.
@@ -149,6 +162,7 @@ export default async function BaseDetailPage({
           initialSort={initialSort}
           initialOrder={initialOrder}
           initialHidden={initialHidden}
+          initialAbas={initialAbas}
           regiao={regiao ?? null}
           me={{
             id: (session?.user as { id?: string } | undefined)?.id || "",

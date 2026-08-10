@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
-import { ufSigla } from "@/lib/uf";
+import { ufSigla, UFS_BRASIL } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
-import { isComplete, customsCompletos, type ReqRow } from "@/lib/completude";
+import { isComplete, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -208,6 +208,7 @@ export default function ContactsTable({
   initialSort = null,
   initialOrder = [],
   initialHidden = [],
+  initialAbas = [],
   regiao = null,
   initialSavedAt = null,
   me = { id: "", nome: "" },
@@ -227,6 +228,7 @@ export default function ContactsTable({
   initialSort?: { key: string; dir: "asc" | "desc" } | null;
   initialOrder?: string[];
   initialHidden?: string[];
+  initialAbas?: string[];
   regiao?: string | null;
   initialSavedAt?: string | null;
   canDelete?: boolean;
@@ -898,26 +900,39 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
     return apiPath(`/api/bases/${baseId}/export${qs ? `?${qs}` : ""}`);
   }, [baseId, regiao, tab, ALL]);
 
-  // Lista estável de UFs (as abas não somem); a contagem reflete o filtro de telefone ativo.
+  // Páginas criadas à mão (guardadas em headers.__abas__) — existem mesmo sem
+  // nenhuma linha ainda. A lista de abas é a UNIÃO delas com as UFs derivadas
+  // dos contatos, então tudo que já existia continua aparecendo igual.
+  const [abas, setAbas] = useState<string[]>(initialAbas);
   const allUfs = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of contacts) set.add(ufOf(c));
+    const set = new Set<string>(abas);
+    for (const c of contacts) {
+      const uf = ufOf(c);
+      // "Sem UF" só vira aba se houver linha COM DADO sem estado — senão uma
+      // planilha recém-criada (só linhas em branco) abriria com uma aba órfã.
+      if (uf === NO_UF && isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
+      set.add(uf);
+    }
     return Array.from(set).sort((a, b) => {
       if (a === NO_UF) return 1;
       if (b === NO_UF) return -1;
       return a.localeCompare(b);
     });
-  }, [contacts]);
+  }, [contacts, abas, customValues]);
 
+  // Total por aba, ignorando as linhas ainda em branco (as que a planilha cria
+  // sozinha) — senão criar uma página faria o total pular de 0 para 50 sem
+  // ninguém ter preenchido nada.
   const estados = useMemo(() => {
     const counts = new Map<string, number>();
     for (const uf of allUfs) counts.set(uf, 0);
     for (const c of contacts) {
       if (!matchesPhone(c)) continue;
+      if (isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
       counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
     }
     return allUfs.map((uf) => [uf, counts.get(uf) || 0] as [string, number]);
-  }, [contacts, allUfs, matchesPhone]);
+  }, [contacts, allUfs, matchesPhone, customValues]);
 
   // Quantas linhas de cada UF já estão "preenchidas" (mesma régua do cabeçalho
   // da tela, em src/lib/completude.ts) — mostrado nas abas como preenchidos/total.
@@ -936,10 +951,72 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
     return counts;
   }, [contacts, allUfs, matchesPhone, customCols, customValues]);
 
-  // Total da aba "Todas" também acompanha o filtro.
+  // ---- Criar/excluir página (aba) ----
+  const [novaAbaAberta, setNovaAbaAberta] = useState(false);
+  const [criandoAba, setCriandoAba] = useState(false);
+
+  async function criarAba(uf: string) {
+    setCriandoAba(true);
+    setNovaAbaAberta(false);
+    markSaving();
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}/abas`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uf, regiao }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Não foi possível criar a página.", data.error);
+        markSaveError();
+        return;
+      }
+      setAbas((prev) => (prev.includes(uf) ? prev : [...prev, uf]));
+      if (Array.isArray(data.criadas) && data.criadas.length) {
+        setContacts((prev) => [...prev, ...(data.criadas as Contact[])]);
+      }
+      setTab(uf);
+      markSaved();
+    } catch (e) {
+      toast.error("Não foi possível criar a página.", (e as Error).message);
+      markSaveError();
+    } finally {
+      setCriandoAba(false);
+    }
+  }
+
+  async function excluirAba(uf: string) {
+    if (!confirm(`Excluir a página ${uf}? Só funciona se ela não tiver linhas preenchidas.`)) return;
+    markSaving();
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}/abas`), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uf }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Não foi possível excluir a página.", data.error);
+        markSaveError();
+        return;
+      }
+      setAbas((prev) => prev.filter((a) => a !== uf));
+      setContacts((prev) => prev.filter((c) => ufOf(c) !== uf));
+      if (tab === uf) setTab(ALL);
+      markSaved();
+    } catch (e) {
+      toast.error("Não foi possível excluir a página.", (e as Error).message);
+      markSaveError();
+    }
+  }
+
+  // Total da aba "Todas" também acompanha o filtro (e também ignora as vazias).
   const filteredTotal = useMemo(
-    () => contacts.filter(matchesPhone).length,
-    [contacts, matchesPhone]
+    () =>
+      contacts.filter(
+        (c) => matchesPhone(c) && !isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])
+      ).length,
+    [contacts, matchesPhone, customValues]
   );
 
   // Contagem GLOBAL por status (soma de todos os estados da base).
@@ -3132,33 +3209,71 @@ async function saveCell(id: string, key: string, value: string) {
       {/* Abas por estado (UF) — rodapé estilo Excel: a aba ativa fica branca, um
           pouco mais alta e com borda (presa à planilha); as demais ficam cinzas
           e recuadas, separadas por tracinhos. */}
-      {estados.length > 0 && (
-        <div className="-mt-2 flex shrink-0 items-end overflow-x-auto rounded-b-xl border-t border-slate-400/70 bg-slate-300 px-2 shadow-[0_-2px_8px_rgba(15,23,42,0.10)]">
+      <div className="relative -mt-2 flex shrink-0 items-end overflow-x-auto rounded-b-xl border-t border-slate-400/70 bg-slate-300 px-2 shadow-[0_-2px_8px_rgba(15,23,42,0.10)]">
+        <button
+          onClick={() => setTab(ALL)}
+          className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
+            tab === ALL
+              ? "rounded-b-md border border-t-0 border-slate-400 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800 shadow-sm"
+              : "border-r border-slate-400/60 pb-1.5 pt-1.5 font-medium text-slate-600 hover:bg-white/60 hover:text-slate-900"
+          }`}
+        >
+          Todas <span className="text-xs text-slate-500">({filteredTotal})</span>
+        </button>
+        {estados.map(([uf, n]) => (
           <button
-            onClick={() => setTab(ALL)}
+            key={uf}
+            onClick={() => setTab(uf)}
+            onContextMenu={(e) => {
+              if (!canEditHeaders || uf === NO_UF) return;
+              e.preventDefault();
+              excluirAba(uf);
+            }}
+            title={canEditHeaders && uf !== NO_UF ? "Botão direito para excluir a página" : undefined}
             className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
-              tab === ALL
-                ? "rounded-b-md border border-t-0 border-slate-400 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800 shadow-sm"
-                : "border-r border-slate-400/60 pb-1.5 pt-1.5 font-medium text-slate-600 hover:bg-white/60 hover:text-slate-900"
+              tab === uf
+                ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
+                : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
             }`}
           >
-            Todas <span className="text-xs text-slate-500">({filteredTotal})</span>
+            {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({estadosCompletos.get(uf) || 0}/{n})</span>
           </button>
-          {estados.map(([uf, n]) => (
+        ))}
+        {canEditHeaders && (
+          <div className="relative shrink-0">
             <button
-              key={uf}
-              onClick={() => setTab(uf)}
-              className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
-                tab === uf
-                  ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
-                  : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
-              }`}
+              onClick={() => setNovaAbaAberta((v) => !v)}
+              disabled={criandoAba}
+              title="Adicionar página (estado)"
+              className="px-3 pb-1.5 pt-1.5 text-lg font-medium leading-none text-slate-500 transition hover:text-slate-800 disabled:opacity-40"
             >
-              {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({estadosCompletos.get(uf) || 0}/{n})</span>
+              +
             </button>
-          ))}
-        </div>
-      )}
+            {novaAbaAberta && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setNovaAbaAberta(false)} />
+                <div className="absolute bottom-full left-0 z-50 mb-1 max-h-64 w-44 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+                  <p className="px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">Nova página</p>
+                  {UFS_BRASIL.map((uf) => {
+                    const existe = allUfs.includes(uf);
+                    return (
+                      <button
+                        key={uf}
+                        disabled={existe}
+                        onClick={() => criarAba(uf)}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-transparent"
+                      >
+                        {uf}
+                        {existe && <span className="text-[10px] text-slate-300">já existe</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {tip && (
         <div

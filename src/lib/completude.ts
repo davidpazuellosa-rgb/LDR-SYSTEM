@@ -1,5 +1,9 @@
 // Régua de "preenchida/completa" + cores de conclusão, usadas nas telas de bases.
 // Ajuste REQUIRED_FIELDS aqui se a régua mudar.
+//
+// IMPORTANTE: usado também pela planilha (client component) — não importe nada
+// que puxe o prisma aqui, senão o PrismaClient vai parar no bundle do navegador.
+import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
 export const REQUIRED_FIELDS = [
   "cidade",
   "estado",
@@ -27,6 +31,34 @@ export const isComplete = (c: ReqRow) => REQUIRED_FIELDS.every((f) => nonEmpty(c
 // Todas as colunas personalizadas da base preenchidas para este contato.
 export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined) =>
   customKeys.every((k) => !!(vals?.[k] && vals[k].trim()));
+
+// Quantas linhas em branco uma planilha nova (ou uma página nova) já nasce tendo,
+// para nunca abrir "vazia demais" e sem por onde começar.
+export const LINHAS_INICIAIS = 50;
+
+// Estado e região não contam como "dado preenchido": são só o andaime da página
+// em que a linha foi criada (a aba é uma UF), não informação que alguém digitou.
+const CAMPOS_ANDAIME = new Set(["estado", "regiao"]);
+// Só as colunas de dado do contato entram na conta — id/baseId/status/datas
+// nunca são vazios e diriam que toda linha tem conteúdo.
+const CAMPOS_DE_DADO = CONTACT_FIELD_KEYS.filter((k) => !CAMPOS_ANDAIME.has(k));
+
+// Linha ainda sem nenhum dado real — usada para não inflar os contadores de
+// progresso ("a preencher", preenchidos/total das abas) com as linhas em branco
+// criadas automaticamente.
+export function isRowVazia(
+  row: Record<string, unknown>,
+  customVals?: Record<string, string>
+): boolean {
+  for (const k of CAMPOS_DE_DADO) {
+    const v = row[k];
+    if (typeof v === "string" && v.trim()) return false;
+  }
+  for (const v of Object.values(customVals || {})) {
+    if (v && v.trim()) return false;
+  }
+  return true;
+}
 export const pctOf = (done: number, total: number) => (total ? Math.round((done / total) * 100) : 0);
 
 // Cores por conclusão: 0 vermelho · 1-49 amarelo · 50-99 laranja · 100 verde.

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import RegioesGrid from "@/components/RegioesGrid";
-import { isComplete, customsCompletos, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { isComplete, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 
 export const dynamic = "force-dynamic";
@@ -99,6 +99,9 @@ export default async function BasesPage({
   for (const c of contacts) {
     const b = agg.get(c.baseId);
     if (!b) continue;
+    // Linhas ainda em branco (as que toda planilha nova já ganha) não entram na
+    // conta — senão uma planilha recém-criada apareceria como 0% em vez de vazia.
+    if (isRowVazia(c as unknown as Record<string, unknown>, customByContact.get(c.id))) continue;
     const ok = isComplete(c) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
     b.total += 1;
     if (ok) b.done += 1;

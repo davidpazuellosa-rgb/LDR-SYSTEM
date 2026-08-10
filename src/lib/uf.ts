@@ -11,6 +11,9 @@ const NOME_PARA_UF: Record<string, string> = {
   "santa catarina": "SC", "sao paulo": "SP", sergipe: "SE", tocantins: "TO",
 };
 const SIGLAS = new Set(Object.values(NOME_PARA_UF));
+
+// As 27 UFs em ordem alfabética — usada no seletor de "nova página" da planilha.
+export const UFS_BRASIL = Array.from(SIGLAS).sort();
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 export function ufSigla(value?: string | null): string {
