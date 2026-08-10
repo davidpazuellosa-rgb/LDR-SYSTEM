@@ -952,12 +952,15 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
   }, [contacts, allUfs, matchesPhone, customCols, customValues]);
 
   // ---- Criar/excluir página (aba) ----
-  const [novaAbaAberta, setNovaAbaAberta] = useState(false);
+  // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu
+  // ancorado dentro dela. Por isso o seletor de UF sai num portal com posição
+  // fixa, ancorado no retângulo do botão — mesmo padrão do ColumnFilterPopover.
+  const [novaAbaRect, setNovaAbaRect] = useState<DOMRect | null>(null);
   const [criandoAba, setCriandoAba] = useState(false);
 
   async function criarAba(uf: string) {
     setCriandoAba(true);
-    setNovaAbaAberta(false);
+    setNovaAbaRect(null);
     markSaving();
     try {
       const res = await fetch(apiPath(`/api/bases/${baseId}/abas`), {
@@ -3240,40 +3243,53 @@ async function saveCell(id: string, key: string, value: string) {
           </button>
         ))}
         {canEditHeaders && (
-          <div className="relative shrink-0">
-            <button
-              onClick={() => setNovaAbaAberta((v) => !v)}
-              disabled={criandoAba}
-              title="Adicionar página (estado)"
-              className="px-3 pb-1.5 pt-1.5 text-lg font-medium leading-none text-slate-500 transition hover:text-slate-800 disabled:opacity-40"
-            >
-              +
-            </button>
-            {novaAbaAberta && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setNovaAbaAberta(false)} />
-                <div className="absolute bottom-full left-0 z-50 mb-1 max-h-64 w-44 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
-                  <p className="px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">Nova página</p>
-                  {UFS_BRASIL.map((uf) => {
-                    const existe = allUfs.includes(uf);
-                    return (
-                      <button
-                        key={uf}
-                        disabled={existe}
-                        onClick={() => criarAba(uf)}
-                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-transparent"
-                      >
-                        {uf}
-                        {existe && <span className="text-[10px] text-slate-300">já existe</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            onClick={(e) =>
+              setNovaAbaRect((prev) => (prev ? null : e.currentTarget.getBoundingClientRect()))
+            }
+            disabled={criandoAba}
+            title="Adicionar página (estado)"
+            className="shrink-0 px-3 pb-1.5 pt-1.5 text-lg font-medium leading-none text-slate-500 transition hover:text-slate-800 disabled:opacity-40"
+          >
+            +
+          </button>
         )}
       </div>
+
+      {/* Seletor de UF da nova página — num portal, senão a rolagem da faixa de
+          abas recortaria o menu e ele ficaria invisível. */}
+      {novaAbaRect &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[70]" onMouseDown={() => setNovaAbaRect(null)} />
+            <div
+              className="fixed z-[71] max-h-72 w-44 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+              style={{
+                // Abre para CIMA do botão (a faixa fica colada no rodapé da tela).
+                bottom: Math.max(8, window.innerHeight - novaAbaRect.top + 6),
+                left: Math.min(novaAbaRect.left, window.innerWidth - 188),
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <p className="px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">Nova página</p>
+              {UFS_BRASIL.map((uf) => {
+                const existe = allUfs.includes(uf);
+                return (
+                  <button
+                    key={uf}
+                    disabled={existe}
+                    onClick={() => criarAba(uf)}
+                    className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-indigo-50 disabled:cursor-default disabled:text-slate-300 disabled:hover:bg-transparent"
+                  >
+                    {uf}
+                    {existe && <span className="text-[10px] text-slate-300">já existe</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </>,
+          document.body
+        )}
 
       {tip && (
         <div
