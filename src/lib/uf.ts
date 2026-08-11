@@ -14,6 +14,27 @@ const SIGLAS = new Set(Object.values(NOME_PARA_UF));
 
 // As 27 UFs em ordem alfabética — usada no seletor de "nova página" da planilha.
 export const UFS_BRASIL = Array.from(SIGLAS).sort();
+
+// Região de cada UF — usada na importação para derivar a região quando a
+// planilha não traz essa coluna, mas já dá pra saber pelo estado.
+const REGIAO_DA_UF: Record<string, string> = {
+  AC: "Norte", AP: "Norte", AM: "Norte", PA: "Norte", RO: "Norte", RR: "Norte", TO: "Norte",
+  AL: "Nordeste", BA: "Nordeste", CE: "Nordeste", MA: "Nordeste", PB: "Nordeste",
+  PE: "Nordeste", PI: "Nordeste", RN: "Nordeste", SE: "Nordeste",
+  DF: "Centro-Oeste", GO: "Centro-Oeste", MT: "Centro-Oeste", MS: "Centro-Oeste",
+  ES: "Sudeste", MG: "Sudeste", RJ: "Sudeste", SP: "Sudeste",
+  PR: "Sul", RS: "Sul", SC: "Sul",
+};
+export function regiaoDaUf(uf?: string | null): string {
+  return REGIAO_DA_UF[ufSigla(uf)] || "";
+}
+// Uma sigla de UF "de verdade" — só bate exato (2 letras válidas), nunca chute
+// (ufSigla() tem um fallback de "2 primeiras letras" que serve pra exibição,
+// não pra decidir automaticamente o estado de uma aba/planilha inteira).
+export function ehUfValida(value?: string | null): boolean {
+  const v = (value || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(v) && SIGLAS.has(v);
+}
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 export function ufSigla(value?: string | null): string {

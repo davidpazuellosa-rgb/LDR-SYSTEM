@@ -2389,7 +2389,9 @@ async function saveCell(id: string, key: string, value: string) {
       if (data.substituidos) parts.push(`${data.substituidos} substituído(s)`);
       if (data.invalid) parts.push(`${data.invalid} com telefone inválido`);
       if (data.skippedNoChange) parts.push(`${data.skippedNoChange} sem mudança`);
-      if (data.unknownColumns?.length) parts.push(`${data.unknownColumns.length} coluna(s) não reconhecida(s)`);
+      // Não é mais "perdido": colunas fora do padrão viram coluna personalizada
+      // automaticamente (o dado é gravado, só não é um dos campos fixos).
+      if (data.unknownColumns?.length) parts.push(`${data.unknownColumns.length} coluna(s) nova(s) adicionada(s)`);
       const resumo = parts.join(" · ") || "Nada a importar";
       toast.success(mode === "replace" ? "Substituição concluída" : "Importação concluída", resumo);
       if (data.eventoId) setUndoInfo({ eventoId: data.eventoId, resumo });
