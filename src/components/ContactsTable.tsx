@@ -2374,6 +2374,10 @@ async function saveCell(id: string, key: string, value: string) {
     fd.append("file", file);
     fd.append("mode", mode);
     if (mode === "replace") fd.append("replaceColumns", String(replaceCols));
+    // Contexto da região (vem do card clicado, ?regiao= na URL): se a planilha não
+    // tiver a coluna de região, os contatos importados usam essa como padrão — sem
+    // isso, ficam com região em branco e somem da tela ao ver a base filtrada por região.
+    if (regiao) fd.append("regiao", regiao);
     const res = await fetch(apiPath(`/api/bases/${baseId}/import`), { method: "POST", body: fd });
     setImporting(false);
     const data = await res.json();

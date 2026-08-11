@@ -67,6 +67,11 @@ export async function POST(
   // Em "replace": se true, os RÓTULOS das colunas passam a ser os nomes da planilha
   // importada; se false, mantém os rótulos atuais (só troca as linhas).
   const replaceColumns = String(form.get("replaceColumns") || "") === "true";
+  // Contexto de região (base acessada via ?regiao=X, ex.: card de região clicado).
+  // Sem isso, uma planilha sem coluna de região reconhecida deixa os contatos com
+  // região em branco — e eles somem da tela ao abrir a base filtrada por região
+  // (o filtro exige bater exatamente com o valor da URL).
+  const regiaoContexto = String(form.get("regiao") || "").trim() || null;
   if (!file) return NextResponse.json({ error: "Arquivo não enviado" }, { status: 400 });
 
   const fileError = validateSpreadsheetFile(file);
@@ -75,6 +80,11 @@ export async function POST(
   const buffer = Buffer.from(await file.arrayBuffer());
   const parsed = parseSpreadsheetWithMeta(buffer, file.name);
   const rows = parsed.rows;
+  if (regiaoContexto) {
+    for (const row of rows) {
+      if (!row.regiao || !row.regiao.trim()) row.regiao = regiaoContexto;
+    }
+  }
 
   if (parsed.missingRequiredColumns.length > 0) {
     return NextResponse.json(
