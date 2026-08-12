@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { currentRole } from "@/lib/current-role";
 import { can, isAdmin } from "@/lib/permissions";
-import { isCompleteVisivel, customsCompletos, isRowVazia, tipoOrgao } from "@/lib/completude";
+import { tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
@@ -102,18 +102,6 @@ export default async function BaseDetailPage({
     (initialCustomValues[cv.contactId] ||= {})[cv.colKey] = cv.valor ?? "";
   }
 
-  // Conclusão do cabeçalho: 7 campos fixos + TODAS as colunas personalizadas
-  // preenchidas — MAS coluna oculta não conta pra nada (nem exige, nem falta).
-  const hiddenSet = new Set(initialHidden);
-  const customKeys = (initialCols ?? []).map((c) => c.key).filter((k) => !hiddenSet.has(k));
-  const concluidos = rows.filter(
-    (c) => isCompleteVisivel(c, hiddenSet) && customsCompletos(customKeys, initialCustomValues[c.id])
-  ).length;
-  // Linha ainda em branco não é trabalho pendente — senão uma planilha recém-criada
-  // já nasceria mostrando "50 a preencher" sem ninguém ter deixado nada por fazer.
-  const comDado = rows.filter((c) => !isRowVazia(c as unknown as Record<string, unknown>, initialCustomValues[c.id]));
-  const aPreencher = comDado.length - concluidos;
-
   // Última vez que a base foi salva (maior updatedAt entre os contatos) — para o
   // indicador "Salvo às …" continuar aparecendo quando o usuário reabre a tela.
   const lastSaved = rows.reduce<Date | null>(
@@ -129,29 +117,15 @@ export default async function BaseDetailPage({
       <PageHeader
         title={regiao ? `${base.name} · ${regiao}` : base.name}
         action={
-          <div className="flex items-center">
-            <Link
-              href={backHref}
-              className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
-            >
-              <svg className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M19 12H5m0 0 6-6m-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Voltar
-            </Link>
-            <div className="ml-6 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {concluidos.toLocaleString("pt-BR")} concluídos
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                {aPreencher.toLocaleString("pt-BR")} a preencher
-              </span>
-            </div>
-          </div>
+          <Link
+            href={backHref}
+            className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+          >
+            <svg className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5m0 0 6-6m-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Voltar
+          </Link>
         }
       />
       <div className="flex min-h-0 flex-1 flex-col px-8 pb-3 pt-2">

@@ -951,6 +951,25 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
     return counts;
   }, [contacts, allUfs, matchesPhone, customCols, customValues, hiddenColumns]);
 
+  // Contador do topo ("X concluídos / Y a preencher"): reflete a ABA atual
+  // (Todas ou uma UF específica), não a base inteira — antes era um número fixo
+  // calculado só no servidor; agora acompanha a página selecionada.
+  const headerCounts = useMemo(() => {
+    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
+    let concluidos = 0;
+    let comDado = 0;
+    for (const c of contacts) {
+      if (tab !== ALL && ufOf(c) !== tab) continue;
+      if (!matchesPhone(c)) continue;
+      if (isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
+      comDado++;
+      if (isCompleteVisivel(c as unknown as ReqRow, hiddenColumns) && customsCompletos(customKeys, customValues[c.id])) {
+        concluidos++;
+      }
+    }
+    return { concluidos, aPreencher: comDado - concluidos };
+  }, [contacts, tab, matchesPhone, customValues, customCols, hiddenColumns]);
+
   // ---- Criar/excluir página (aba) ----
   // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu
   // ancorado dentro dela. Por isso o seletor de UF sai num portal com posição
@@ -2435,6 +2454,21 @@ async function saveCell(id: string, key: string, value: string) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Concluídos/a preencher da ABA ATUAL (Todas ou uma UF) — reativo, ao
+          contrário do total fixo da base inteira. */}
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {headerCounts.concluidos.toLocaleString("pt-BR")} concluídos
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          {headerCounts.aPreencher.toLocaleString("pt-BR")} a preencher
+        </span>
+      </div>
+
       {undoInfo && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
           <span>Importação concluída · {undoInfo.resumo}</span>
