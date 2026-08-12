@@ -28,6 +28,12 @@ export type ReqRow = Record<(typeof REQUIRED_FIELDS)[number], string | null>;
 
 const nonEmpty = (v: string | null) => !!(v && v.trim());
 export const isComplete = (c: ReqRow) => REQUIRED_FIELDS.every((f) => nonEmpty(c[f]));
+// Igual a isComplete, mas ignora campo oculto — coluna escondida não conta pra
+// nada na régua de conclusão (nem exige, nem deixa faltando).
+export function isCompleteVisivel(c: ReqRow, hidden: Set<string> | string[]) {
+  const h = hidden instanceof Set ? hidden : new Set(hidden);
+  return REQUIRED_FIELDS.filter((f) => !h.has(f)).every((f) => nonEmpty(c[f]));
+}
 // Todas as colunas personalizadas da base preenchidas para este contato.
 export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined) =>
   customKeys.every((k) => !!(vals?.[k] && vals[k].trim()));

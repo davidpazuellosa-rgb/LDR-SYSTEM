@@ -8,7 +8,7 @@ import { ufSigla, UFS_BRASIL } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
-import { isComplete, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
+import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -939,17 +939,17 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
   // Acompanha o filtro de telefone ativo, igual ao total acima; a aba "Todas"
   // não usa isso (continua só com o total).
   const estadosCompletos = useMemo(() => {
-    const customKeys = customCols.map((c) => c.key);
+    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
     const counts = new Map<string, number>();
     for (const uf of allUfs) counts.set(uf, 0);
     for (const c of contacts) {
       if (!matchesPhone(c)) continue;
-      if (!isComplete(c as unknown as ReqRow)) continue;
+      if (!isCompleteVisivel(c as unknown as ReqRow, hiddenColumns)) continue;
       if (!customsCompletos(customKeys, customValues[c.id])) continue;
       counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
     }
     return counts;
-  }, [contacts, allUfs, matchesPhone, customCols, customValues]);
+  }, [contacts, allUfs, matchesPhone, customCols, customValues, hiddenColumns]);
 
   // ---- Criar/excluir página (aba) ----
   // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu

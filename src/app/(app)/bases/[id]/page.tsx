@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { currentRole } from "@/lib/current-role";
 import { can, isAdmin } from "@/lib/permissions";
-import { isComplete, customsCompletos, isRowVazia, tipoOrgao } from "@/lib/completude";
+import { isCompleteVisivel, customsCompletos, isRowVazia, tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
@@ -102,9 +102,13 @@ export default async function BaseDetailPage({
     (initialCustomValues[cv.contactId] ||= {})[cv.colKey] = cv.valor ?? "";
   }
 
-  // Conclusão do cabeçalho: 7 campos fixos + TODAS as colunas personalizadas preenchidas.
-  const customKeys = (initialCols ?? []).map((c) => c.key);
-  const concluidos = rows.filter((c) => isComplete(c) && customsCompletos(customKeys, initialCustomValues[c.id])).length;
+  // Conclusão do cabeçalho: 7 campos fixos + TODAS as colunas personalizadas
+  // preenchidas — MAS coluna oculta não conta pra nada (nem exige, nem falta).
+  const hiddenSet = new Set(initialHidden);
+  const customKeys = (initialCols ?? []).map((c) => c.key).filter((k) => !hiddenSet.has(k));
+  const concluidos = rows.filter(
+    (c) => isCompleteVisivel(c, hiddenSet) && customsCompletos(customKeys, initialCustomValues[c.id])
+  ).length;
   // Linha ainda em branco não é trabalho pendente — senão uma planilha recém-criada
   // já nasceria mostrando "50 a preencher" sem ninguém ter deixado nada por fazer.
   const comDado = rows.filter((c) => !isRowVazia(c as unknown as Record<string, unknown>, initialCustomValues[c.id]));
