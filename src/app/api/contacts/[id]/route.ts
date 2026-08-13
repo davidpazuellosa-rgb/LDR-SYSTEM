@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
-import { REQUIRED_FIELDS } from "@/lib/completude";
 import { atualizarConclusao } from "@/lib/contact-fill";
 import { ensureBaseEventoTable } from "@/lib/base-eventos";
 
@@ -71,11 +70,11 @@ export async function PATCH(
     }
   }
 
-  // Se um campo da régua mudou, atualiza o registro de conclusão (quem completou e
-  // quando). Existe um ContactFill só enquanto a linha está completa; o primeiro a
+  // A régua de conclusão é dinâmica (qualquer coluna visível conta), então
+  // qualquer campo editado pode ter completado — ou desfeito — a linha.
+  // Existe um ContactFill só enquanto a linha está completa; o primeiro a
   // completar fica com o crédito (upsert sem sobrescrever).
-  const touchedRequired = REQUIRED_FIELDS.some((f) => f in data);
-  if (touchedRequired && meId) {
+  if (meId && Object.keys(data).length > 0) {
     await atualizarConclusao(id, meId);
   }
 

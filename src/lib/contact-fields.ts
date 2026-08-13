@@ -34,3 +34,30 @@ export const CONTACT_FIELDS: ContactField[] = [
 export const PHONE_FIELD = "telefonePrefeitura";
 
 export const CONTACT_FIELD_KEYS = CONTACT_FIELDS.map((f) => f.key);
+
+// `select` do Prisma com todas as colunas fixas — a régua de conclusão é
+// dinâmica (qualquer coluna visível conta), então quem calcula precisa de todas.
+// Escrito na mão (e não via map) de propósito: o Prisma só infere os campos do
+// resultado a partir de um literal. Ao adicionar campo em CONTACT_FIELDS, some
+// aqui também — o teste em contact-fields.test.ts avisa se esquecer.
+export const CONTACT_FIELD_SELECT = {
+  cidade: true,
+  estado: true,
+  regiao: true,
+  populacao: true,
+  telefonePrefeitura: true,
+  emailInstitucional: true,
+  secretariaAdmin: true,
+  nomePrefeito: true,
+  siteOficial: true,
+  whatsapp: true,
+  codigoIbge: true,
+  origemContato: true,
+  faseCicloVida: true,
+  campanha: true,
+  setor: true,
+  departamentos: true,
+  solucaoInteresse: true,
+  prospectante: true,
+  proprietario: true,
+} as const;

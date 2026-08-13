@@ -74,6 +74,13 @@ export function parseHiddenCols(headers: Headers): string[] {
   return stringList((headers || {})[HIDDEN_KEY], 200);
 }
 
+// Planilha NOVA nasce crua: sem nenhuma coluna, para o usuário montar a dele
+// (ou deixar a importação montar). As colunas fixas não somem do banco — só
+// começam todas ocultas, e voltam sozinhas quando um import as reconhece.
+export function headersDeBaseNova(): Record<string, unknown> {
+  return { [HIDDEN_KEY]: CONTACT_FIELDS.map((f) => f.key) };
+}
+
 // Monta a lista final de colunas VISÍVEIS, na ordem em que aparecem na tela.
 // Recebe as partes soltas porque o cliente as tem em estado React (renomear e
 // ocultar precisam refletir na hora, antes de o servidor responder).

@@ -8,7 +8,7 @@ import { ufSigla, UFS_BRASIL } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
-import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
+import { isRowCompleta, isRowVazia } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
@@ -939,23 +939,20 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
   // Acompanha o filtro de telefone ativo, igual ao total acima; a aba "Todas"
   // não usa isso (continua só com o total).
   const estadosCompletos = useMemo(() => {
-    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
     const counts = new Map<string, number>();
     for (const uf of allUfs) counts.set(uf, 0);
     for (const c of contacts) {
       if (!matchesPhone(c)) continue;
-      if (!isCompleteVisivel(c as unknown as ReqRow, hiddenColumns)) continue;
-      if (!customsCompletos(customKeys, customValues[c.id])) continue;
+      if (!isRowCompleta(unifiedKeys, c as unknown as Record<string, unknown>, customValues[c.id])) continue;
       counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
     }
     return counts;
-  }, [contacts, allUfs, matchesPhone, customCols, customValues, hiddenColumns]);
+  }, [contacts, allUfs, matchesPhone, unifiedKeys, customValues]);
 
   // Contador do topo ("X concluídos / Y a preencher"): reflete a ABA atual
   // (Todas ou uma UF específica), não a base inteira — antes era um número fixo
   // calculado só no servidor; agora acompanha a página selecionada.
   const headerCounts = useMemo(() => {
-    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
     let concluidos = 0;
     let comDado = 0;
     for (const c of contacts) {
@@ -963,12 +960,10 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
       if (!matchesPhone(c)) continue;
       if (isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
       comDado++;
-      if (isCompleteVisivel(c as unknown as ReqRow, hiddenColumns) && customsCompletos(customKeys, customValues[c.id])) {
-        concluidos++;
-      }
+      if (isRowCompleta(unifiedKeys, c as unknown as Record<string, unknown>, customValues[c.id])) concluidos++;
     }
     return { concluidos, aPreencher: comDado - concluidos };
-  }, [contacts, tab, matchesPhone, customValues, customCols, hiddenColumns]);
+  }, [contacts, tab, matchesPhone, customValues, unifiedKeys]);
 
   // ---- Criar/excluir página (aba) ----
   // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu

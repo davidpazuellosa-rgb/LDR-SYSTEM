@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guard";
+import { headersDeBaseNova } from "@/lib/base-columns";
 
 export async function POST(req: Request) {
   const { deny } = await requireUser();
@@ -15,6 +17,8 @@ export async function POST(req: Request) {
       name,
       description: body?.description ? String(body.description) : null,
       source: "manual",
+      // Planilha nasce crua: o usuário monta as colunas (ou a importação monta).
+      headers: headersDeBaseNova() as Prisma.InputJsonValue,
     },
   });
   return NextResponse.json(base);
