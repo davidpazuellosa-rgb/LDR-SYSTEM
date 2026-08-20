@@ -38,37 +38,6 @@ export function isCompleteVisivel(c: ReqRow, hidden: Set<string> | string[]) {
 export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined) =>
   customKeys.every((k) => !!(vals?.[k] && vals[k].trim()));
 
-// ---- Régua DINÂMICA de conclusão (a que vale hoje) --------------------------
-// A linha está concluída quando TODAS as colunas visíveis daquela planilha estão
-// preenchidas. Não há mais lista fixa: criou coluna, ela passa a contar; ocultou
-// ou excluiu, deixa de contar. Vale para colunas fixas e personalizadas igual.
-
-// Valor de uma célula seja a coluna fixa (mora no contato) ou personalizada
-// (mora à parte, em ContactCustomValue) — quem chama não precisa saber qual é.
-export function valorDaCelula(
-  key: string,
-  row: Record<string, unknown>,
-  customVals?: Record<string, string>
-): string {
-  const nativo = row[key];
-  if (typeof nativo === "string") return nativo;
-  return customVals?.[key] ?? "";
-}
-
-export function isRowCompleta(
-  visibleKeys: string[],
-  row: Record<string, unknown>,
-  customVals?: Record<string, string>
-): boolean {
-  // Planilha sem nenhuma coluna: nada pode ser dado como concluído (senão "todas
-  // as colunas preenchidas" seria verdade à toa e as 50 linhas em branco de uma
-  // base recém-criada apareceriam como completas).
-  if (visibleKeys.length === 0) return false;
-  // Linha em branco nunca conta, mesmo que a régua esteja vazia.
-  if (isRowVazia(row, customVals)) return false;
-  return visibleKeys.every((k) => nonEmpty(valorDaCelula(k, row, customVals)));
-}
-
 // Quantas linhas em branco uma planilha nova (ou uma página nova) já nasce tendo,
 // para nunca abrir "vazia demais" e sem por onde começar.
 export const LINHAS_INICIAIS = 50;

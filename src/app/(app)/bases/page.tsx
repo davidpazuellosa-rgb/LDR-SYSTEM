@@ -6,10 +6,8 @@ import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import RegioesGrid from "@/components/RegioesGrid";
-import { isRowCompleta, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
-import { ensureContactCustomTable } from "@/lib/custom-columns";
-import { resolveBaseColumns } from "@/lib/base-columns";
-import { CONTACT_FIELD_SELECT } from "@/lib/contact-fields";
+import { isComplete, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -70,20 +68,31 @@ export default async function BasesPage({
 
   const contacts = (await prisma.contact.findMany({
     where: { deletedAt: null },
-    select: { id: true, baseId: true, ...CONTACT_FIELD_SELECT },
+    select: {
+      id: true,
+      baseId: true,
+      regiao: true,
+      cidade: true,
+      estado: true,
+      telefonePrefeitura: true,
+      emailInstitucional: true,
+      nomePrefeito: true,
+      whatsapp: true,
+      siteOficial: true,
+    },
   })) as ContactRow[];
 
-  // Régua dinâmica: conta toda coluna VISÍVEL da base (fixa ou personalizada).
-  const baseKeys = new Map(
-    bases.map((b) => [b.id, resolveBaseColumns(b.headers as Record<string, unknown> | null).map((c) => c.key)])
-  );
+  // Colunas personalizadas contam na conclusão: chaves por base + valores por contato.
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
   const customByContact = new Map<string, Record<string, string>>();
-  await ensureContactCustomTable();
-  const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
-  for (const r of cv) {
-    const m = customByContact.get(r.contactId) ?? {};
-    m[r.colKey] = r.valor ?? "";
-    customByContact.set(r.contactId, m);
+  if ([...baseKeys.values()].some((ks) => ks.length)) {
+    await ensureContactCustomTable();
+    const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
+    for (const r of cv) {
+      const m = customByContact.get(r.contactId) ?? {};
+      m[r.colKey] = r.valor ?? "";
+      customByContact.set(r.contactId, m);
+    }
   }
 
   const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, regioes: new Map() }]));
@@ -93,11 +102,7 @@ export default async function BasesPage({
     // Linhas ainda em branco (as que toda planilha nova já ganha) não entram na
     // conta — senão uma planilha recém-criada apareceria como 0% em vez de vazia.
     if (isRowVazia(c as unknown as Record<string, unknown>, customByContact.get(c.id))) continue;
-    const ok = isRowCompleta(
-      baseKeys.get(c.baseId) ?? [],
-      c as unknown as Record<string, unknown>,
-      customByContact.get(c.id)
-    );
+    const ok = isComplete(c) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
     b.total += 1;
     if (ok) b.done += 1;
     const reg = (c.regiao && c.regiao.trim()) || "Sem região";

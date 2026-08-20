@@ -3,10 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guard";
 import { parseSpreadsheetWithMeta, looksLikeValidPhone, validateSpreadsheetFile, type ImportedRow } from "@/lib/import";
-import { PHONE_FIELD, CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
+import { PHONE_FIELD } from "@/lib/contact-fields";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
 import { parseCustomCols, type CustomCol } from "@/lib/base-columns";
-import { dedupeKey, dedupeKeyDaLinha } from "@/lib/import-dedupe";
 import {
   ensureBaseEventoTable,
   type MergeSnapshot,
@@ -30,6 +29,48 @@ function slugifyHeader(header: string): string {
     .trim();
   const slug = norm.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
   return "c_" + (slug || Math.random().toString(36).slice(2, 8));
+}
+
+type DedupeContact = {
+  codigoIbge?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  emailInstitucional?: string | null;
+  telefonePrefeitura?: string | null;
+};
+
+function normalizeText(value?: string | null) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function onlyDigits(value?: string | null) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function dedupeKey(contact: DedupeContact) {
+  const ibge = onlyDigits(contact.codigoIbge);
+  if (ibge) return `ibge:${ibge}`;
+
+  const cidade = normalizeText(contact.cidade);
+  const estado = normalizeText(contact.estado);
+  const email = normalizeText(contact.emailInstitucional);
+  // Cidade+UF sozinho valia pra prefeitura (só existe uma por cidade), mas
+  // descartava registros legítimos de bases onde a mesma cidade tem vários
+  // contatos — ex.: consórcios (Florianópolis tem 4). O e-mail entra na chave
+  // pra diferenciá-los; sem e-mail, mantém o comportamento antigo (cidade+UF).
+  if (cidade && estado) return email ? `cidade:${estado}:${cidade}:${email}` : `cidade:${estado}:${cidade}`;
+
+  if (email) return `email:${email}`;
+
+  const phone = onlyDigits(contact.telefonePrefeitura);
+  if (phone) return `telefone:${phone}`;
+
+  return null;
 }
 
 export async function POST(
@@ -69,10 +110,17 @@ export async function POST(
     }
   }
 
-  // A planilha pode ter QUALQUER estrutura: nada é obrigatório. As colunas que o
-  // sistema reconhece viram colunas fixas; o resto vira coluna personalizada.
-  // (parsed.missingRequiredColumns ainda existe, mas só como heurística para
-  // escolher a aba certa em arquivos com várias abas — não barra mais o import.)
+  if (parsed.missingRequiredColumns.length > 0) {
+    return NextResponse.json(
+      {
+        error: `A planilha não tem as colunas obrigatórias: ${parsed.missingRequiredColumns.join(", ")}.`,
+        missingColumns: parsed.missingRequiredColumns,
+        unknownColumns: parsed.unknownColumns,
+        matchedColumns: parsed.matchedColumns,
+      },
+      { status: 400 }
+    );
+  }
 
   if (parsed.rows.length === 0) {
     return NextResponse.json(
@@ -238,15 +286,18 @@ export async function POST(
     if (deletedIds.length > 0) {
       await prisma.contact.updateMany({ where: { id: { in: deletedIds } }, data: { deletedAt: new Date() } });
     }
-    // "Substituir tudo" substitui ABSOLUTAMENTE tudo: linhas, colunas
-    // personalizadas, rótulos, ordem, mesclas e ordenação salva. A planilha fica
-    // idêntica ao arquivo importado — as colunas fixas que não vieram no arquivo
-    // ficam ocultas (o dado delas continua no banco, só some da visão).
+    // Rótulos das colunas: só troca se o usuário pediu (senão, mantém os atuais).
+    // As chaves reservadas (__order__, __hidden__, __merges__, __sortBy__) são
+    // ESTRUTURA, não rótulo: sobrevivem à substituição. __cols__ é a EXCEÇÃO
+    // proposital aqui: quando troca os rótulos, as colunas personalizadas viram
+    // exatamente as da planilha atual (newColsForHeaders já calculado assim).
     if (replaceColumns) {
-      const vieramNoArquivo = new Set(parsed.matchedColumns.map((c) => c.field));
+      const estrutura = Object.fromEntries(
+        Object.entries(oldHeaders).filter(([k]) => k.startsWith("__") && k.endsWith("__") && k !== "__cols__")
+      );
       const newHeaders = {
+        ...estrutura,
         __cols__: newColsForHeaders,
-        __hidden__: CONTACT_FIELD_KEYS.filter((k) => !vieramNoArquivo.has(k)),
         ...Object.fromEntries(parsed.matchedColumns.map((c) => [c.field, c.header])),
       };
       await prisma.base.update({ where: { id }, data: { headers: newHeaders } });
@@ -255,7 +306,7 @@ export async function POST(
     const seenInFile = new Set<string>();
     const newRows: RowInput[] = [];
     for (const row of rows) {
-      const key = dedupeKeyDaLinha(row);
+      const key = dedupeKey(row.data);
       if (!key) { skippedWithoutKey++; continue; }
       if (seenInFile.has(key)) { skippedInFile++; continue; }
       seenInFile.add(key);
@@ -281,7 +332,7 @@ export async function POST(
     const fills: { id: string; data: Record<string, string>; fields: string[] }[] = [];
     const customFillCandidates: { contactId: string; custom: Record<string, string> }[] = [];
     for (const row of rows) {
-      const key = dedupeKeyDaLinha(row);
+      const key = dedupeKey(row.data);
       if (!key) { skippedWithoutKey++; continue; }
       if (seenInFile.has(key)) { skippedInFile++; continue; }
       seenInFile.add(key);

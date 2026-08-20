@@ -1,10 +1,8 @@
 // Agregação dos relatórios do admin — reusada pela página /relatorios e pela
 // exportação CSV (/api/relatorios/export), para não duplicar a lógica.
 import { prisma } from "@/lib/prisma";
-import { isRowCompleta, tipoOrgao } from "@/lib/completude";
-import { ensureContactCustomTable } from "@/lib/custom-columns";
-import { resolveBaseColumns } from "@/lib/base-columns";
-import { CONTACT_FIELD_SELECT } from "@/lib/contact-fields";
+import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
+import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
 import {
@@ -67,7 +65,11 @@ export async function buildRelatorio(f: RelatorioFiltros) {
     prisma.meta.findMany() as Promise<Meta[]>,
     prisma.contact.findMany({
       where: { deletedAt: null },
-      select: { id: true, baseId: true, status: true, ...CONTACT_FIELD_SELECT },
+      select: {
+        id: true, baseId: true, regiao: true, estado: true, status: true, campanha: true,
+        cidade: true, telefonePrefeitura: true, emailInstitucional: true,
+        nomePrefeito: true, whatsapp: true, siteOficial: true,
+      },
     }),
     prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction.findMany({
@@ -196,7 +198,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
       const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
       const esperado = Math.round(m.alvo * decorrido);
       const status: StatusMeta = p >= 100 ? "ok" : feito >= esperado ? "ok" : feito >= esperado * 0.6 ? "risco" : "atrasado";
-      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m), feito, alvo: m.alvo, p, esperado, status };
+      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, rotulo: rotuloMeta(m), feito, alvo: m.alvo, p, esperado, status };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome) || a.status.localeCompare(b.status));
 
@@ -218,24 +220,24 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   ];
   const funilMax = Math.max(1, contacts.length);
 
-  // ---- Completude por base (régua dinâmica: toda coluna VISÍVEL da base) ----
-  const baseKeys = new Map(
-    bases.map((b) => [b.id, resolveBaseColumns(b.headers as Record<string, unknown> | null).map((c) => c.key)])
-  );
+  // ---- Completude por base (7 fixos + TODAS as colunas personalizadas) ----
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
   const customByContact = new Map<string, Record<string, string>>();
-  await ensureContactCustomTable();
-  const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
-  for (const r of cv) {
-    const m = customByContact.get(r.contactId) ?? {};
-    m[r.colKey] = r.valor ?? "";
-    customByContact.set(r.contactId, m);
+  if ([...baseKeys.values()].some((ks) => ks.length)) {
+    await ensureContactCustomTable();
+    const cv = await prisma.contactCustomValue.findMany({ select: { contactId: true, colKey: true, valor: true } });
+    for (const r of cv) {
+      const m = customByContact.get(r.contactId) ?? {};
+      m[r.colKey] = r.valor ?? "";
+      customByContact.set(r.contactId, m);
+    }
   }
   const completudePorBase = bases
     .map((b) => {
       const doBase = contacts.filter((c) => c.baseId === b.id);
       const keys = baseKeys.get(b.id) ?? [];
-      const completos = doBase.filter((c) =>
-        isRowCompleta(keys, c as unknown as Record<string, unknown>, customByContact.get(c.id)),
+      const completos = doBase.filter(
+        (c) => isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, customByContact.get(c.id)),
       ).length;
       return { id: b.id, nome: b.name, total: doBase.length, completos, p: doBase.length ? Math.round((completos / doBase.length) * 100) : 0 };
     })
