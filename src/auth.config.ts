@@ -16,9 +16,18 @@ const embeddedCookies = useSecure
     } as NextAuthConfig["cookies"])
   : undefined;
 
+// Onde moram as rotas do NextAuth. Quando o app é publicado em SUBCAMINHO (nginx do
+// VPS da SASI, ex.: https://.../e-ldr), elas passam a viver em "<subcaminho>/api/auth".
+// Sem dizer isso ao NextAuth, ele continua procurando em "/api/auth" e responde
+// 400 "Bad request." em TODO o fluxo de login (csrf, providers, session, signin).
+// Derivar de NEXT_PUBLIC_BASE_PATH faz valer nos dois cenários: na Vercel a variável
+// é vazia e o resultado é "/api/auth" (o padrão de sempre).
+const authBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/auth`;
+
 // Configuração "leve" (sem banco) — usada também pelo middleware (edge).
 export const authConfig = {
   trustHost: true,
+  basePath: authBasePath,
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
   cookies: embeddedCookies,
