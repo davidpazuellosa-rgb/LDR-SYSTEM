@@ -31,6 +31,13 @@ function inferBrowserBasePath() {
   return "";
 }
 
+// Prefixo do app (vazio na Vercel, "/e-ldr" no VPS da SASI). Necessário para montar
+// rotas que o Next NÃO prefixa sozinho — os redirecionamentos do NextAuth e a URL das
+// rotas de login usadas pelo navegador.
+export function appBasePath(): string {
+  return normalizeBasePath(CONFIGURED_BASE_PATH) || inferBrowserBasePath();
+}
+
 export function apiPath(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const basePath = normalizeBasePath(CONFIGURED_BASE_PATH) || inferBrowserBasePath();

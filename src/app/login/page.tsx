@@ -1,7 +1,8 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { signIn } from "next-auth/react";
+import { SessionProvider, signIn } from "next-auth/react";
+import { appBasePath } from "@/lib/path";
 import SasiLogo from "@/components/SasiLogo";
 
 function FeatureItem({
@@ -21,7 +22,7 @@ function FeatureItem({
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -40,7 +41,7 @@ export default function LoginPage() {
         email: normalizedEmail,
         password,
         redirect: false,
-        callbackUrl: "/dashboard",
+        callbackUrl: `${appBasePath()}/dashboard`,
       });
 
       if (result?.error) {
@@ -48,7 +49,7 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.href = result?.url || "/dashboard";
+      window.location.href = result?.url || `${appBasePath()}/dashboard`;
     } catch {
       setError("Não foi possível entrar agora. Atualize a página e tente novamente.");
     } finally {
@@ -247,5 +248,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// O `signIn` do navegador descobre onde ficam as rotas de login lendo NEXTAUTH_URL —
+// que NÃO existe no bundle do cliente. Sem isso ele assume "/api/auth" e, publicado em
+// subcaminho (VPS da SASI, /e-ldr), manda o login para fora do app. O SessionProvider
+// é o jeito suportado de informar o caminho certo.
+export default function LoginPage() {
+  return (
+    <SessionProvider basePath={`${appBasePath()}/api/auth`}>
+      <LoginForm />
+    </SessionProvider>
   );
 }

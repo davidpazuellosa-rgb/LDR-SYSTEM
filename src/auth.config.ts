@@ -22,13 +22,17 @@ const embeddedCookies = useSecure
 // 400 "Bad request." em TODO o fluxo de login (csrf, providers, session, signin).
 // Derivar de NEXT_PUBLIC_BASE_PATH faz valer nos dois cenários: na Vercel a variável
 // é vazia e o resultado é "/api/auth" (o padrão de sempre).
-const authBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/auth`;
+const subcaminho = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const authBasePath = `${subcaminho}/api/auth`;
 
 // Configuração "leve" (sem banco) — usada também pelo middleware (edge).
 export const authConfig = {
   trustHost: true,
   basePath: authBasePath,
-  pages: { signIn: "/login" },
+  // Os REDIRECIONAMENTOS também precisam do subcaminho. O NextAuth monta estas URLs
+  // a partir da origem (https://dominio) + este caminho — ele não reaplica o basePath
+  // do Next sozinho. Sem o prefixo, o login joga a pessoa em "/login" (fora do app).
+  pages: { signIn: `${subcaminho}/login` },
   session: { strategy: "jwt" },
   cookies: embeddedCookies,
   providers: [], // o provider real (com banco) fica no auth.ts
@@ -41,8 +45,10 @@ export const authConfig = {
       const isConvitePage = path.includes("/definir-senha");
 
       if (isLoginPage) {
-        // Já logado tentando ver o login -> manda pro dashboard
-        if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
+        // Já logado tentando ver o login -> manda pro dashboard.
+        // O subcaminho entra na mão: no middleware, `nextUrl.pathname` vem SEM o
+        // basePath, e o Response.redirect não o reaplica.
+        if (isLoggedIn) return Response.redirect(new URL(`${subcaminho}/dashboard`, nextUrl));
         return true;
       }
       if (isConvitePage) return true;

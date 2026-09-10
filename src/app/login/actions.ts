@@ -2,6 +2,7 @@
 
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
+import { appBasePath } from "@/lib/path";
 
 export async function login(_prev: string | undefined, formData: FormData) {
   const email = String(formData.get("email") || "").toLowerCase().trim();
@@ -11,7 +12,7 @@ export async function login(_prev: string | undefined, formData: FormData) {
     await signIn("credentials", {
       email,
       password,
-      redirectTo: "/dashboard",
+      redirectTo: `${appBasePath()}/dashboard`,
     });
   } catch (error) {
     if (error instanceof AuthError) {
