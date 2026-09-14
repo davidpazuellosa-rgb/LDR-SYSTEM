@@ -41,8 +41,9 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const path = nextUrl.pathname;
       const isLoginPage = path.includes("/login");
-      // Página pública: a pessoa convidada define a própria senha sem estar logada.
-      const isConvitePage = path.includes("/definir-senha");
+      // Páginas públicas: quem foi convidado define a senha, e quem esqueceu a senha
+      // pede/usa o link de recuperação — as duas acontecem sem login.
+      const isConvitePage = path.includes("/definir-senha") || path.includes("/recuperar-senha");
 
       if (isLoginPage) {
         // Já logado tentando ver o login -> manda pro dashboard.

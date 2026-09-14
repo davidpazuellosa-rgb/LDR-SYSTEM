@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import Link from "next/link";
 import { SessionProvider, signIn } from "next-auth/react";
 import { appBasePath } from "@/lib/path";
 import SasiLogo from "@/components/SasiLogo";
@@ -169,9 +170,9 @@ function LoginForm() {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700">Senha</label>
-                <a href="mailto:suporte@sasi.com?subject=Esqueci%20a%20senha%20-%20LDR%20Hub" className="text-sm font-medium text-indigo-600 hover:underline">
+                <Link href="/recuperar-senha" className="text-sm font-medium text-indigo-600 hover:underline">
                   Esqueci a senha
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
