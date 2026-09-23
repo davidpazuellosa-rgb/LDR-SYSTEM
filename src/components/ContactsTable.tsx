@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { ufSigla, UFS_BRASIL } from "@/lib/uf";
@@ -216,6 +217,7 @@ export default function ContactsTable({
   canImport = true,
   canExport = true,
   canEditHeaders = false,
+  backHref,
 }: {
   baseId: string;
   initialContacts: Contact[];
@@ -235,6 +237,8 @@ export default function ContactsTable({
   canImport?: boolean;
   canExport?: boolean;
   canEditHeaders?: boolean;
+  // Destino da seta "voltar" (fica na barra de funcionalidades, na mesma linha dos contadores).
+  backHref?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -2454,21 +2458,6 @@ async function saveCell(id: string, key: string, value: string) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {/* Concluídos/a preencher da ABA ATUAL (Todas ou uma UF) — reativo, ao
-          contrário do total fixo da base inteira. */}
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {headerCounts.concluidos.toLocaleString("pt-BR")} concluídos
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700">
-          <span className="h-2 w-2 rounded-full bg-amber-500" />
-          {headerCounts.aPreencher.toLocaleString("pt-BR")} a preencher
-        </span>
-      </div>
-
       {undoInfo && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
           <span>Importação concluída · {undoInfo.resumo}</span>
@@ -2535,6 +2524,32 @@ async function saveCell(id: string, key: string, value: string) {
 
       {/* 1) Barra de funcionalidades da planilha (estilo Google Sheets) */}
       <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
+        {/* Voltar (só a seta) + contadores da ABA ATUAL (Todas ou uma UF) — reativos.
+            Ficam na mesma linha da barra para a planilha ganhar espaço na vertical. */}
+        {backHref && (
+          <Link
+            href={backHref}
+            title="Voltar"
+            aria-label="Voltar"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600"
+          >
+            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5m0 0 6-6m-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+        )}
+        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {headerCounts.concluidos.toLocaleString("pt-BR")} concluídos
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          {headerCounts.aPreencher.toLocaleString("pt-BR")} a preencher
+        </span>
+        <div className="mx-1 h-6 w-px shrink-0 bg-slate-200" />
+
         {/* Buscar na planilha */}
         <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
           <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
