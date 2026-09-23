@@ -17,7 +17,10 @@ RUN npm ci
 
 # 2) Copia o código e gera o cliente Prisma + build de produção
 COPY . .
-RUN npx prisma generate && npm run build
+# output:"standalone" NAO copia .next/static nem public: sem isto a pagina abre sem CSS/JS
+RUN npx prisma generate && npm run build \
+ && cp -r .next/static .next/standalone/.next/static \
+ && cp -r public .next/standalone/public
 
 # 3) Script de inicialização (cria/atualiza tabelas e cria o admin)
 COPY docker-entrypoint.sh /docker-entrypoint.sh
