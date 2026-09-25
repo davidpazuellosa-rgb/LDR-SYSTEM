@@ -12,11 +12,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* O sistema só tem tema claro. Sem isto, quem usa o Windows/Chrome em modo escuro
+   ficava com letras brancas (herdadas do body) sobre fundo branco. */
+:root {
+  color-scheme: light;
 }
 
 body {
