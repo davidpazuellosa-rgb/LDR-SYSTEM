@@ -51,7 +51,9 @@ export default async function BaseDetailPage({
 
   // Quando vem de um card de região, mostra só as prefeituras daquela região.
   const norm = (r: string | null) => (r && r.trim()) || "Sem região";
-  const rows = regiao ? base.contacts.filter((c) => norm(c.regiao) === regiao) : base.contacts;
+  // Linha SEM região (criada por "inserir linha" ou fora de um card) também aparece:
+  // antes ela sumia ao recarregar pela visão de uma região.
+  const rows = regiao ? base.contacts.filter((c) => !c.regiao?.trim() || norm(c.regiao) === regiao) : base.contacts;
 
   const contacts = rows.map(({ createdAt, updatedAt, formats, deletedAt, ordem, ...contact }) => {
     void formats;

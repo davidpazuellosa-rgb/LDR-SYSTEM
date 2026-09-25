@@ -19,6 +19,16 @@ export async function POST(req: Request) {
     data[key] = body?.[key] ? String(body[key]) : null;
   }
 
+  // Sem região informada, herda a das linhas que a UF (ou a base) já tem — senão a
+  // linha nova ficaria "sem região" e sumiria ao abrir a base pelo card de uma região.
+  if (!data.regiao) {
+    const ref = await prisma.contact.findFirst({
+      where: { baseId, deletedAt: null, regiao: { not: null }, ...(data.estado ? { estado: data.estado } : {}) },
+      select: { regiao: true },
+    });
+    data.regiao = ref?.regiao ?? null;
+  }
+
   const phone = data[PHONE_FIELD];
   const contact = await prisma.contact.create({
     data: {

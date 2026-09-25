@@ -1918,7 +1918,7 @@ async function insertRowNear(rowIndex: number, side: "above" | "below", count = 
     const res = await fetch(apiPath("/api/contacts"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseId, estado }),
+      body: JSON.stringify({ baseId, estado, regiao }),
     });
     if (!res.ok) {
       toast.error("Não foi possível inserir a linha.");
