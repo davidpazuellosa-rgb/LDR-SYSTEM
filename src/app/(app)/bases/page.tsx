@@ -5,6 +5,7 @@ import { currentRole } from "@/lib/current-role";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
+import CardMenu from "@/components/CardMenu";
 import RegioesGrid from "@/components/RegioesGrid";
 import { isComplete, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
@@ -151,12 +152,13 @@ export default async function BasesPage({
                 const pct = pctOf(e.done, e.total);
                 const t = tier(pct);
                 return (
+                  <div key={e.tipo} className="relative">
+                  <CardMenu kind="orgao" nome={e.tipo} contatos={e.total} />
                   <Link
-                    key={e.tipo}
                     href={`/bases?tipo=${encodeURIComponent(e.tipo)}`}
-                    className={`group flex flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 shadow-sm transition hover:shadow-md`}
+                    className={`group flex h-full flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 shadow-sm transition hover:shadow-md`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 pr-8">
                       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
                         <TipoIcon tipo={e.tipo} />
                       </span>
@@ -196,6 +198,7 @@ export default async function BasesPage({
                       </span>
                     </div>
                   </Link>
+                  </div>
                 );
               })}
             </div>
@@ -235,6 +238,9 @@ export default async function BasesPage({
       total: e?.total ?? 0,
       done: e?.done ?? 0,
       baseId: e?.baseId ?? null,
+      titulo: e?.baseId
+        ? String((bases.find((b) => b.id === e.baseId)?.headers as Record<string, unknown> | null)?.__titulo__ || "") || undefined
+        : undefined,
       hasPlanilha: !!e && (e.total > 0 || e.isImport),
     };
   });

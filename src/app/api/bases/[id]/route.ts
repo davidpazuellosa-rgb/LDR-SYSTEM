@@ -13,6 +13,18 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
+  // Título de exibição do card da planilha (não mexe no nome/região da base).
+  if (typeof body?.titulo === "string") {
+    const b = await prisma.base.findUnique({ where: { id }, select: { headers: true } });
+    if (!b) return NextResponse.json({ error: "Base não encontrada" }, { status: 404 });
+    const cur = ((b.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+    const titulo = body.titulo.trim().slice(0, 60);
+    const next = { ...cur };
+    if (titulo) next.__titulo__ = titulo;
+    else delete next.__titulo__;
+    await prisma.base.update({ where: { id }, data: { headers: next as never } });
+    return NextResponse.json({ ok: true });
+  }
   const incoming = body?.headers;
 
   if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {

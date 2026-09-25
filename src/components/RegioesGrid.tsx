@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
+import CardMenu from "@/components/CardMenu";
 import { pctOf, tier, REGIOES_BRASIL } from "@/lib/completude";
 
 export type RegiaoCard = {
@@ -12,6 +13,7 @@ export type RegiaoCard = {
   total: number;
   done: number;
   baseId: string | null;
+  titulo?: string;
   hasPlanilha: boolean;
 };
 
@@ -91,13 +93,13 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
           const t = tier(pct);
           const inner = (
             <>
-              <div className="flex items-start justify-between gap-3">
+              <div className={`flex items-start justify-between gap-3 ${c.baseId ? "pr-8" : ""}`}>
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
                     <DatabaseIcon />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="truncate font-semibold text-slate-800">{c.regiao}</h3>
+                    <h3 className="truncate font-semibold text-slate-800">{c.titulo || c.regiao}</h3>
                     <p className="truncate text-xs text-slate-400">{orgao}</p>
                   </div>
                 </div>
@@ -141,9 +143,12 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
           const cardClass = `group flex flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 text-left shadow-sm transition hover:shadow-md`;
 
           return c.baseId ? (
-            <Link key={c.regiao} href={`/bases/${c.baseId}?regiao=${encodeURIComponent(c.regiao)}`} className={cardClass}>
-              {inner}
-            </Link>
+            <div key={c.regiao} className="relative">
+              <CardMenu kind="base" nome={c.regiao} baseId={c.baseId} titulo={c.titulo} contatos={c.total} />
+              <Link href={`/bases/${c.baseId}?regiao=${encodeURIComponent(c.regiao)}`} className={`${cardClass} h-full`}>
+                {inner}
+              </Link>
+            </div>
           ) : (
             <button
               key={c.regiao}

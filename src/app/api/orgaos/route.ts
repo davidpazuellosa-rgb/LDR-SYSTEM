@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireAdmin, requirePermission } from "@/lib/guard";
 import { REGIOES_BRASIL, regiaoCanonica, tipoOrgao } from "@/lib/completude";
 
 // Cria/completa um "órgão": gera uma base vazia por região do Brasil ("{Órgão} - {Região}"),
@@ -44,4 +44,42 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, orgao: nome, criadas: faltam.length, regioes: faltam });
+}
+
+// Renomeia um órgão: troca o prefixo "{Órgão} - " de todas as bases dele.
+export async function PATCH(req: Request) {
+  const { deny } = await requireAdmin();
+  if (deny) return deny;
+  const body = await req.json().catch(() => ({}));
+  const nome = String(body?.nome || "").trim();
+  const novo = String(body?.novo || "").trim().slice(0, 60);
+  if (!nome || !novo) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
+  if (novo.includes(" - ")) return NextResponse.json({ error: 'O nome não pode conter " - ".' }, { status: 400 });
+
+  const bases = (await prisma.base.findMany({ select: { id: true, name: true } })).filter((b) => tipoOrgao(b.name) === nome);
+  if (bases.length === 0) return NextResponse.json({ error: "Órgão não encontrado" }, { status: 404 });
+  await prisma.$transaction(
+    bases.map((b) => {
+      const i = b.name.indexOf(" - ");
+      const resto = i > 0 ? b.name.slice(i + 3) : b.name;
+      return prisma.base.update({ where: { id: b.id }, data: { name: `${novo} - ${resto}` } });
+    })
+  );
+  return NextResponse.json({ ok: true, renomeadas: bases.length });
+}
+
+// Apaga um órgão inteiro: todas as bases dele e os contatos delas (definitivo).
+export async function DELETE(req: Request) {
+  const { deny } = await requirePermission("contacts.delete");
+  if (deny) return deny;
+  const body = await req.json().catch(() => ({}));
+  const nome = String(body?.nome || "").trim();
+  if (!nome) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
+
+  const ids = (await prisma.base.findMany({ select: { id: true, name: true } }))
+    .filter((b) => tipoOrgao(b.name) === nome)
+    .map((b) => b.id);
+  if (ids.length === 0) return NextResponse.json({ error: "Órgão não encontrado" }, { status: 404 });
+  await prisma.base.deleteMany({ where: { id: { in: ids } } });
+  return NextResponse.json({ ok: true, apagadas: ids.length });
 }
