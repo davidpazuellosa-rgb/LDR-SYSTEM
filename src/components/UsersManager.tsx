@@ -4,6 +4,7 @@ import { useState } from "react";
 import { apiPath } from "@/lib/path";
 import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type Role } from "@/lib/permissions";
 import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 import MetaModal from "@/components/MetaModal";
 
 type User = {
@@ -76,6 +77,7 @@ export default function UsersManager({
   proprietarioByUser: Record<string, string>;
 }) {
   const toast = useToast();
+  const dialog = useDialog();
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", role: "ldr" as Role, proprietario: "" });
@@ -191,7 +193,7 @@ export default function UsersManager({
   }
 
   async function reinvite(user: User) {
-    if (!user.pending && !confirm(`Gerar um novo link de senha para ${user.email}?\n\nAtenção: a pessoa precisará definir uma nova senha pelo link, e a senha atual deixa de funcionar.`)) return;
+    if (!user.pending && !(await dialog.confirm({ title: "Gerar novo link de senha?", message: `${user.email}\n\nA pessoa precisará definir uma nova senha pelo link, e a senha atual deixa de funcionar.`, confirmLabel: "Gerar link", danger: true }))) return;
     setBusyId(user.id);
     const loadingId = toast.loading("Gerando link...", user.email);
     try {
@@ -217,7 +219,7 @@ export default function UsersManager({
   }
 
   async function deleteUser(user: User) {
-    if (!confirm(`Remover o acesso de ${user.email}?`)) return;
+    if (!(await dialog.confirm({ title: "Remover acesso?", message: user.email, confirmLabel: "Remover", danger: true }))) return;
     setBusyId(user.id);
     const loadingId = toast.loading("Removendo usuário...", user.email);
     try {

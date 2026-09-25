@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 
 type Item = {
   id: string;
@@ -65,6 +66,7 @@ function CheckIcon() {
 
 export default function SuggestionsList({ initial }: { initial: Item[] }) {
   const toast = useToast();
+  const dialog = useDialog();
   const [items, setItems] = useState<Item[]>(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export default function SuggestionsList({ initial }: { initial: Item[] }) {
   }
 
   async function remove(it: Item) {
-    if (!confirm("Excluir esta sugestão? Não dá pra desfazer.")) return;
+    if (!(await dialog.confirm({ title: "Excluir sugestão?", message: "Não dá pra desfazer.", confirmLabel: "Excluir", danger: true }))) return;
     setBusy(it.id);
     try {
       const res = await fetch(apiPath(`/api/sugestoes/${it.id}`), { method: "DELETE" });

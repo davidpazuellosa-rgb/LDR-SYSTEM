@@ -11,6 +11,7 @@ import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
 import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
 import ColumnFilterPopover from "@/components/ColumnFilterPopover";
@@ -244,6 +245,7 @@ export default function ContactsTable({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const dialog = useDialog();
   // Estado de salvamento mostrado ao lado do título (substitui os toasts da planilha).
   const { setSaved } = useTitle();
   const markSaving = useCallback(() => setSaved({ state: "saving", at: Date.now() }), [setSaved]);
@@ -434,8 +436,8 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Cria a nova coluna logo depois da coluna selecionada (fixa ou personalizada,
   // tanto faz) — a posição visual das duas é controlada pela mesma ordem
   // unificada (`fieldOrder`). Sem seleção nenhuma, entra no final.
-  function addCustomCol() {
-    const label = window.prompt("Nome da nova coluna:")?.trim();
+  async function addCustomCol() {
+    const label = (await dialog.prompt({ title: "Nova coluna", label: "Nome da nova coluna", confirmLabel: "Criar" }))?.trim();
     if (!label) return;
     const key = `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const anchorKey =
@@ -456,9 +458,9 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     if (!l) return;
     saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
   }
-  function deleteCustomCol(key: string) {
+  async function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
-    if (!col || !confirm(`Excluir a coluna "${col.label}"? Os dados dela serão perdidos.`)) return;
+    if (!col || !(await dialog.confirm({ title: `Excluir a coluna "${col.label}"?`, message: "Os dados dela serão perdidos.", confirmLabel: "Excluir", danger: true }))) return;
     saveCols(customCols.filter((c) => c.key !== key));
   }
   // Valor de uma célula personalizada (qualquer usuário) — otimista + persiste.
@@ -1024,7 +1026,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   }
 
   async function excluirAba(uf: string) {
-    if (!confirm(`Excluir a página ${uf}? Só funciona se ela não tiver linhas preenchidas.`)) return;
+    if (!(await dialog.confirm({ title: `Excluir a página ${uf}?`, message: "Só funciona se ela não tiver linhas preenchidas.", confirmLabel: "Excluir", danger: true }))) return;
     markSaving();
     try {
       const res = await fetch(apiPath(`/api/bases/${baseId}/abas`), {
@@ -1853,7 +1855,7 @@ async function excluirColunas(colIndices: number[]) {
     keys.length > 1
       ? `Excluir ${keys.length} colunas (${nomes.join(", ")})?`
       : `Excluir a coluna "${nomes[0]}"?`;
-  if (!confirm(`${msg}\n\nApaga o conteúdo em todas as linhas e remove a coluna da planilha (não volta por "Mostrar ocultas"). Só dá pra desfazer agora, com Ctrl+Z.`)) {
+  if (!(await dialog.confirm({ title: msg, message: 'Apaga o conteúdo em todas as linhas e remove a coluna da planilha (não volta por "Mostrar ocultas"). Só dá pra desfazer agora, com Ctrl+Z.', confirmLabel: "Excluir", danger: true }))) {
     setMenu(null);
     return;
   }
@@ -1882,7 +1884,7 @@ function showAllColumns() {
 }
 
 async function addBlankRows() {
-  const txt = window.prompt("Quantas linhas em branco adicionar? (1 a 5000)", "100");
+  const txt = await dialog.prompt({ title: "Adicionar linhas", label: "Quantas linhas em branco? (1 a 5000)", defaultValue: "100", confirmLabel: "Adicionar", inputMode: "numeric" });
   if (txt === null) return;
   const quantidade = Math.trunc(Number(txt.replace(/\D/g, "")));
   if (!quantidade || quantidade < 1 || quantidade > 5000) {
@@ -1956,7 +1958,7 @@ async function deleteRows(rowIndices: number[]) {
     .map((i) => visible[i])
     .filter((c): c is Contact => Boolean(c));
   if (targets.length === 0) return;
-  if (!confirm(targets.length > 1 ? `Excluir ${targets.length} linhas?` : "Excluir esta linha?")) {
+  if (!(await dialog.confirm({ title: targets.length > 1 ? `Excluir ${targets.length} linhas?` : "Excluir esta linha?", confirmLabel: "Excluir", danger: true }))) {
     setMenu(null);
     return;
   }

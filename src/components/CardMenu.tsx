@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
+import { useDialog } from "@/components/Dialog";
 
 // Menu "⋯" dos cards de Bases: renomear e apagar.
 //  - kind "orgao": card do tipo de órgão (renomeia/apaga TODAS as planilhas dele)
@@ -23,6 +24,7 @@ export default function CardMenu({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,7 +51,7 @@ export default function CardMenu({
   async function renomear() {
     setOpen(false);
     const atual = kind === "orgao" ? nome : titulo || nome;
-    const novo = window.prompt(kind === "orgao" ? "Novo nome do órgão:" : "Novo nome da planilha:", atual);
+    const novo = await dialog.prompt({ title: "Editar nome", label: kind === "orgao" ? "Novo nome do órgão" : "Novo nome da planilha", defaultValue: atual });
     if (novo === null || novo.trim() === atual) return;
     if (kind === "orgao") {
       if (!novo.trim()) return;
@@ -63,9 +65,13 @@ export default function CardMenu({
     setOpen(false);
     const qtd = contatos.toLocaleString("pt-BR");
     if (kind === "orgao") {
-      const dig = window.prompt(
-        `Apagar o órgão "${nome}" apaga TODAS as planilhas dele e os ${qtd} contatos. Não tem volta.\n\nPara confirmar, digite o nome do órgão:`
-      );
+      const dig = await dialog.prompt({
+        title: `Apagar o órgão "${nome}"?`,
+        message: `Apaga TODAS as planilhas dele e os ${qtd} contatos. Não tem volta.`,
+        label: "Para confirmar, digite o nome do órgão",
+        confirmLabel: "Apagar",
+        danger: true,
+      });
       if (dig === null) return;
       if (dig.trim() !== nome) {
         toast.error("Nome não confere.", "Nada foi apagado.");
@@ -73,7 +79,7 @@ export default function CardMenu({
       }
       await chama("/api/orgaos", "DELETE", { nome }, "Órgão apagado.");
     } else if (baseId) {
-      if (!window.confirm(`Apagar a planilha "${titulo || nome}" e os ${qtd} contatos dela? Não tem volta.`)) return;
+      if (!(await dialog.confirm({ title: `Apagar a planilha "${titulo || nome}"?`, message: `Os ${qtd} contatos dela também serão apagados. Não tem volta.`, confirmLabel: "Apagar", danger: true }))) return;
       await chama(`/api/bases/${baseId}`, "DELETE", {}, "Planilha apagada.");
     }
   }

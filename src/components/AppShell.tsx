@@ -6,6 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { TitleProvider } from "@/components/TitleContext";
 import { ToastProvider } from "@/components/Toast";
+import { DialogProvider } from "@/components/Dialog";
 import SystemAssistant from "@/components/SystemAssistant";
 import SuggestionButton from "@/components/SuggestionButton";
 
@@ -32,6 +33,7 @@ export default function AppShell({
   return (
     <TitleProvider>
       <ToastProvider>
+      <DialogProvider>
       {/* Shell preso à viewport: a sidebar e o topo NUNCA rolam;
           apenas a área central (<main>) tem rolagem própria. */}
       <div className="fixed inset-0 flex overflow-hidden bg-slate-100">
@@ -43,6 +45,7 @@ export default function AppShell({
         <SystemAssistant />
         <SuggestionButton />
       </div>
+      </DialogProvider>
       </ToastProvider>
     </TitleProvider>
   );
