@@ -314,6 +314,8 @@ const [menu, setMenu] = useState<
   | null
 >(null);
 const [pasteSpecialOpen, setPasteSpecialOpen] = useState(false);
+const [searchOpen, setSearchOpen] = useState(false);
+const [searchPos, setSearchPos] = useState({ x: 0, y: 0 });
 const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
 // Colunas ocultas/"excluídas" da visão (campos fixos não são apagados do banco).
 // COMPARTILHADAS com o time (Base.headers.__hidden__), igual às mesclas e à
@@ -1883,32 +1885,6 @@ function showAllColumns() {
   setFocusCell(null);
 }
 
-async function addBlankRows() {
-  const txt = await dialog.prompt({ title: "Adicionar linhas", label: "Quantas linhas em branco? (1 a 5000)", defaultValue: "100", confirmLabel: "Adicionar", inputMode: "numeric" });
-  if (txt === null) return;
-  const quantidade = Math.trunc(Number(txt.replace(/\D/g, "")));
-  if (!quantidade || quantidade < 1 || quantidade > 5000) {
-    toast.error("Informe um número de 1 a 5000.");
-    return;
-  }
-  const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
-  markSaving();
-  const res = await fetch(apiPath("/api/contacts/lote"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ baseId, quantidade, estado, regiao }),
-  });
-  if (!res.ok) {
-    markSaveError();
-    toast.error("Não foi possível adicionar as linhas.");
-    return;
-  }
-  const { criadas } = (await res.json()) as { criadas: Contact[] };
-  setContacts((prev) => [...prev, ...criadas]);
-  markSaved();
-  toast.success(`${criadas.length.toLocaleString("pt-BR")} linhas adicionadas.`);
-}
-
 async function insertRowNear(rowIndex: number, side: "above" | "below", count = 1) {
   setClip(null);
   const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
@@ -2599,27 +2575,48 @@ async function saveCell(id: string, key: string, value: string) {
         </span>
         <div className="mx-1 h-6 w-px shrink-0 bg-slate-200" />
 
-        {/* Buscar na planilha */}
-        <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
-          <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar na planilha"
-            className="w-40 bg-transparent outline-none placeholder:text-slate-400"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} aria-label="Limpar busca" className="text-slate-400 hover:text-slate-600">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" /></svg>
-            </button>
-          )}
-        </div>
+        {/* Buscar na planilha: só o ícone; abre um campo em dropdown ao clicar */}
+        <button
+          type="button"
+          aria-label="Buscar na planilha"
+          title="Buscar na planilha"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setSearchPos({ x: r.left, y: r.bottom + 6 });
+            setSearchOpen((v) => !v);
+          }}
+          className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-md transition ${
+            searchOpen || search ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
+          {search && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500" />}
+        </button>
+        {searchOpen && (
+          <>
+            <div className="fixed inset-0 z-[70]" onMouseDown={() => setSearchOpen(false)} />
+            <div
+              className="fixed z-[71] flex w-72 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-xl"
+              style={{ left: Math.min(searchPos.x, window.innerWidth - 300), top: searchPos.y }}
+            >
+              <svg className="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => (e.key === "Escape" || e.key === "Enter") && setSearchOpen(false)}
+                placeholder="Buscar na planilha"
+                className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="text-slate-400 hover:text-slate-600">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" /></svg>
+                </button>
+              )}
+            </div>
+          </>
+        )}
 
-        <ToolDivider />
-
-        <ToolBtn title="Adicionar linhas em branco (até 5000)" onClick={addBlankRows}>
-          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M12 8v8M8 12h8" strokeLinecap="round" /></svg>
-        </ToolBtn>
         <ToolDivider />
 
         {/* Desfazer / Refazer */}
