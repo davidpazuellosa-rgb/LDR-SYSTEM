@@ -18,12 +18,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Informe de 1 a ${LIMITE_LINHAS_POR_VEZ} linhas.` }, { status: 400 });
   }
 
+  // Sem região informada (planilha aberta fora de um card de região), herda a das linhas
+  // que a página/UF já tem — senão as novas linhas somem quando a base é aberta pelo card.
+  const estado = body?.estado ? String(body.estado) : null;
+  let regiao = body?.regiao ? String(body.regiao) : null;
+  if (!regiao && estado) {
+    const ref = await prisma.contact.findFirst({
+      where: { baseId, estado, deletedAt: null, regiao: { not: null } },
+      select: { regiao: true },
+    });
+    regiao = ref?.regiao ?? null;
+  }
+
   const data = {
     baseId,
     // @ts-expect-error id custom na sessão
     createdById: session.user.id ?? null,
-    estado: body?.estado ? String(body.estado) : null,
-    regiao: body?.regiao ? String(body.regiao) : null,
+    estado,
+    regiao,
   };
 
   const criadas = [];
