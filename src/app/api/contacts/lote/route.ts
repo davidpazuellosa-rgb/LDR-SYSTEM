@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guard";
 
-export const LIMITE_LINHAS_POR_VEZ = 5000;
+const LIMITE_LINHAS_POR_VEZ = 5000;
 
 // Adiciona N linhas em branco no fim de uma base (ou de uma página/UF), de uma vez.
 // Só baseId é obrigatório no banco; estado/regiao são o andaime da página.
