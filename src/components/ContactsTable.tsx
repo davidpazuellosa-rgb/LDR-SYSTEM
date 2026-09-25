@@ -1860,6 +1860,32 @@ function showAllColumns() {
   setFocusCell(null);
 }
 
+async function addBlankRows() {
+  const txt = window.prompt("Quantas linhas em branco adicionar? (1 a 5000)", "100");
+  if (txt === null) return;
+  const quantidade = Math.trunc(Number(txt.replace(/\D/g, "")));
+  if (!quantidade || quantidade < 1 || quantidade > 5000) {
+    toast.error("Informe um número de 1 a 5000.");
+    return;
+  }
+  const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
+  markSaving();
+  const res = await fetch(apiPath("/api/contacts/lote"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ baseId, quantidade, estado, regiao }),
+  });
+  if (!res.ok) {
+    markSaveError();
+    toast.error("Não foi possível adicionar as linhas.");
+    return;
+  }
+  const { criadas } = (await res.json()) as { criadas: Contact[] };
+  setContacts((prev) => [...prev, ...criadas]);
+  markSaved();
+  toast.success(`${criadas.length.toLocaleString("pt-BR")} linhas adicionadas.`);
+}
+
 async function insertRowNear(rowIndex: number, side: "above" | "below", count = 1) {
   setClip(null);
   const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
@@ -2566,6 +2592,11 @@ async function saveCell(id: string, key: string, value: string) {
           )}
         </div>
 
+        <ToolDivider />
+
+        <ToolBtn title="Adicionar linhas em branco (até 5000)" onClick={addBlankRows}>
+          <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M12 8v8M8 12h8" strokeLinecap="round" /></svg>
+        </ToolBtn>
         <ToolDivider />
 
         {/* Desfazer / Refazer */}
