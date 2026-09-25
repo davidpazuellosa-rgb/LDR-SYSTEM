@@ -20,6 +20,7 @@ import { CONTACT_FIELDS, type ContactField } from "@/lib/contact-fields";
 export const COLS_KEY = "__cols__";
 export const ORDER_KEY = "__order__";
 export const HIDDEN_KEY = "__hidden__";
+export const DELETED_KEY = "__deleted__";
 
 // Chaves reservadas dentro de headers: são estrutura, não rótulo de coluna.
 const isReservedKey = (k: string) => k.startsWith("__") && k.endsWith("__");
@@ -72,6 +73,12 @@ export function parseColOrder(headers: Headers): string[] {
 // Colunas ocultas/"excluídas" da visão (o dado continua no banco).
 export function parseHiddenCols(headers: Headers): string[] {
   return stringList((headers || {})[HIDDEN_KEY], 200);
+}
+
+// Colunas EXCLUÍDAS de verdade: também ficam em __hidden__ (o resto do sistema já
+// trata oculta como "fora da planilha"), mas aqui não voltam por "Mostrar ocultas".
+export function parseDeletedCols(headers: Headers): string[] {
+  return stringList((headers || {})[DELETED_KEY], 200);
 }
 
 // Monta a lista final de colunas VISÍVEIS, na ordem em que aparecem na tela.

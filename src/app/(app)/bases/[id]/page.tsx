@@ -8,7 +8,7 @@ import { tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
-import { parseColOrder, parseHeaderLabels, parseHiddenCols } from "@/lib/base-columns";
+import { parseColOrder, parseHeaderLabels, parseHiddenCols, parseDeletedCols } from "@/lib/base-columns";
 import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
 import { parseAbas } from "@/lib/base-abas";
 import { garantirLinhasIniciais } from "@/lib/linhas-iniciais";
@@ -87,6 +87,7 @@ export default async function BaseDetailPage({
   // do que a pessoa via na tela.
   const initialOrder = parseColOrder(rawHeaders);
   const initialHidden = parseHiddenCols(rawHeaders);
+  const initialDeleted = parseDeletedCols(rawHeaders);
   // Páginas (abas) guardadas: existem mesmo sem nenhuma linha na UF ainda.
   const initialAbas = parseAbas(rawHeaders);
   await ensureContactCustomTable();
@@ -127,6 +128,7 @@ export default async function BaseDetailPage({
           initialSort={initialSort}
           initialOrder={initialOrder}
           initialHidden={initialHidden}
+          initialDeleted={initialDeleted}
           initialAbas={initialAbas}
           regiao={regiao ?? null}
           me={{

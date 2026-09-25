@@ -209,6 +209,7 @@ export default function ContactsTable({
   initialSort = null,
   initialOrder = [],
   initialHidden = [],
+  initialDeleted = [],
   initialAbas = [],
   regiao = null,
   initialSavedAt = null,
@@ -230,6 +231,7 @@ export default function ContactsTable({
   initialSort?: { key: string; dir: "asc" | "desc" } | null;
   initialOrder?: string[];
   initialHidden?: string[];
+  initialDeleted?: string[];
   initialAbas?: string[];
   regiao?: string | null;
   initialSavedAt?: string | null;
@@ -315,6 +317,9 @@ const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
 // COMPARTILHADAS com o time (Base.headers.__hidden__), igual às mesclas e à
 // ordenação — é o que garante que o CSV saia igual ao que está na tela.
 const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(initialHidden));
+// Colunas EXCLUÍDAS de verdade (também constam em hiddenColumns): não voltam por
+// "Mostrar ocultas". Só o Ctrl+Z da própria exclusão as traz de volta.
+const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(initialDeleted));
   // Células copiadas/recortadas e marcadas (tracejado tipo Google Sheets).
   const [clip, setClip] = useState<Clip | null>(null);
   // Mesclas visuais da base — compartilhadas por todo o time (salvas no banco,
@@ -338,7 +343,7 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
   // ---- Layout das colunas (ordem + ocultas), compartilhado ----
   // Salvo em Base.headers.__order__/__hidden__ via /api/bases/[id]/layout.
   const persistLayout = useCallback(
-    (payload: { order?: string[]; hidden?: string[] }) => {
+    (payload: { order?: string[]; hidden?: string[]; deleted?: string[] }) => {
       markSaving();
       fetch(apiPath(`/api/bases/${baseId}/layout`), {
         method: "PUT",
@@ -349,6 +354,13 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
         .catch(() => markSaveError());
     },
     [baseId, markSaving, markSaved, markSaveError],
+  );
+  const changeDeleted = useCallback(
+    (next: Set<string>) => {
+      setDeletedColumns(next);
+      persistLayout({ deleted: [...next] });
+    },
+    [persistLayout],
   );
   const changeHidden = useCallback(
     (next: Set<string>) => {
@@ -1353,6 +1365,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
     const next = new Set(hiddenColumns);
     action.colKeys.forEach((k) => next.delete(k));
     changeHidden(next);
+    const del = new Set(deletedColumns);
+    action.colKeys.forEach((k) => del.delete(k));
+    changeDeleted(del);
   }
   else if (action.kind === "sort") {
     // desfazer ordenação: volta a ordem anterior (e o indicador de coluna anterior).
@@ -1386,6 +1401,9 @@ const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set(in
     const next = new Set(hiddenColumns);
     action.colKeys.forEach((k) => next.add(k));
     changeHidden(next);
+    const del = new Set(deletedColumns);
+    action.colKeys.forEach((k) => del.add(k));
+    changeDeleted(del);
   }
   else if (action.kind === "sort") {
     // refazer ordenação: aplica a ordem seguinte de novo.
@@ -1835,7 +1853,7 @@ async function excluirColunas(colIndices: number[]) {
     keys.length > 1
       ? `Excluir ${keys.length} colunas (${nomes.join(", ")})?`
       : `Excluir a coluna "${nomes[0]}"?`;
-  if (!confirm(`${msg}\n\nApaga o conteúdo em todas as linhas e some da visão. Dá pra desfazer com Ctrl+Z.`)) {
+  if (!confirm(`${msg}\n\nApaga o conteúdo em todas as linhas e remove a coluna da planilha (não volta por "Mostrar ocultas"). Só dá pra desfazer agora, com Ctrl+Z.`)) {
     setMenu(null);
     return;
   }
@@ -1848,6 +1866,9 @@ async function excluirColunas(colIndices: number[]) {
   const ocultas = new Set(hiddenColumns);
   keys.forEach((k) => ocultas.add(k));
   changeHidden(ocultas);
+  const excluidas = new Set(deletedColumns);
+  keys.forEach((k) => excluidas.add(k));
+  changeDeleted(excluidas);
   setAnchorCell(null);
   setFocusCell(null);
   setClip(null);
@@ -1855,7 +1876,7 @@ async function excluirColunas(colIndices: number[]) {
 }
 
 function showAllColumns() {
-  changeHidden(new Set());
+  changeHidden(new Set(deletedColumns));
   setAnchorCell(null);
   setFocusCell(null);
 }
@@ -2704,7 +2725,7 @@ async function saveCell(id: string, key: string, value: string) {
         <ToolDivider />
 
         {/* Mostrar colunas ocultas (aparece só quando há colunas ocultas) */}
-        {hiddenColumns.size > 0 && (
+        {hiddenColumns.size > deletedColumns.size && (
           <button
             type="button"
             onClick={showAllColumns}
@@ -2712,7 +2733,7 @@ async function saveCell(id: string, key: string, value: string) {
             className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
           >
             <svg className="h-[16px] w-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2.5 12C3.5 9.5 7 5 12 5s8.5 4.5 9.5 7c-1 2.5-4.5 7-9.5 7s-8.5-4.5-9.5-7Z" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" /></svg>
-            Mostrar {hiddenColumns.size} oculta{hiddenColumns.size > 1 ? "s" : ""}
+            Mostrar {hiddenColumns.size - deletedColumns.size} oculta{hiddenColumns.size - deletedColumns.size > 1 ? "s" : ""}
           </button>
         )}
 

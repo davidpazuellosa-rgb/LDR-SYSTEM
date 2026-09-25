@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guard";
-import { ORDER_KEY, HIDDEN_KEY } from "@/lib/base-columns";
+import { ORDER_KEY, HIDDEN_KEY, DELETED_KEY } from "@/lib/base-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       : null;
   const order = lista(body?.order);
   const hidden = lista(body?.hidden);
-  if (!order && !hidden) return NextResponse.json({ error: "order/hidden inválidos" }, { status: 400 });
+  const deleted = lista(body?.deleted);
+  if (!order && !hidden && !deleted) return NextResponse.json({ error: "order/hidden inválidos" }, { status: 400 });
 
   const base = await prisma.base.findUnique({ where: { id }, select: { headers: true } });
   if (!base) return NextResponse.json({ error: "Base não encontrada" }, { status: 404 });
@@ -33,6 +34,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   // Só mexe no que veio: salvar ordem não pode apagar as ocultas, e vice-versa.
   if (order) next[ORDER_KEY] = order;
   if (hidden) next[HIDDEN_KEY] = hidden;
+  if (deleted) next[DELETED_KEY] = deleted;
 
   await prisma.base.update({ where: { id }, data: { headers: next as Prisma.InputJsonValue } });
   return NextResponse.json({ ok: true });
