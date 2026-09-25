@@ -314,6 +314,8 @@ const [menu, setMenu] = useState<
   | null
 >(null);
 const [pasteSpecialOpen, setPasteSpecialOpen] = useState(false);
+const [alignOpen, setAlignOpen] = useState(false);
+const [alignPos, setAlignPos] = useState({ x: 0, y: 0 });
 const [searchOpen, setSearchOpen] = useState(false);
 const [searchPos, setSearchPos] = useState({ x: 0, y: 0 });
 const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(() => new Set());
@@ -2699,27 +2701,59 @@ async function saveCell(id: string, key: string, value: string) {
 
         <ToolDivider />
 
-        {/* Alinhamento */}
-        {([
-          { v: "left", d: "M4 6h16M4 12h10M4 18h13" },
-          { v: "center", d: "M4 6h16M7 12h10M5 18h14" },
-          { v: "right", d: "M4 6h16M10 12h10M7 18h13" },
-        ] as const).map((a) => {
-          const lbl = `Alinhar à ${a.v === "left" ? "esquerda" : a.v === "center" ? "centro" : "direita"}`;
+        {/* Alinhamento: um botão com dropdown (mostra o alinhamento atual da seleção) */}
+        {(() => {
+          const ALINHAMENTOS = [
+            { v: "left", nome: "Esquerda", d: "M4 6h16M4 12h10M4 18h13" },
+            { v: "center", nome: "Centro", d: "M4 6h16M7 12h10M5 18h14" },
+            { v: "right", nome: "Direita", d: "M4 6h16M10 12h10M7 18h13" },
+          ] as const;
+          const atual = ALINHAMENTOS.find((a) => selectionAllHave((f) => (f.align || "left") === a.v)) ?? ALINHAMENTOS[0];
           return (
-          <Tooltip key={a.v} label={lbl}>
-            <button
-              type="button"
-              aria-label={lbl}
-              onClick={() => setAlign(a.v)}
-              disabled={selectedCount === 0}
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-md transition hover:bg-slate-100 disabled:opacity-40 ${selectionAllHave((f) => (f.align || "left") === a.v) ? "bg-indigo-50 text-indigo-700" : "text-slate-700"}`}
-            >
-              <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d={a.d} strokeLinecap="round" /></svg>
-            </button>
-          </Tooltip>
+            <>
+              <Tooltip label="Alinhamento">
+                <button
+                  type="button"
+                  aria-label="Alinhamento"
+                  disabled={selectedCount === 0}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setAlignPos({ x: r.left, y: r.bottom + 6 });
+                    setAlignOpen((v) => !v);
+                  }}
+                  className={`flex h-9 shrink-0 items-center gap-0.5 rounded-md px-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 ${alignOpen ? "bg-slate-100" : ""}`}
+                >
+                  <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d={atual.d} strokeLinecap="round" /></svg>
+                  <svg className="h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
+              </Tooltip>
+              {alignOpen && (
+                <>
+                  <div className="fixed inset-0 z-[70]" onMouseDown={() => setAlignOpen(false)} />
+                  <div
+                    className="fixed z-[71] w-40 rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                    style={{ left: Math.min(alignPos.x, window.innerWidth - 170), top: alignPos.y }}
+                  >
+                    {ALINHAMENTOS.map((a) => (
+                      <button
+                        key={a.v}
+                        type="button"
+                        onClick={() => {
+                          setAlign(a.v);
+                          setAlignOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50 ${atual.v === a.v ? "font-medium text-indigo-700" : "text-slate-700"}`}
+                      >
+                        <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d={a.d} strokeLinecap="round" /></svg>
+                        {a.nome}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
           );
-        })}
+        })()}
 
         <ToolDivider />
 
