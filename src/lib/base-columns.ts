@@ -71,8 +71,10 @@ export function parseColOrder(headers: Headers): string[] {
 }
 
 // Colunas ocultas/"excluídas" da visão (o dado continua no banco).
+// Excluída = sempre oculta: une as duas listas, para uma tela desatualizada que
+// regrave __hidden__ sem a coluna nunca "ressuscitar" uma coluna excluída.
 export function parseHiddenCols(headers: Headers): string[] {
-  return stringList((headers || {})[HIDDEN_KEY], 200);
+  return stringList([...stringList((headers || {})[HIDDEN_KEY], 200), ...stringList((headers || {})[DELETED_KEY], 200)], 400);
 }
 
 // Colunas EXCLUÍDAS de verdade: também ficam em __hidden__ (o resto do sistema já
