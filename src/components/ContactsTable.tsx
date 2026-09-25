@@ -2587,15 +2587,15 @@ async function saveCell(id: string, key: string, value: string) {
             </svg>
           </Link>
         )}
-        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+        <span title="Concluídos" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
             <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          {headerCounts.concluidos.toLocaleString("pt-BR")} concluídos
+          {headerCounts.concluidos.toLocaleString("pt-BR")}
         </span>
-        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+        <span title="A preencher" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-          {headerCounts.aPreencher.toLocaleString("pt-BR")} a preencher
+          {headerCounts.aPreencher.toLocaleString("pt-BR")}
         </span>
         <div className="mx-1 h-6 w-px shrink-0 bg-slate-200" />
 
