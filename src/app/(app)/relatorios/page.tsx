@@ -4,6 +4,7 @@ import { isAdmin } from "@/lib/permissions";
 import { buildRelatorio, parsePeriodo, PERIODO_LABEL } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
 import RelatorioFiltros from "@/components/RelatorioFiltros";
+import RelatoriosTabs from "@/components/RelatoriosTabs";
 import BrasilTilemap from "@/components/BrasilTilemap";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export default async function RelatoriosPage({
     <>
       <PageHeader title="Relatórios" />
       <main className="mx-auto max-w-[1400px] space-y-5 p-6">
+        <RelatoriosTabs ativa="geral" />
         <RelatorioFiltros
           periodo={periodo}
           ldrId={r.ldrId}
