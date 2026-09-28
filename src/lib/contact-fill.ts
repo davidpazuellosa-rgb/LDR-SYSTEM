@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { isComplete, customsCompletos, REQUIRED_SELECT } from "@/lib/completude";
+import { isComplete, isCompleteVisivel, customsCompletos, REQUIRED_SELECT } from "@/lib/completude";
 import { parseCustomCols } from "@/lib/custom-columns";
+import { parseHiddenCols } from "@/lib/base-columns";
 
 let ensured = false;
 
@@ -42,7 +43,11 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
   if (!contact) return;
 
   const base = await prisma.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
-  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null);
+  const headers = base?.headers as Record<string, unknown> | null;
+  // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela
+  // (isCompleteVisivel). Antes o servidor exigia as 7 fixas e ninguém era creditado.
+  const ocultas = new Set(parseHiddenCols(headers));
+  const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key));
 
   let customOk = true;
   if (cols.length) {
@@ -50,7 +55,7 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
     customOk = cols.every((c) => !!(map.get(c.key) || "").trim());
   }
 
-  const completo = isComplete(contact as Parameters<typeof isComplete>[0]) && customOk;
+  const completo = isCompleteVisivel(contact as Parameters<typeof isComplete>[0], ocultas) && customOk;
 
   if (completo && meId) {
     await prisma.contactFill.upsert({
@@ -77,7 +82,8 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
       select: { id: true, ...REQUIRED_SELECT },
     }),
   ]);
-  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null);
+  const ocultas = new Set(parseHiddenCols(base?.headers as Record<string, unknown> | null));
+  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null).filter((c) => !ocultas.has(c.key));
 
   const valsByContact = new Map<string, Record<string, string>>();
   if (cols.length) {
@@ -96,7 +102,7 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
   const completos: string[] = [];
   const incompletos: string[] = [];
   for (const c of contatos) {
-    const ok = isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, valsByContact.get(c.id));
+    const ok = isCompleteVisivel(c as Parameters<typeof isComplete>[0], ocultas) && customsCompletos(keys, valsByContact.get(c.id));
     (ok ? completos : incompletos).push(c.id);
   }
 
