@@ -64,7 +64,9 @@ function GraficoDias({ dias }: { dias: Producao["dias"] }) {
       </div>
       <div className="mt-1.5 flex gap-[3px] text-[10px] text-slate-400">
         {dias.map((d, i) => (
-          <span key={d.chave} className="flex-1 truncate text-center">{i % passo === 0 ? d.label : ""}</span>
+          <span key={d.chave} className="relative h-3 flex-1">
+            {i % passo === 0 && <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap">{d.label}</span>}
+          </span>
         ))}
       </div>
     </div>

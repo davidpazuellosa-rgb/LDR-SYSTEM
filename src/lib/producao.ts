@@ -88,7 +88,17 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     });
   }
 
-  const pessoas = pessoasDb.map((u) => ({ id: u.id, nome: u.name || u.email }));
+  // Além dos operadores (LDR/pré-vendedor), entra quem produziu no período mesmo sendo
+  // de outro cargo (ex.: admin que preencheu linhas) — senão a soma por pessoa não fecha
+  // com o total da equipe.
+  const idsOperadores = new Set(pessoasDb.map((u) => u.id));
+  const extrasIds = Array.from(new Set(todos.map((e) => e.pessoaId))).filter((id) => !idsOperadores.has(id));
+  const extras = extrasIds.length
+    ? await prisma.user.findMany({ where: { id: { in: extrasIds } }, select: { id: true, name: true, email: true } })
+    : [];
+  const pessoas = [...pessoasDb, ...extras]
+    .map((u) => ({ id: u.id, nome: u.name || u.email }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
   const pessoasVisiveis = filtros.pessoas.length ? pessoas.filter((p) => filtros.pessoas.includes(p.id)) : pessoas;
 
   const metas: MetaIn[] = metasDb.map((m) => ({
