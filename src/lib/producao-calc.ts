@@ -1,6 +1,7 @@
 // Cálculo PURO (sem banco) do relatório "Produção por pessoa": períodos, filtros,
 // normalização de metas e agregações. O carregamento do banco fica em producao.ts.
 import { normCampanha } from "@/lib/campanhas";
+import { chaveTerritorio } from "@/lib/meta-progress";
 
 export type TipoEvento = "preenchimento" | "correcao";
 export type Evento = {
@@ -153,19 +154,23 @@ export type MetaCalc = {
 
 // Realizado de uma meta na faixa: preenchimento por TERRITÓRIO (não importa quem digitou),
 // correção por quem resolveu — a mesma regra do dashboard e de Minhas Metas.
-export function feitoDaMeta(m: MetaIn, todos: Evento[], faixa: Faixa): number {
+export function feitoDaMeta(m: MetaIn, todos: Evento[], faixa: Faixa, compartilhados?: Set<string>): number {
   if (m.tipo === "correcao") {
     const c = normCampanha(m.campanha);
     return todos.filter((e) => e.tipo === "correcao" && e.pessoaId === m.userId && normCampanha(e.campanha) === c && naFaixa(e.quando, faixa)).length;
   }
+  // Território com mais de uma pessoa: cada uma conta só o que ela mesma completou.
+  const dividido = !!compartilhados?.has(chaveTerritorio(m));
   return todos.filter(
-    (e) => e.tipo === "preenchimento" && e.baseId === m.baseId && (e.regiao || "Sem região") === m.regiao && e.estado === m.estado && naFaixa(e.quando, faixa)
+    (e) =>
+      e.tipo === "preenchimento" && e.baseId === m.baseId && (e.regiao || "Sem região") === m.regiao && e.estado === m.estado &&
+      naFaixa(e.quando, faixa) && (!dividido || e.pessoaId === m.userId)
   ).length;
 }
 
-export function calcularMeta(m: MetaIn, todos: Evento[], faixa: Faixa, now: Date, rotulo: string): MetaCalc {
+export function calcularMeta(m: MetaIn, todos: Evento[], faixa: Faixa, now: Date, rotulo: string, compartilhados?: Set<string>): MetaCalc {
   const meta = metaNormalizada(m.alvo, m.prazo, faixa);
-  const feito = feitoDaMeta(m, todos, faixa);
+  const feito = feitoDaMeta(m, todos, faixa, compartilhados);
   const p = meta > 0 ? Math.round((feito / meta) * 100) : feito > 0 ? 100 : 0;
   const total = faixa.ate.getTime() - faixa.de.getTime();
   const frac = faixa.ate <= now ? 1 : Math.min(1, Math.max(0, (now.getTime() - faixa.de.getTime()) / total));

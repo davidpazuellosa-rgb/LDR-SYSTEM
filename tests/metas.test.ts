@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { tipoOrgao, isComplete, REQUIRED_FIELDS } from "../src/lib/completude";
 import { isCampanhaAtiva } from "../src/lib/campanhas";
 import { sanitizeMetas } from "../src/lib/metas-input";
-import { metaFeito, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
+import { metaFeito, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
 
 const completo = () =>
   Object.fromEntries(REQUIRED_FIELDS.map((f) => [f, "x"])) as Record<(typeof REQUIRED_FIELDS)[number], string | null>;
@@ -95,4 +95,29 @@ test("metaFeito (correção): conta correções resolvidas pelo LDR na campanha,
     { resolvedById: "u1", resolvedAt: antigo, campanha: "Aluno a Bordo" }, // fora do período → não
   ];
   assert.equal(metaFeito(meta, now, [], corrs), 1);
+});
+
+test("território de uma pessoa só: conta tudo que ficou completo (não importa quem digitou)", () => {
+  const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const now = new Date();
+  const fills = [
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "outro" },
+  ];
+  assert.equal(metaFeito(meta, now, fills, [], territoriosCompartilhados([meta])), 2);
+});
+
+test("mesmo estado para 2 pessoas: cada uma conta só o que ela completou", () => {
+  const m1 = { id: "m1", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const m2 = { ...m1, id: "m2", userId: "u2" } as Meta;
+  const now = new Date();
+  const fills = [
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u2" },
+  ];
+  const comp = territoriosCompartilhados([m1, m2]);
+  assert.equal(comp.size, 1);
+  assert.equal(metaFeito(m1, now, fills, [], comp), 2);
+  assert.equal(metaFeito(m2, now, fills, [], comp), 1);
 });

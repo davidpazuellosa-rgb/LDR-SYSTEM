@@ -7,6 +7,7 @@ import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
 import {
   metaFeito,
+  territoriosCompartilhados,
   periodStart,
   periodEnd,
   startOfDay,
@@ -105,9 +106,10 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const fillsTerr: Fill[] = [];
   for (const fr of fillRows) {
     const c = contactById.get(fr.contactId);
-    if (c) fillsTerr.push({ concluidoEm: fr.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+    if (c) fillsTerr.push({ concluidoEm: fr.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado, porId: fr.preenchidoPorId });
   }
   const corrections: CorrDone[] = corrRows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }));
+  const compartilhados = territoriosCompartilhados(metasAll);
 
   // ---- Ranking por LDR no período ----
   const ldrsView = ldrId ? ldrs.filter((l) => l.id === ldrId) : ldrs;
@@ -191,14 +193,14 @@ export async function buildRelatorio(f: RelatorioFiltros) {
 
   const metasView = metasFiltradas
     .map((m) => {
-      const feito = metaFeito(m, now, fillsTerr, corrections);
+      const feito = metaFeito(m, now, fillsTerr, corrections, compartilhados);
       const p = pct(feito, m.alvo);
       const ini = periodStart(m.prazo, now);
       const fim = periodEnd(m.prazo, now);
       const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
       const esperado = Math.round(m.alvo * decorrido);
       const status: StatusMeta = p >= 100 ? "ok" : feito >= esperado ? "ok" : feito >= esperado * 0.6 ? "risco" : "atrasado";
-      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, rotulo: rotuloMeta(m), feito, alvo: m.alvo, p, esperado, status };
+      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m), feito, alvo: m.alvo, p, esperado, status };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome) || a.status.localeCompare(b.status));
 

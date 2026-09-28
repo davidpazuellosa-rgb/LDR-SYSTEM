@@ -5,18 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
-import { regiaoKey, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { regiaoKey, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 
 export type StatusMeta = "ok" | "risco" | "atrasado";
 
-function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: Date, end: Date): number {
+function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: Date, end: Date, compartilhados?: Set<string>): number {
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
     return corrections.filter((c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && c.resolvedAt < end && normCampanha(c.campanha) === camp).length;
   }
-  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado).length;
+  const dividido = !!compartilhados?.has(chaveTerritorio(m));
+  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado && (!dividido || f.porId === m.userId)).length;
 }
 
 function statusDe(feito: number, alvo: number, decorrido: number): StatusMeta {
@@ -89,10 +90,10 @@ async function carregar(userId: string, desde: Date) {
   await ensureMetaTable();
   await ensureContactFillTable();
   const metas = (await prisma.meta.findMany({ where: { userId } })) as MetaComData[];
-  if (metas.length === 0) return { metas, fills: [] as Fill[], corrections: [] as CorrDone[], baseName: (() => "Base") as (id: string | null) => string };
+  if (metas.length === 0) return { metas, fills: [] as Fill[], corrections: [] as CorrDone[], baseName: (() => "Base") as (id: string | null) => string, compartilhados: new Set<string>() };
 
   const [fillRows, corrRows, bases] = await Promise.all([
-    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, concluidoEm: true } }),
+    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction.findMany({
       where: { resolvedById: userId, status: "resolved", resolvedAt: { gte: desde, not: null } },
       select: { resolvedAt: true, contact: { select: { campanha: true } } },
@@ -107,12 +108,13 @@ async function carregar(userId: string, desde: Date) {
   const fills: Fill[] = [];
   for (const f of fillRows) {
     const c = terr.get(f.contactId);
-    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado, porId: f.preenchidoPorId });
   }
   const corrections: CorrDone[] = corrRows.map((r) => ({ resolvedById: userId, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }));
   const nomes = new Map(bases.map((b) => [b.id, b.name]));
   const baseName = (id: string | null) => nomes.get(id || "") || "Base";
-  return { metas, fills, corrections, baseName };
+  const compartilhados = territoriosCompartilhados(await prisma.meta.findMany({ where: { tipo: "preenchimento" }, select: { userId: true, tipo: true, baseId: true, regiao: true, estado: true } }));
+  return { metas, fills, corrections, baseName, compartilhados };
 }
 
 // Situação resumida (para o ponto na sidebar) — só o período atual, leve.
@@ -120,14 +122,14 @@ async function carregar(userId: string, desde: Date) {
 export async function statusMinhasMetas(userId: string): Promise<{ status: StatusMeta | null; nova: boolean }> {
   const now = new Date();
   const desde = new Date(Math.min(startOfWeek(now).getTime(), startOfMonth(now).getTime()));
-  const { metas, fills, corrections } = await carregar(userId, desde);
+  const { metas, fills, corrections, compartilhados } = await carregar(userId, desde);
   if (metas.length === 0) return { status: null, nova: false };
   let worst: StatusMeta | null = null;
   for (const m of metas) {
     const ini = periodStart(m.prazo, now);
     const fim = periodEnd(m.prazo, now);
     const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
-    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
+    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1), compartilhados);
     worst = pior(worst, statusDe(feito, m.alvo, decorrido));
   }
   const nova = temMetaNova(metas, await lerVistoEm(userId));
@@ -151,7 +153,7 @@ export async function snapshotMetas(now = new Date()) {
   const desde = prevMonthStart < prevWeekStart ? prevMonthStart : prevWeekStart;
 
   const [fillRows, corrRows] = await Promise.all([
-    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, concluidoEm: true } }),
+    prisma.contactFill.findMany({ where: { concluidoEm: { gte: desde } }, select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction.findMany({
       where: { status: "resolved", resolvedAt: { gte: desde, not: null } },
       select: { resolvedById: true, resolvedAt: true, contact: { select: { campanha: true } } },
@@ -165,10 +167,11 @@ export async function snapshotMetas(now = new Date()) {
   const fills: Fill[] = [];
   for (const f of fillRows) {
     const c = terr.get(f.contactId);
-    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado, porId: f.preenchidoPorId });
   }
   const corrections: CorrDone[] = corrRows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }));
 
+  const compartilhadosSnap = territoriosCompartilhados(metas);
   const data = metas.map((m) => {
     const [start, end] =
       m.prazo === "mensal" ? [prevMonthStart, prevMonthEnd]
@@ -176,7 +179,7 @@ export async function snapshotMetas(now = new Date()) {
       : [prevWeekStart, prevWeekEnd];
     return {
       userId: m.userId, tipo: m.tipo, baseId: m.baseId, regiao: m.regiao, estado: m.estado, campanha: m.campanha,
-      prazo: m.prazo, alvo: m.alvo, feito: feitoNoPeriodo(m, fills, corrections, start, end),
+      prazo: m.prazo, alvo: m.alvo, feito: feitoNoPeriodo(m, fills, corrections, start, end, compartilhadosSnap),
       periodoInicio: start, chave: chaveSnap(m, start),
     };
   });
@@ -184,11 +187,14 @@ export async function snapshotMetas(now = new Date()) {
   return { criados: res.count };
 }
 
-// Dados completos para a página Minhas Metas.
-export async function buildMinhasMetas(userId: string) {
+// Dados completos para a página Minhas Metas. `marcarVistoAoAbrir=false` é usado
+// quando o ADMIN consulta o histórico de outro LDR (não deve limpar o sinal de
+// "meta nova" dele na sidebar por causa de uma consulta de terceiro).
+export async function buildMinhasMetas(userId: string, opts: { marcarVistoAoAbrir?: boolean } = {}) {
+  const { marcarVistoAoAbrir = true } = opts;
   const now = new Date();
   const desde = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 7, 1)); // cobre 8 semanas e 6 meses
-  const { metas, fills, corrections, baseName } = await carregar(userId, desde);
+  const { metas, fills, corrections, baseName, compartilhados } = await carregar(userId, desde);
   const snaps = await prisma.metaSnapshot.findMany({ where: { userId }, select: { chave: true, feito: true, alvo: true } });
   const snapByChave = new Map(snaps.map((s) => [s.chave, s] as const));
 
@@ -196,7 +202,7 @@ export async function buildMinhasMetas(userId: string) {
     const ini = periodStart(m.prazo, now);
     const fim = periodEnd(m.prazo, now);
     const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
-    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1));
+    const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1), compartilhados);
     const p = m.alvo > 0 ? Math.min(100, Math.round((feito / m.alvo) * 100)) : feito > 0 ? 100 : 0;
     return {
       id: m.id, tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m, baseName),
@@ -210,7 +216,7 @@ export async function buildMinhasMetas(userId: string) {
     const periodos = janelasPassadas(m.prazo, now, quantas).map((w) => {
       // Usa o snapshot congelado se existir; senão recalcula retroativamente.
       const snap = snapByChave.get(chaveSnap(m, w.start));
-      const feito = snap ? snap.feito : feitoNoPeriodo(m, fills, corrections, w.start, w.end);
+      const feito = snap ? snap.feito : feitoNoPeriodo(m, fills, corrections, w.start, w.end, compartilhados);
       const alvo = snap ? snap.alvo : m.alvo;
       return { label: w.label, feito, alvo, hit: alvo > 0 && feito >= alvo };
     });
@@ -233,7 +239,7 @@ export async function buildMinhasMetas(userId: string) {
   const status = ativas.reduce<StatusMeta | null>((acc, a) => pior(acc, a.status), null);
 
   // Abrir a página = "vi minhas metas": limpa o sinal de meta nova na sidebar.
-  if (userId && metas.length > 0) await marcarVisto(userId);
+  if (marcarVistoAoAbrir && userId && metas.length > 0) await marcarVisto(userId);
 
   return { ativas, historico, conquistas, status };
 }

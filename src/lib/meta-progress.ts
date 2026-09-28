@@ -13,7 +13,7 @@ export type Meta = {
   prazo: string;
   alvo: number;
 };
-export type Fill = { concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null };
+export type Fill = { concluidoEm: Date; baseId: string; regiao: string | null; estado: string | null; porId?: string | null };
 export type CorrDone = { resolvedById: string | null; resolvedAt: Date | null; campanha: string | null };
 
 export function startOfDay(d: Date) {
@@ -51,7 +51,22 @@ export const regiaoKey = (regiao: string | null) => (regiao && regiao.trim()) ||
 //  - preenchimento: linhas que ficaram completas no território da meta (base+região+
 //    estado) no período. Atribuição por TERRITÓRIO — cada estado é de 1 LDR, então o
 //    que importa é a linha estar completa, não quem digitou.
-export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): number {
+// Território (base+região+estado) atribuído a MAIS DE UMA pessoa. Nesse caso cada uma
+// conta só o que ela mesma completou; território de uma pessoa só continua contando
+// tudo que ficou completo nele (independe de quem digitou).
+export const chaveTerritorio = (m: { baseId: string | null; regiao: string | null; estado: string | null }) =>
+  `${m.baseId || ""}|${m.regiao || ""}|${m.estado || ""}`;
+export function territoriosCompartilhados(metas: { userId: string; tipo: string; baseId: string | null; regiao: string | null; estado: string | null }[]): Set<string> {
+  const donos = new Map<string, Set<string>>();
+  for (const m of metas) {
+    if (m.tipo === "correcao") continue;
+    const k = chaveTerritorio(m);
+    (donos.get(k) ?? donos.set(k, new Set()).get(k)!).add(m.userId);
+  }
+  return new Set([...donos].filter(([, u]) => u.size > 1).map(([k]) => k));
+}
+
+export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], compartilhados?: Set<string>): number {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
@@ -59,7 +74,10 @@ export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDo
       (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
     ).length;
   }
+  const dividido = !!compartilhados?.has(chaveTerritorio(m));
   return fills.filter(
-    (f) => f.concluidoEm >= start && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado
+    (f) =>
+      f.concluidoEm >= start && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado &&
+      (!dividido || f.porId === m.userId)
   ).length;
 }

@@ -6,6 +6,7 @@ import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
+import { territoriosCompartilhados } from "@/lib/meta-progress";
 import {
   calcularMeta, contarPor, contarTotal, faixaAnterior, faixaDoPeriodo, filtrarEventos, filtrarMetas,
   linhasPorPessoa, parsePreset, serie, variacao,
@@ -107,7 +108,8 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
   }));
   const rotulo = (m: MetaIn) =>
     m.tipo === "correcao" ? `Campanha: ${m.campanha || "—"}` : `${m.orgao} · ${m.regiao || "—"} · ${ufSigla(m.estado) || m.estado || "—"}`;
-  const metasCalc = filtrarMetas(metas, filtros).map((m) => calcularMeta(m, todos, faixa, now, rotulo(m)));
+  const compartilhados = territoriosCompartilhados(metas);
+  const metasCalc = filtrarMetas(metas, filtros).map((m) => calcularMeta(m, todos, faixa, now, rotulo(m), compartilhados));
 
   const atuais = filtrarEventos(todos, filtros, faixa);
   const previos = filtrarEventos(todos, filtros, anterior);

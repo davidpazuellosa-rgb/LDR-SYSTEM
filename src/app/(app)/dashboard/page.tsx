@@ -5,7 +5,7 @@ import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
-import { metaFeito, startOfDay, startOfWeek, startOfMonth, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { metaFeito, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import PageHeader from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -20,26 +20,28 @@ function fmtDateTime(value: Date | null) {
 }
 const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : prazo === "diaria" ? "hoje" : "esta semana");
 
-async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[] }> {
+async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[]; compartilhados: Set<string> }> {
   await ensureContactFillTable();
-  const [contacts, fillRows, corrections] = await Promise.all([
+  const [contacts, fillRows, corrections, todasMetas] = await Promise.all([
     prisma.contact.findMany({ where: { deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } }),
-    prisma.contactFill.findMany({ select: { contactId: true, concluidoEm: true } }),
+    prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction
       .findMany({
         where: { status: "resolved", resolvedAt: { not: null } },
         select: { resolvedById: true, resolvedAt: true, contact: { select: { campanha: true } } },
       })
       .then((rows) => rows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }))),
+    prisma.meta.findMany({ select: { userId: true, tipo: true, baseId: true, regiao: true, estado: true } }),
   ]);
   // Junta cada conclusão ao território (base/região/estado) do seu contato.
   const terr = new Map(contacts.map((c) => [c.id, c]));
   const fills: Fill[] = [];
   for (const f of fillRows) {
     const c = terr.get(f.contactId);
-    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado });
+    if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado, porId: f.preenchidoPorId });
   }
-  return { fills, corrections };
+  // Estado com mais de uma pessoa: cada uma conta só o que ela mesma completou.
+  return { fills, corrections, compartilhados: territoriosCompartilhados(todasMetas) };
 }
 
 function StatCard({ label, value, hint, color }: { label: string; value: number | string; hint: string; color: string }) {
@@ -145,7 +147,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {fillMetas.map((m) => (
-                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -161,7 +163,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {corrMetas.map((m) => (
-                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -270,7 +272,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preenchimento</p>
                           {fill.map((m) => (
-                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
                           ))}
                         </div>
                       )}
@@ -278,7 +280,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Correção</p>
                           {corr.map((m) => (
-                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
                           ))}
                         </div>
                       )}
