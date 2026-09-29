@@ -8,6 +8,30 @@ export type Peer = { id: string; nome: string; inicial: string; cor: string };
 export type EditItem = { id: string; key: string; value: string; custom?: boolean };
 type EditPayload = { edits: EditItem[]; from: string };
 export type ReorderPayload = { ids: string[]; colKey: string; dir: "asc" | "desc"; from: string };
+// Criação/exclusão de linhas (inserir, excluir, desfazer/refazer, nova página, importação).
+// `positions` ausente = anexa no fim (ex.: importação); presente = insere nessas posições
+// (ex.: "inserir linha acima/abaixo", restaurar após excluir).
+export type RowsPayload = {
+  op: "insert" | "delete";
+  contacts?: Record<string, unknown>[];
+  ids?: string[];
+  positions?: number[];
+  formats?: Record<string, Record<string, unknown>>;
+  from: string;
+};
+// Estrutura da planilha (colunas, mesclas, páginas) — sempre um SNAPSHOT do que mudou,
+// nunca um diff; quem recebe só substitui o pedaço correspondente pelo valor novo.
+export type LayoutPayload = {
+  order?: string[];
+  hidden?: string[];
+  deleted?: string[];
+  customCols?: { key: string; label: string }[];
+  headerLabels?: Record<string, string>;
+  merges?: unknown[];
+  abas?: string[];
+  from: string;
+};
+type AnyEvent = "edit" | "reorder" | "rows" | "layout";
 
 const CORES = ["#4f46e5", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#ef4444"];
 function corDe(id: string) {
@@ -33,13 +57,17 @@ function getClient(): SupabaseClient | null {
   return client;
 }
 
-// Presença (quem está com a planilha aberta) + broadcast das edições em tempo real.
-// Degrada com elegância: sem as chaves NEXT_PUBLIC_SUPABASE_*, apenas não colabora.
+// Presença (quem está com a planilha aberta) + broadcast de TUDO que muda a planilha
+// em tempo real: valores de célula, ordenação, linhas criadas/excluídas e a estrutura
+// (colunas, mesclas, páginas). Degrada com elegância: sem NEXT_PUBLIC_SUPABASE_*
+// (Vercel) nem SSE (nada aberto), apenas não colabora — cada um vê ao recarregar.
 export function useRealtimeSheet(
   baseId: string,
   me: { id: string; nome: string },
   onRemote: (edits: EditItem[]) => void,
   onRemoteReorder?: (payload: ReorderPayload) => void,
+  onRemoteRows?: (payload: RowsPayload) => void,
+  onRemoteLayout?: (payload: LayoutPayload) => void,
 ) {
   const [peers, setPeers] = useState<Peer[]>([]);
   const chanRef = useRef<RealtimeChannel | null>(null);
@@ -50,6 +78,10 @@ export function useRealtimeSheet(
   onRemoteRef.current = onRemote;
   const onRemoteReorderRef = useRef(onRemoteReorder);
   onRemoteReorderRef.current = onRemoteReorder;
+  const onRemoteRowsRef = useRef(onRemoteRows);
+  onRemoteRowsRef.current = onRemoteRows;
+  const onRemoteLayoutRef = useRef(onRemoteLayout);
+  onRemoteLayoutRef.current = onRemoteLayout;
 
   // ---- Transporte próprio (SSE) ----
   useEffect(() => {
@@ -79,6 +111,24 @@ export function useRealtimeSheet(
         const p = JSON.parse((ev as MessageEvent).data) as ReorderPayload;
         if (!p || p.from === me.id) return;
         onRemoteReorderRef.current?.(p);
+      } catch {
+        /* ignora */
+      }
+    });
+    es.addEventListener("rows", (ev) => {
+      try {
+        const p = JSON.parse((ev as MessageEvent).data) as RowsPayload;
+        if (!p || p.from === me.id) return;
+        onRemoteRowsRef.current?.(p);
+      } catch {
+        /* ignora */
+      }
+    });
+    es.addEventListener("layout", (ev) => {
+      try {
+        const p = JSON.parse((ev as MessageEvent).data) as LayoutPayload;
+        if (!p || p.from === me.id) return;
+        onRemoteLayoutRef.current?.(p);
       } catch {
         /* ignora */
       }
@@ -121,6 +171,16 @@ export function useRealtimeSheet(
         if (!p || p.from === me.id) return;
         onRemoteReorderRef.current?.(p);
       })
+      .on("broadcast", { event: "rows" }, (msg) => {
+        const p = msg.payload as RowsPayload;
+        if (!p || p.from === me.id) return;
+        onRemoteRowsRef.current?.(p);
+      })
+      .on("broadcast", { event: "layout" }, (msg) => {
+        const p = msg.payload as LayoutPayload;
+        if (!p || p.from === me.id) return;
+        onRemoteLayoutRef.current?.(p);
+      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") await chan.track({ id: me.id, nome: me.nome });
       });
@@ -131,7 +191,7 @@ export function useRealtimeSheet(
     };
   }, [baseId, me.id, me.nome]);
 
-  function enviarSse(event: "edit" | "reorder", payload: object) {
+  function enviarSse(event: AnyEvent, payload: object) {
     // keepalive: o envio termina mesmo se a pessoa fechar a aba logo depois de editar
     fetch(apiPath(`/api/realtime/${baseIdRef.current}`), {
       method: "POST",
@@ -163,5 +223,25 @@ export function useRealtimeSheet(
     chan.send({ type: "broadcast", event: "reorder", payload: { ids, colKey, dir, from: me.id } as ReorderPayload });
   }
 
-  return { peers, broadcast, broadcastReorder };
+  function broadcastRows(payload: Omit<RowsPayload, "from">) {
+    if (USA_SSE) {
+      if (sseAtivo.current) enviarSse("rows", payload);
+      return;
+    }
+    const chan = chanRef.current;
+    if (!chan) return;
+    chan.send({ type: "broadcast", event: "rows", payload: { ...payload, from: me.id } as RowsPayload });
+  }
+
+  function broadcastLayout(payload: Omit<LayoutPayload, "from">) {
+    if (USA_SSE) {
+      if (sseAtivo.current) enviarSse("layout", payload);
+      return;
+    }
+    const chan = chanRef.current;
+    if (!chan) return;
+    chan.send({ type: "broadcast", event: "layout", payload: { ...payload, from: me.id } as LayoutPayload });
+  }
+
+  return { peers, broadcast, broadcastReorder, broadcastRows, broadcastLayout };
 }

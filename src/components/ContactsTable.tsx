@@ -15,7 +15,7 @@ import { useDialog } from "@/components/Dialog";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
 import ColumnFilterPopover from "@/components/ColumnFilterPopover";
-import { useRealtimeSheet, type EditItem, type ReorderPayload } from "@/lib/useRealtimeSheet";
+import { useRealtimeSheet, type EditItem, type ReorderPayload, type RowsPayload, type LayoutPayload } from "@/lib/useRealtimeSheet";
 
 type Contact = {
   id: string;
@@ -334,6 +334,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   const saveMerges = useCallback(
     (next: MergeRegion[]) => {
       setMerges(next);
+      broadcastLayoutRef.current({ merges: next });
       markSaving();
       fetch(apiPath(`/api/bases/${baseId}/merges`), {
         method: "PUT",
@@ -350,6 +351,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Salvo em Base.headers.__order__/__hidden__ via /api/bases/[id]/layout.
   const persistLayout = useCallback(
     (payload: { order?: string[]; hidden?: string[]; deleted?: string[] }) => {
+      broadcastLayoutRef.current(payload);
       markSaving();
       fetch(apiPath(`/api/bases/${baseId}/layout`), {
         method: "PUT",
@@ -426,6 +428,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   const saveCols = useCallback(
     (next: { key: string; label: string }[]) => {
       setCustomCols(next);
+      broadcastLayoutRef.current({ customCols: next });
       markSaving();
       fetch(apiPath(`/api/bases/${baseId}/colunas`), {
         method: "PUT",
@@ -511,6 +514,11 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // as funções de salvar usarem sempre a versão atual, sem problema de ordem.
   const broadcastRef = useRef<(edits: EditItem[]) => void>(() => {});
   const broadcastReorderRef = useRef<(ids: string[], colKey: string, dir: "asc" | "desc") => void>(() => {});
+  // Broadcast de linhas criadas/excluídas e da estrutura da planilha (colunas/mesclas/
+  // páginas) — mesmo princípio do broadcastRef acima: refs para as funções de mutação
+  // (persistLayout, saveCols, insertRowNear…) sempre chamarem a versão mais atual.
+  const broadcastRowsRef = useRef<(payload: Omit<RowsPayload, "from">) => void>(() => {});
+  const broadcastLayoutRef = useRef<(payload: Omit<LayoutPayload, "from">) => void>(() => {});
 
   // Aplica na tela as edições que CHEGAM de outros usuários (sem re-salvar/re-broadcast).
   const applyRemote = useCallback((edits: EditItem[]) => {
@@ -540,9 +548,58 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     setSortInfo(payload.colKey ? { key: payload.colKey, dir: payload.dir } : null);
   }, []);
 
-  const { peers, broadcast, broadcastReorder } = useRealtimeSheet(baseId, me, applyRemote, applyRemoteReorder);
+  // Aplica na tela uma criação/exclusão de linhas que chega de outro usuário.
+  const applyRemoteRows = useCallback((p: RowsPayload) => {
+    if (p.op === "delete") {
+      const ids = new Set(p.ids || []);
+      if (ids.size === 0) return;
+      setContacts((prev) => prev.filter((c) => !ids.has(c.id)));
+      // Índices de seleção podem ter deslocado — mesma cautela do delete local.
+      setAnchorCell(null);
+      setFocusCell(null);
+      setClip(null);
+      return;
+    }
+    const created = (p.contacts || []) as unknown as Contact[];
+    if (created.length === 0) return;
+    setContacts((prev) => {
+      if (!p.positions) return [...prev, ...created];
+      const next = [...prev];
+      created
+        .map((c, i) => ({ c, pos: p.positions![i] ?? next.length }))
+        .sort((a, b) => a.pos - b.pos)
+        .forEach(({ c, pos }) => next.splice(Math.min(pos, next.length), 0, c));
+      return next;
+    });
+    setHiddenRowIds((prev) => {
+      const next = new Set(prev);
+      created.forEach((c) => next.delete(c.id));
+      return next;
+    });
+    if (p.formats && Object.keys(p.formats).length) {
+      setFormats((prev) => ({ ...prev, ...(p.formats as Record<string, Record<string, CellFmt>>) }));
+    }
+  }, []);
+
+  // Aplica uma mudança de ESTRUTURA (colunas/mesclas/páginas) vinda de outro usuário —
+  // sempre um snapshot do que mudou; nunca reenvia ao servidor (já está salvo lá).
+  const applyRemoteLayout = useCallback((p: LayoutPayload) => {
+    if (p.order) setFieldOrder(p.order);
+    if (p.hidden) setHiddenColumns(new Set(p.hidden));
+    if (p.deleted) setDeletedColumns(new Set(p.deleted));
+    if (p.customCols) setCustomCols(p.customCols);
+    if (p.headerLabels) setHeaderLabels((prev) => ({ ...prev, ...p.headerLabels }));
+    if (p.merges) setMerges(p.merges as MergeRegion[]);
+    if (p.abas) setAbas(p.abas);
+  }, []);
+
+  const { peers, broadcast, broadcastReorder, broadcastRows, broadcastLayout } = useRealtimeSheet(
+    baseId, me, applyRemote, applyRemoteReorder, applyRemoteRows, applyRemoteLayout,
+  );
   broadcastRef.current = broadcast;
   broadcastReorderRef.current = broadcastReorder;
+  broadcastRowsRef.current = broadcastRows;
+  broadcastLayoutRef.current = broadcastLayout;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => shortcutRef.current(e);
     window.addEventListener("keydown", onKey);
@@ -1015,9 +1072,14 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         markSaveError();
         return;
       }
-      setAbas((prev) => (prev.includes(uf) ? prev : [...prev, uf]));
+      setAbas((prev) => {
+        const next = prev.includes(uf) ? prev : [...prev, uf];
+        broadcastLayoutRef.current({ abas: next });
+        return next;
+      });
       if (Array.isArray(data.criadas) && data.criadas.length) {
         setContacts((prev) => [...prev, ...(data.criadas as Contact[])]);
+        broadcastRowsRef.current({ op: "insert", contacts: data.criadas as Contact[] });
       }
       setTab(uf);
       markSaved();
@@ -1044,7 +1106,11 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         markSaveError();
         return;
       }
-      setAbas((prev) => prev.filter((a) => a !== uf));
+      setAbas((prev) => {
+        const next = prev.filter((a) => a !== uf);
+        broadcastLayoutRef.current({ abas: next });
+        return next;
+      });
       setContacts((prev) => prev.filter((c) => ufOf(c) !== uf));
       if (tab === uf) setTab(ALL);
       markSaved();
@@ -1177,6 +1243,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     if (next === prev) return;
 
     setHeaderLabels((labels) => ({ ...labels, [key]: next }));
+    broadcastLayoutRef.current({ headerLabels: { [key]: next } });
     markSaving();
 
     try {
@@ -1327,6 +1394,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       setContacts((prev) => prev.filter((c) => !ids.includes(c.id)));
       setAnchorCell(null);
       setFocusCell(null);
+      broadcastRowsRef.current({ op: "delete", ids });
     } else {
       // Restaura cada linha na POSIÇÃO ORIGINAL (não no fim). Inserir em ordem crescente
       // de posição recoloca os índices certos ao desfazer (LIFO logo após a exclusão).
@@ -1339,6 +1407,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         return next;
       });
       if (Object.keys(action.formats).length) setFormats((prev) => ({ ...prev, ...action.formats }));
+      broadcastRowsRef.current({ op: "insert", contacts: action.contacts, positions: action.positions, formats: action.formats });
     }
     try {
       const results = await Promise.all(
@@ -1924,7 +1993,9 @@ async function insertRowNear(rowIndex: number, side: "above" | "below", count = 
     created.forEach((c) => next.delete(c.id));
     return next;
   });
-  recordInsert(created, created.map((_, i) => insertAt + i));
+  const positions = created.map((_, i) => insertAt + i);
+  recordInsert(created, positions);
+  broadcastRowsRef.current({ op: "insert", contacts: created, positions });
   setMenu(null);
   selectAndFocus(rowIndex + (side === "below" ? 1 : 0), 0);
   markSaved();
@@ -1958,6 +2029,7 @@ async function deleteRows(rowIndices: number[]) {
   recordDelete(targets, deletedFormats, positions);
   const ids = new Set(targets.map((c) => c.id));
   setContacts((prev) => prev.filter((c) => !ids.has(c.id)));
+  broadcastRowsRef.current({ op: "delete", ids: [...ids] });
   setHiddenRowIds((prev) => {
     const next = new Set(prev);
     ids.forEach((id) => next.delete(id));

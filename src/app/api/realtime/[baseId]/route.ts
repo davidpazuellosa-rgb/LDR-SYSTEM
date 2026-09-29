@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_BODY = 512 * 1024; // um lote grande de colar/limpar cabe folgado
-const EVENTOS = new Set(["edit", "reorder"]);
+const EVENTOS = new Set(["edit", "reorder", "rows", "layout"]);
 
 async function quem() {
   const session = await auth();
