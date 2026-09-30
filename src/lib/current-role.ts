@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cached } from "@/lib/mini-cache";
 
 // Papel (cargo) ATUAL do usuário, lido do banco — reflete uma mudança de cargo SEM
 // precisar re-logar. É SÓ LEITURA: nunca modifica o token/sessão (modificar o token
@@ -11,9 +12,14 @@ export async function currentRole(session: SessionLike): Promise<string | undefi
   const fallback = session?.user?.role || undefined;
   const id = session?.user?.id;
   if (!id) return fallback;
+  // Cache de 8s por usuário: o layout e cada página chamam isto de novo a cada
+  // navegação (quase sempre o mesmo cargo) — sem isto é 1 SELECT a mais em todo
+  // clique, multiplicado por todo mundo navegando ao mesmo tempo.
   try {
-    const u = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-    return u?.role ?? fallback;
+    return await cached(`role:${id}`, 8000, async () => {
+      const u = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      return u?.role ?? fallback;
+    });
   } catch {
     return fallback;
   }

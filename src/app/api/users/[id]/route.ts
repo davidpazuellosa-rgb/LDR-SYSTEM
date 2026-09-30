@@ -5,6 +5,7 @@ import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { makeInvite, buildInviteLink } from "@/lib/invite";
 import { sendInviteEmail } from "@/lib/email";
 import { setProprietarioDoUsuario } from "@/lib/user-proprietario";
+import { invalidarCache } from "@/lib/mini-cache";
 
 // Edita um usuário (admin): nome, cargo, ou gera um novo link de convite/redefinição.
 // O admin NUNCA define a senha — só envia o link para a pessoa definir a própria.
@@ -45,6 +46,8 @@ export async function PATCH(
     data,
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   });
+  // Cargo mudou: não espera os 8s do cache expirarem sozinhos (ver src/lib/current-role.ts).
+  if ("role" in data) invalidarCache(`role:${id}`);
 
   // Vínculo com o "Proprietário" do HubSpot (Pré-vendedor). Se sair do cargo
   // prevendedor, o vínculo é removido.

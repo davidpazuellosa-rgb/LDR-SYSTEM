@@ -8,6 +8,7 @@ import { normCampanha } from "@/lib/campanhas";
 import { regiaoKey, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
+import { cached } from "@/lib/mini-cache";
 
 export type StatusMeta = "ok" | "risco" | "atrasado";
 
@@ -119,7 +120,13 @@ async function carregar(userId: string, desde: Date) {
 
 // Situação resumida (para o ponto na sidebar) — só o período atual, leve.
 // Também devolve se há "meta nova" (criada depois da última vez que o LDR abriu a página).
+// Cache de 8s: o layout chama isto em TODA navegação só pra pintar um pontinho na
+// sidebar, e a leitura envolve várias consultas (metas, fills, correções, território
+// compartilhado). Sem isto, cada clique de cada pessoa refaz tudo de novo.
 export async function statusMinhasMetas(userId: string): Promise<{ status: StatusMeta | null; nova: boolean }> {
+  return cached(`statusMetas:${userId}`, 8000, () => statusMinhasMetasSemCache(userId));
+}
+async function statusMinhasMetasSemCache(userId: string): Promise<{ status: StatusMeta | null; nova: boolean }> {
   const now = new Date();
   const desde = new Date(Math.min(startOfWeek(now).getTime(), startOfMonth(now).getTime()));
   const { metas, fills, corrections, compartilhados } = await carregar(userId, desde);

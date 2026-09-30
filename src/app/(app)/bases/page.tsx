@@ -65,23 +65,25 @@ export default async function BasesPage({
   const session = await auth();
   if ((await currentRole(session)) === "prevendedor") redirect("/dashboard");
 
-  const bases = await prisma.base.findMany({ orderBy: { createdAt: "desc" } });
-
-  const contacts = (await prisma.contact.findMany({
-    where: { deletedAt: null },
-    select: {
-      id: true,
-      baseId: true,
-      regiao: true,
-      cidade: true,
-      estado: true,
-      telefonePrefeitura: true,
-      emailInstitucional: true,
-      nomePrefeito: true,
-      whatsapp: true,
-      siteOficial: true,
-    },
-  })) as ContactRow[];
+  // Independentes entre si — buscar junto corta o tempo pela metade nesta página.
+  const [bases, contacts] = await Promise.all([
+    prisma.base.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.contact.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        baseId: true,
+        regiao: true,
+        cidade: true,
+        estado: true,
+        telefonePrefeitura: true,
+        emailInstitucional: true,
+        nomePrefeito: true,
+        whatsapp: true,
+        siteOficial: true,
+      },
+    }) as Promise<ContactRow[]>,
+  ]);
 
   // Colunas personalizadas contam na conclusão: chaves por base + valores por contato.
   const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));

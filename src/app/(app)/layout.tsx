@@ -6,6 +6,7 @@ import { isAdmin } from "@/lib/permissions";
 import { currentRole } from "@/lib/current-role";
 import { ensureSuggestionTable } from "@/lib/suggestions";
 import { statusMinhasMetas } from "@/lib/minhas-metas";
+import { cached } from "@/lib/mini-cache";
 import AppShell from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
@@ -35,9 +36,12 @@ export default async function AppLayout({
 
   const meId = (session.user as { id?: string }).id || "";
 
+  // Contadores globais da sidebar: iguais pra todo mundo navegando ao mesmo tempo, e
+  // rodam em TODA página (este layout envolve o app inteiro) — cache de 5s pra não
+  // repetir 2 SELECTs a cada clique de cada pessoa.
   const [bases, pending, sugestoes, metas] = await Promise.all([
-    prisma.base.count(),
-    prisma.correction.count({ where: { status: "pending" } }),
+    cached("layout:bases", 5000, () => prisma.base.count()),
+    cached("layout:pending", 5000, () => prisma.correction.count({ where: { status: "pending" } })),
     contarSugestoesNovas(),
     meId ? statusMinhasMetas(meId) : Promise.resolve({ status: null, nova: false }),
   ]);
