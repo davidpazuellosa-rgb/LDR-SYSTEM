@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guard";
 import { parseSpreadsheetWithMeta, looksLikeValidPhone, validateSpreadsheetFile, type ImportedRow } from "@/lib/import";
-import { PHONE_FIELD } from "@/lib/contact-fields";
+import { CONTACT_FIELD_KEYS, PHONE_FIELD } from "@/lib/contact-fields";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
 import { parseCustomCols, type CustomCol } from "@/lib/base-columns";
 import {
@@ -31,14 +31,6 @@ function slugifyHeader(header: string): string {
   return "c_" + (slug || Math.random().toString(36).slice(2, 8));
 }
 
-type DedupeContact = {
-  codigoIbge?: string | null;
-  cidade?: string | null;
-  estado?: string | null;
-  emailInstitucional?: string | null;
-  telefonePrefeitura?: string | null;
-};
-
 function normalizeText(value?: string | null) {
   return (value || "")
     .normalize("NFD")
@@ -52,13 +44,13 @@ function onlyDigits(value?: string | null) {
   return (value || "").replace(/\D/g, "");
 }
 
-function dedupeKey(contact: DedupeContact) {
-  const ibge = onlyDigits(contact.codigoIbge);
+function dedupeKey(contact: Record<string, unknown>) {
+  const ibge = onlyDigits(contact.codigoIbge as string | undefined);
   if (ibge) return `ibge:${ibge}`;
 
-  const cidade = normalizeText(contact.cidade);
-  const estado = normalizeText(contact.estado);
-  const email = normalizeText(contact.emailInstitucional);
+  const cidade = normalizeText(contact.cidade as string | undefined);
+  const estado = normalizeText(contact.estado as string | undefined);
+  const email = normalizeText(contact.emailInstitucional as string | undefined);
   // Cidade+UF sozinho valia pra prefeitura (só existe uma por cidade), mas
   // descartava registros legítimos de bases onde a mesma cidade tem vários
   // contatos — ex.: consórcios (Florianópolis tem 4). O e-mail entra na chave
@@ -67,10 +59,18 @@ function dedupeKey(contact: DedupeContact) {
 
   if (email) return `email:${email}`;
 
-  const phone = onlyDigits(contact.telefonePrefeitura);
+  const phone = onlyDigits(contact.telefonePrefeitura as string | undefined);
   if (phone) return `telefone:${phone}`;
 
-  return null;
+  // Nenhum campo identificador bateu (planilha de um tipo sem nenhuma dessas
+  // colunas, ex.: Defesa Civil) — ainda assim precisa de UMA chave, senão a linha
+  // é descartada em silêncio ("qualquer planilha" tem que entrar). Usa o conteúdo
+  // de todos os campos reconhecidos da linha: reimportar o MESMO arquivo continua
+  // deduplicando linha a linha; linhas diferentes, mesmo sem identificador, entram.
+  const resto = CONTACT_FIELD_KEYS.map((k) => normalizeText(contact[k] as string | undefined))
+    .filter(Boolean)
+    .join("|");
+  return resto ? `linha:${resto}` : null;
 }
 
 export async function POST(
@@ -109,19 +109,16 @@ export async function POST(
       if (!row.regiao || !row.regiao.trim()) row.regiao = regiaoContexto;
     }
   }
+  // A planilha não tinha NENHUMA coluna reconhecida como telefone — diferente de
+  // "tinha a coluna mas o valor é inválido". Nesse caso não é um erro de dado pra
+  // corrigir (não tem o que corrigir), então não acende como telefone incorreto
+  // nem entra na fila de Correção de Contatos.
+  const phoneColumnPresent = parsed.matchedColumns.some((c) => c.field === PHONE_FIELD);
 
-  if (parsed.missingRequiredColumns.length > 0) {
-    return NextResponse.json(
-      {
-        error: `A planilha não tem as colunas obrigatórias: ${parsed.missingRequiredColumns.join(", ")}.`,
-        missingColumns: parsed.missingRequiredColumns,
-        unknownColumns: parsed.unknownColumns,
-        matchedColumns: parsed.matchedColumns,
-      },
-      { status: 400 }
-    );
-  }
-
+  // Colunas padrão que faltam (ex.: planilha de Defesa Civil sem "telefone") não
+  // bloqueiam mais a importação — viram só um aviso na resposta de sucesso.
+  // "Qualquer planilha" tem que entrar; o que ela não tem vira coluna personalizada
+  // (unknownColumns) e segue normal.
   if (parsed.rows.length === 0) {
     return NextResponse.json(
       { error: "Não encontrei contatos. Verifique se a planilha tem cabeçalho (Cidade, Telefone, etc.)." },
@@ -178,13 +175,16 @@ export async function POST(
     const created = await prisma.$transaction(
       newRows.map((r) => {
         const validPhone = looksLikeValidPhone(r.data[PHONE_FIELD]);
-        if (!validPhone) invalid++;
+        if (!validPhone && phoneColumnPresent) invalid++;
+        // Sem coluna de telefone na planilha, a linha nasce "ok" (nada a corrigir);
+        // com a coluna presente e o valor inválido, mantém o fluxo de sempre.
+        const status = validPhone || !phoneColumnPresent ? "ok" : "telefone_incorreto";
         return prisma.contact.create({
-          data: { baseId: id, createdById: userId, ...r.data, status: validPhone ? "ok" : "telefone_incorreto" },
+          data: { baseId: id, createdById: userId, ...r.data, status },
         });
       })
     );
-    const invalidContacts = created.filter((c) => c.status === "telefone_incorreto");
+    const invalidContacts = phoneColumnPresent ? created.filter((c) => c.status === "telefone_incorreto") : [];
     if (invalidContacts.length > 0) {
       await prisma.correction.createMany({
         data: invalidContacts.map((c) => ({
@@ -425,5 +425,8 @@ export async function POST(
     skippedNoChange,
     unknownColumns: parsed.unknownColumns,
     matchedColumns: parsed.matchedColumns,
+    // Informativo (não bloqueia mais a importação) — ex.: planilha de Defesa Civil
+    // sem coluna de telefone reconhecida.
+    missingStandardColumns: parsed.missingRequiredColumns,
   });
 }

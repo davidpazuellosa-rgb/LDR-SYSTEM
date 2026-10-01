@@ -18,6 +18,8 @@ export type SpreadsheetParseResult = {
   headers: string[];
   matchedColumns: SpreadsheetColumnMatch[];
   unknownColumns: string[];
+  // Puramente INFORMATIVO (mostrado como aviso, nunca bloqueia a importação nem
+  // descarta linha) — ver REQUIRED_IMPORT_FIELDS.
   missingRequiredColumns: string[];
 };
 
@@ -168,31 +170,26 @@ function parseWorkbook(buffer: Buffer): SpreadsheetParseResult {
     return normalizeRows(raw, sheetNameUf);
   }).filter((result): result is SpreadsheetParseResult => Boolean(result && result.headers.length));
 
-  const usableSheets = parsedSheets.filter((result) => result.missingRequiredColumns.length === 0);
-  const sheetsToImport = usableSheets.length > 0 ? usableSheets : parsedSheets;
-
-  if (sheetsToImport.length === 0) {
-    return {
-      rows: [],
-      headers: [],
-      matchedColumns: [],
-      unknownColumns: [],
-      missingRequiredColumns: REQUIRED_IMPORT_FIELDS.map(fieldLabel),
-    };
+  // Nunca descarta aba: uma aba sem "coluna obrigatória" ainda é dado real
+  // (ex.: uma aba de Defesa Civil sem telefone) — faltar uma coluna é só aviso,
+  // não motivo pra jogar linhas fora. `missingRequiredColumns` abaixo é a UNIÃO
+  // (informativa) das faltas entre as abas, nunca um filtro.
+  if (parsedSheets.length === 0) {
+    return { rows: [], headers: [], matchedColumns: [], unknownColumns: [], missingRequiredColumns: REQUIRED_IMPORT_FIELDS.map(fieldLabel) };
   }
 
   return {
-    rows: sheetsToImport.flatMap((result) => result.rows),
-    headers: Array.from(new Set(sheetsToImport.flatMap((result) => result.headers))),
+    rows: parsedSheets.flatMap((result) => result.rows),
+    headers: Array.from(new Set(parsedSheets.flatMap((result) => result.headers))),
     matchedColumns: Array.from(
       new Map(
-        sheetsToImport
+        parsedSheets
           .flatMap((result) => result.matchedColumns)
           .map((column) => [`${column.header}:${column.field}`, column])
       ).values()
     ),
-    unknownColumns: Array.from(new Set(sheetsToImport.flatMap((result) => result.unknownColumns))),
-    missingRequiredColumns: usableSheets.length > 0
+    unknownColumns: Array.from(new Set(parsedSheets.flatMap((result) => result.unknownColumns))),
+    missingRequiredColumns: parsedSheets.some((result) => result.missingRequiredColumns.length === 0)
       ? []
       : Array.from(new Set(parsedSheets.flatMap((result) => result.missingRequiredColumns))),
   };

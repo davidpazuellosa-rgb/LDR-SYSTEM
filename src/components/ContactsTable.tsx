@@ -2514,7 +2514,13 @@ async function saveCell(id: string, key: string, value: string) {
       // Não é mais "perdido": colunas fora do padrão viram coluna personalizada
       // automaticamente (o dado é gravado, só não é um dos campos fixos).
       if (data.unknownColumns?.length) parts.push(`${data.unknownColumns.length} coluna(s) nova(s) adicionada(s)`);
-      const resumo = parts.join(" · ") || "Nada a importar";
+      // Aviso (não bloqueia): colunas padrão que essa planilha não tem — ex.: uma
+      // planilha de outro tipo de órgão, sem telefone. Os dados dela entraram normal,
+      // só não teve essas colunas pra preencher.
+      const aviso = data.missingStandardColumns?.length
+        ? `Sem: ${data.missingStandardColumns.join(", ")}.`
+        : undefined;
+      const resumo = [parts.join(" · ") || "Nada a importar", aviso].filter(Boolean).join(" ");
       toast.success(mode === "replace" ? "Substituição concluída" : "Importação concluída", resumo);
       if (data.eventoId) setUndoInfo({ eventoId: data.eventoId, resumo });
       router.refresh();

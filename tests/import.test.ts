@@ -91,3 +91,40 @@ test("parseSpreadsheetWithMeta reports required and unknown columns", () => {
     ["cidade", "estado"]
   );
 });
+
+test("planilha sem coluna obrigatória NÃO é mais descartada (vira aviso, não bloqueio)", () => {
+  const csv = ["Cidade,UF,Ouvidoria", "Blumenau,SC,(47) 3333-0000"].join("\n");
+  const result = parseSpreadsheetWithMeta(Buffer.from(csv, "utf8"), "defesa-civil.csv");
+
+  assert.equal(result.rows.length, 1, "a linha tem que entrar mesmo sem telefone reconhecido");
+  assert.deepEqual(result.missingRequiredColumns, ["Telefone geral da prefeitura"]);
+  assert.deepEqual(result.unknownColumns, ["Ouvidoria"]);
+});
+
+test("workbook: aba sem coluna obrigatória mantém as linhas dela (nenhuma aba é descartada)", () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["Cidade", "UF", "Telefone"],
+      ["Maceió", "AL", "(82) 99999-0000"],
+    ]),
+    "COM_TELEFONE"
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["Cidade", "UF", "Ouvidoria"],
+      ["Salvador", "BA", "(71) 3333-0000"],
+    ]),
+    "SEM_TELEFONE"
+  );
+
+  const result = parseSpreadsheetWithMeta(
+    Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })),
+    "contatos.xlsx"
+  );
+
+  assert.equal(result.rows.length, 2, "as duas abas têm que entrar, mesmo a 'SEM_TELEFONE'");
+  assert.deepEqual(result.rows.map((r) => r.estado).sort(), ["AL", "BA"]);
+});
