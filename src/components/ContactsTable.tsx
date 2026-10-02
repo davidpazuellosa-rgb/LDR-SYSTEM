@@ -3350,6 +3350,11 @@ async function saveCell(id: string, key: string, value: string) {
                           scheduleDragFocus({ row: rowIndex, col: colIndex });
                         }
                       }}
+                      onClick={(e) => {
+                        // Coluna de lista suspensa: um clique em QUALQUER parte da célula abre a
+                        // lista. Shift/Ctrl/Cmd+clique continuam só selecionando (seleção em bloco).
+                        if (listaCol && !editing && !e.shiftKey && !e.metaKey && !e.ctrlKey) startEditing(rowIndex, colIndex);
+                      }}
                       onDoubleClick={() => startEditing(rowIndex, colIndex)}
                     >
                       {editing && listaCol ? (
