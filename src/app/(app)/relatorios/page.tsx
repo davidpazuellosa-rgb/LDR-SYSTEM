@@ -5,7 +5,8 @@ import { buildRelatorio, parsePeriodo, PERIODO_LABEL } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
 import RelatorioFiltros from "@/components/RelatorioFiltros";
 import RelatoriosTabs from "@/components/RelatoriosTabs";
-import BrasilTilemap from "@/components/BrasilTilemap";
+import DataTable from "@/components/DataTable";
+import { regiaoDaUf } from "@/lib/uf";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +46,6 @@ export default async function RelatoriosPage({
   const sp = await searchParams;
   const periodo = parsePeriodo(sp.periodo);
   const r = await buildRelatorio({ periodo, ldrId: sp.ldr || null, campanha: sp.campanha || null });
-
-  const W = 100;
-  const H = 100;
-  const stepX = r.dias.length > 1 ? W / (r.dias.length - 1) : W;
-  const linePts = r.dias.map((d, i) => `${(i * stepX).toFixed(2)},${(H - (d.total / r.serieMax) * (H - 8) - 4).toFixed(2)}`);
-  const areaPath = `M0,${H} L${linePts.join(" L")} L${W},${H} Z`;
 
   return (
     <>
@@ -121,54 +116,44 @@ export default async function RelatoriosPage({
             )}
           </div>
 
-          {/* Produção 14 dias */}
+          {/* Produção 14 dias — barras com valor e tooltip (antes: linha sem eixos) */}
           <div className={CARD}>
             <h2 className={TITLE}>Produção · 14 dias</h2>
-            <p className={`mb-3 ${SUB}`}>Total diário (preenchimento + correção)</p>
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-24 w-full">
-              <path d={areaPath} fill="#6366f1" fillOpacity="0.1" />
-              <polyline points={linePts.join(" ")} fill="none" stroke="#6366f1" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-            </svg>
-            <div className="mt-2 flex justify-between text-[10px] text-slate-400">
-              <span>{r.dias[0].label}</span>
-              <span>pico {r.serieMax}</span>
-              <span>{r.dias[r.dias.length - 1].label} (hoje)</span>
+            <p className={`mb-3 ${SUB}`}>Total diário (preenchimento + correção) · pico {r.serieMax}</p>
+            <div className="flex h-36 items-end gap-1">
+              {r.dias.map((d, i) => (
+                <div key={d.key} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${d.label}: ${d.total}`}>
+                  <span className="mb-0.5 text-[10px] tabular-nums text-slate-400">{d.total || ""}</span>
+                  <div className={`w-full rounded-t ${i === r.dias.length - 1 ? "bg-indigo-600" : "bg-indigo-400"}`} style={{ height: `${Math.max(d.total ? 4 : 1, (d.total / r.serieMax) * 100)}%`, opacity: d.total ? 1 : 0.25 }} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-1 flex gap-1 text-[10px] text-slate-400">
+              {r.dias.map((d, i) => <span key={d.key} className="flex-1 text-center">{i % 2 === 0 || i === r.dias.length - 1 ? d.label : ""}</span>)}
             </div>
           </div>
         </section>
 
-        {/* Meta × Realizado */}
+        {/* Meta × Realizado — tabela (antes: uma barra por meta) */}
         <section className={CARD}>
           <h2 className={TITLE}>Meta × Realizado</h2>
-          <p className={`mb-3 ${SUB}`}>Cada meta no seu prazo · a marca cinza é o ritmo esperado</p>
-          {r.metasView.length === 0 ? (
-            <p className="py-5 text-center text-xs text-slate-400">Nenhuma meta para o filtro atual.</p>
-          ) : (
-            <div className="space-y-3">
-              {r.metasView.map((m) => {
-                const sm = STATUS_META[m.status];
-                const esperadoPct = m.alvo > 0 ? Math.min(100, (m.esperado / m.alvo) * 100) : 0;
-                return (
-                  <div key={m.id}>
-                    <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-                      <span className="min-w-0 truncate text-slate-600">
-                        <span className="font-medium text-slate-700">{m.nome}</span>
-                        <span className="text-slate-400"> · {m.rotulo}</span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <span className="tabular-nums text-slate-400">{m.feito}/{m.alvo} · {m.p}%</span>
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sm.chip}`}>{sm.label}</span>
-                      </span>
-                    </div>
-                    <div className="relative h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className={`h-full rounded-full ${sm.bar}`} style={{ width: `${Math.max(2, m.p)}%` }} />
-                      <span className="absolute top-0 h-full w-px bg-slate-400" style={{ left: `${esperadoPct}%` }} title={`Esperado: ${m.esperado}`} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <p className={`mb-3 ${SUB}`}>Cada meta no seu prazo · ordene e busque por pessoa, território ou situação</p>
+          <DataTable
+            csvName="meta-x-realizado"
+            searchKeys={["nome", "rotulo", "status"]}
+            searchPlaceholder="Buscar pessoa ou território"
+            maxHeight={380}
+            empty="Nenhuma meta para o filtro atual."
+            cols={[
+              { key: "nome", label: "Pessoa", kind: "text" },
+              { key: "rotulo", label: "Meta", kind: "text" },
+              { key: "feito", label: "Feito", kind: "num" },
+              { key: "alvo", label: "Alvo", kind: "num" },
+              { key: "p", label: "%", kind: "pct", ok: 100, meio: 60 },
+              { key: "status", label: "Situação", kind: "status" },
+            ]}
+            rows={r.metasView.map((m) => ({ nome: m.nome, rotulo: m.rotulo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status }))}
+          />
         </section>
 
         {/* Funil + Backlog */}
@@ -181,7 +166,10 @@ export default async function RelatoriosPage({
                 <div key={f.label}>
                   <div className="mb-1 flex items-baseline justify-between text-xs">
                     <span className="text-slate-600">{f.label}</span>
-                    <span className="font-semibold tabular-nums text-slate-700">{f.value.toLocaleString("pt-BR")}</span>
+                    <span className="font-semibold tabular-nums text-slate-700">
+                      {f.value.toLocaleString("pt-BR")}
+                      {r.funilMax > 0 && <span className="ml-1.5 font-normal text-slate-400">{Math.round((f.value / r.funilMax) * 100)}%</span>}
+                    </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className={`h-full rounded-full ${f.cor}`} style={{ width: `${Math.max(2, (f.value / r.funilMax) * 100)}%` }} />
@@ -197,23 +185,30 @@ export default async function RelatoriosPage({
               <span className="text-lg font-semibold tabular-nums text-slate-900">{r.backlog.total.toLocaleString("pt-BR")}</span>
             </div>
             <p className={`mb-3 ${SUB}`}>Pendências por idade</p>
-            <div className="space-y-2.5">
-              {([
-                { label: "Até 7 dias", value: r.backlog.novos, cor: "bg-emerald-500" },
-                { label: "8 a 30 dias", value: r.backlog.medios, cor: "bg-amber-500" },
-                { label: "Mais de 30 dias", value: r.backlog.antigos, cor: "bg-rose-500" },
-              ] as const).map((b) => (
-                <div key={b.label}>
-                  <div className="mb-1 flex items-baseline justify-between text-xs">
-                    <span className="text-slate-600">{b.label}</span>
-                    <span className="font-semibold tabular-nums text-slate-700">{b.value.toLocaleString("pt-BR")}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${b.cor}`} style={{ width: `${Math.max(2, (b.value / Math.max(1, r.backlog.total)) * 100)}%` }} />
-                  </div>
+            {r.backlog.total === 0 ? (
+              <p className="py-3 text-center text-xs text-slate-400">Fila vazia.</p>
+            ) : (
+              <>
+                <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className="bg-emerald-500" style={{ width: `${(r.backlog.novos / r.backlog.total) * 100}%` }} title={`Até 7 dias: ${r.backlog.novos}`} />
+                  <div className="bg-amber-500" style={{ width: `${(r.backlog.medios / r.backlog.total) * 100}%` }} title={`8 a 30 dias: ${r.backlog.medios}`} />
+                  <div className="bg-rose-500" style={{ width: `${(r.backlog.antigos / r.backlog.total) * 100}%` }} title={`Mais de 30 dias: ${r.backlog.antigos}`} />
                 </div>
-              ))}
-            </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  {([
+                    { label: "Até 7 dias", value: r.backlog.novos, dot: "bg-emerald-500" },
+                    { label: "8 a 30 dias", value: r.backlog.medios, dot: "bg-amber-500" },
+                    { label: "Mais de 30 dias", value: r.backlog.antigos, dot: "bg-rose-500" },
+                  ] as const).map((b) => (
+                    <div key={b.label}>
+                      <div className="flex items-center gap-1.5 text-slate-500"><span className={`h-2 w-2 rounded-full ${b.dot}`} />{b.label}</div>
+                      <div className="mt-0.5 text-base font-semibold tabular-nums text-slate-800">{b.value.toLocaleString("pt-BR")}</div>
+                      <div className="text-[10px] text-slate-400">{Math.round((b.value / r.backlog.total) * 100)}%</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -221,34 +216,53 @@ export default async function RelatoriosPage({
         <section className={CARD}>
           <h2 className={TITLE}>Completude por base</h2>
           <p className={`mb-3 ${SUB}`}>% de prefeituras com a régua completa</p>
-          {r.completudePorBase.length === 0 ? (
-            <p className="py-5 text-center text-xs text-slate-400">Nenhuma base com contatos.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {r.completudePorBase.map((b) => (
-                <div key={b.id}>
-                  <div className="mb-1 flex items-baseline justify-between text-xs">
-                    <span className="min-w-0 truncate text-slate-600">{b.nome}</span>
-                    <span className="shrink-0 tabular-nums text-slate-400">{b.completos.toLocaleString("pt-BR")}/{b.total.toLocaleString("pt-BR")} · {b.p}%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${b.p >= 80 ? "bg-emerald-500" : b.p >= 40 ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${Math.max(2, b.p)}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <DataTable
+            csvName="completude-por-base"
+            searchKeys={["nome"]}
+            searchPlaceholder="Buscar base"
+            maxHeight={380}
+            empty="Nenhuma base com contatos."
+            defaultSort={{ key: "total", dir: -1 }}
+            cols={[
+              { key: "nome", label: "Base", kind: "text" },
+              { key: "total", label: "Prefeituras", kind: "num" },
+              { key: "completos", label: "Completas", kind: "num" },
+              { key: "p", label: "% completas", kind: "pct", ok: 80, meio: 40 },
+            ]}
+            rows={r.completudePorBase.map((b) => ({ nome: b.nome, total: b.total, completos: b.completos, p: b.p }))}
+          />
         </section>
 
-        {/* Mapa + Heatmap */}
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className={CARD}>
-            <h2 className={TITLE}>Mapa por estado</h2>
-            <p className={`mb-3 ${SUB}`}>% atualizados (entre sinalizados)</p>
-            <BrasilTilemap dados={r.mapaUF} />
-          </div>
+        {/* Estados (tabela) + Heatmap */}
+        <section className={CARD}>
+          <h2 className={TITLE}>Estados</h2>
+          <p className={`mb-3 ${SUB}`}>% atualizados entre os contatos sinalizados pelo CRM · “—” = nenhum sinalizado</p>
+          <DataTable
+            csvName="estados"
+            searchKeys={["uf", "regiao"]}
+            searchPlaceholder="Buscar UF ou região"
+            maxHeight={460}
+            defaultSort={{ key: "total", dir: -1 }}
+            cols={[
+              { key: "uf", label: "UF", kind: "text" },
+              { key: "regiao", label: "Região", kind: "text" },
+              { key: "total", label: "Contatos", kind: "num" },
+              { key: "incorreto", label: "Incorretos", kind: "num" },
+              { key: "atualizado", label: "Atualizados", kind: "num" },
+              { key: "taxa", label: "% atualizados", kind: "pct", ok: 80, meio: 50 },
+            ]}
+            rows={Object.entries(r.mapaUF).map(([uf, d]) => ({ uf, regiao: regiaoDaUf(uf) || "—", total: d.total, incorreto: d.incorreto, atualizado: d.atualizado, taxa: d.taxa }))}
+            total={(() => {
+              const v = Object.values(r.mapaUF);
+              const inc = v.reduce((a, d) => a + d.incorreto, 0);
+              const at = v.reduce((a, d) => a + d.atualizado, 0);
+              return { uf: "Total", regiao: "", total: v.reduce((a, d) => a + d.total, 0), incorreto: inc, atualizado: at, taxa: inc + at ? Math.round((at / (inc + at)) * 100) : null };
+            })()}
+          />
+        </section>
 
-          <div className={`${CARD} lg:col-span-2`}>
+        <section className="grid grid-cols-1 gap-4">
+          <div className={CARD}>
             <h2 className={TITLE}>Atividade por dia e hora</h2>
             <p className={`mb-3 ${SUB}`}>Horário de Brasília{r.ldrId ? " · LDR filtrado" : ""}</p>
             <div className="space-y-1">
