@@ -23,16 +23,18 @@ export function buildBaseCsv({
   cols,
   rows,
   customValues = {},
+  comSituacao = true,
 }: {
   cols: ResolvedCol[];
   rows: ExportRow[];
   customValues?: Record<string, Record<string, string>>;
+  comSituacao?: boolean;
 }): string {
-  const linhas = [[...cols.map((c) => c.label), SITUACAO_LABEL].map(csvCell).join(";")];
+  const linhas = [[...cols.map((c) => c.label), ...(comSituacao ? [SITUACAO_LABEL] : [])].map(csvCell).join(";")];
   for (const row of rows) {
     const custom = customValues[row.id] || {};
     const linha = cols.map((col) => csvCell(col.kind === "custom" ? custom[col.key] : row[col.key]));
-    linha.push(csvCell(STATUS_META[row.status]?.label || row.status));
+    if (comSituacao) linha.push(csvCell(STATUS_META[row.status]?.label || row.status));
     linhas.push(linha.join(";"));
   }
   // BOM para os acentos abrirem certo no Excel.

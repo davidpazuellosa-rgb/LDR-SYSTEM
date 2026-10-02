@@ -1,7 +1,8 @@
 // Agregação dos relatórios do admin — reusada pela página /relatorios e pela
 // exportação CSV (/api/relatorios/export), para não duplicar a lógica.
 import { prisma } from "@/lib/prisma";
-import { isComplete, customsCompletos, tipoOrgao } from "@/lib/completude";
+import { isComplete, isCompleteVisivel, customsCompletos, tipoOrgao } from "@/lib/completude";
+import { parseHiddenCols } from "@/lib/base-columns";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
@@ -237,9 +238,10 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const completudePorBase = bases
     .map((b) => {
       const doBase = contacts.filter((c) => c.baseId === b.id);
-      const keys = baseKeys.get(b.id) ?? [];
+      const ocultasB = new Set(parseHiddenCols(b.headers as Record<string, unknown> | null));
+      const keys = (baseKeys.get(b.id) ?? []).filter((k) => !ocultasB.has(k));
       const completos = doBase.filter(
-        (c) => isComplete(c as Parameters<typeof isComplete>[0]) && customsCompletos(keys, customByContact.get(c.id)),
+        (c) => isCompleteVisivel(c as Parameters<typeof isComplete>[0], ocultasB) && customsCompletos(keys, customByContact.get(c.id)),
       ).length;
       return { id: b.id, nome: b.name, total: doBase.length, completos, p: doBase.length ? Math.round((completos / doBase.length) * 100) : 0 };
     })

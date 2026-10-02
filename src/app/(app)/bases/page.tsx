@@ -7,8 +7,9 @@ import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import CardMenu from "@/components/CardMenu";
 import RegioesGrid from "@/components/RegioesGrid";
-import { isComplete, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { isCompleteVisivel, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
+import { parseHiddenCols } from "@/lib/base-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,10 @@ export default async function BasesPage({
   ]);
 
   // Colunas personalizadas contam na conclusão: chaves por base + valores por contato.
-  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
+  // Coluna oculta/excluída NÃO conta (mesma regra da planilha) — antes o card exigia as
+  // 7 colunas padrão mesmo escondidas e ficava 0% enquanto a planilha mostrava 102/102.
+  const ocultasDe = new Map(bases.map((b) => [b.id, new Set(parseHiddenCols(b.headers as Record<string, unknown> | null))]));
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key).filter((k) => !ocultasDe.get(b.id)!.has(k))]));
   const customByContact = new Map<string, Record<string, string>>();
   if ([...baseKeys.values()].some((ks) => ks.length)) {
     await ensureContactCustomTable();
@@ -105,7 +109,7 @@ export default async function BasesPage({
     // Linhas ainda em branco (as que toda planilha nova já ganha) não entram na
     // conta — senão uma planilha recém-criada apareceria como 0% em vez de vazia.
     if (isRowVazia(c as unknown as Record<string, unknown>, customByContact.get(c.id))) continue;
-    const ok = isComplete(c) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
+    const ok = isCompleteVisivel(c, ocultasDe.get(c.baseId) ?? []) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
     b.total += 1;
     if (ok) b.done += 1;
     const reg = (c.regiao && c.regiao.trim()) || "Sem região";

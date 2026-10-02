@@ -971,13 +971,9 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
 
   // O CSV sai da visão ativa: aba de UF + região (quando veio de um card).
   // As colunas o servidor já resolve sozinho (headers.__cols__/__order__/__hidden__).
-  const exportHref = useMemo(() => {
-    const p = new URLSearchParams();
-    if (regiao) p.set("regiao", regiao);
-    if (tab !== ALL) p.set("uf", tab);
-    const qs = p.toString();
-    return apiPath(`/api/bases/${baseId}/export${qs ? `?${qs}` : ""}`);
-  }, [baseId, regiao, tab, ALL]);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportSel, setExportSel] = useState<Set<string>>(new Set());
+
 
   // Páginas criadas à mão (guardadas em headers.__abas__) — existem mesmo sem
   // nenhuma linha ainda. A lista de abas é a UNIÃO delas com as UFs derivadas
@@ -2933,8 +2929,13 @@ async function saveCell(id: string, key: string, value: string) {
             </button>
           )}
           {canExport && (
-            <a
-              href={exportHref}
+            <button
+              type="button"
+              onClick={() => {
+                // Abre o popup com TODAS as colunas da planilha marcadas.
+                setExportSel(new Set([...unifiedCols.map((c) => c.key), "__situacao__"]));
+                setExportOpen(true);
+              }}
               onMouseEnter={(e) =>
                 showTip(
                   e,
@@ -2948,7 +2949,7 @@ async function saveCell(id: string, key: string, value: string) {
               className="grid h-9 w-9 place-items-center rounded-md bg-slate-200 text-slate-700 transition hover:bg-slate-300"
             >
               <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </a>
+            </button>
           )}
           {canImport && (
             <input
@@ -3517,6 +3518,71 @@ async function saveCell(id: string, key: string, value: string) {
           {tip.text}
         </div>
       )}
+
+      {/* Popup de exportação: escolher as colunas (checklist) */}
+      {exportOpen && (() => {
+        const itens = [
+          ...unifiedCols.map((c) => ({
+            key: c.key,
+            label: c.kind === "custom" ? c.col.label : headerLabelFor(c.key, c.field.label),
+          })),
+          { key: "__situacao__", label: "Situação (status do telefone)" },
+        ];
+        const todas = itens.every((i) => exportSel.has(i.key));
+        const nenhuma = itens.every((i) => !exportSel.has(i.key));
+        const escolhidas = unifiedCols.filter((c) => exportSel.has(c.key)).length;
+        const confirmar = () => {
+          const p = new URLSearchParams();
+          if (regiao) p.set("regiao", regiao);
+          if (tab !== ALL) p.set("uf", tab);
+          p.set("cols", unifiedCols.filter((c) => exportSel.has(c.key)).map((c) => c.key).join(","));
+          if (!exportSel.has("__situacao__")) p.set("situacao", "0");
+          const a = document.createElement("a");
+          a.href = apiPath(`/api/bases/${baseId}/export?${p.toString()}`);
+          a.click();
+          setExportOpen(false);
+        };
+        return (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && setExportOpen(false)}>
+            <div role="dialog" aria-modal="true" className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl">
+              <div className="border-b border-slate-100 px-6 py-4">
+                <h2 className="text-lg font-semibold text-slate-800">Exportar planilha</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Escolha as colunas que vão no arquivo (CSV).</p>
+              </div>
+              <div className="flex items-center justify-between px-6 py-2 text-xs">
+                <button type="button" className="font-medium text-indigo-600 hover:underline" onClick={() => setExportSel(new Set(itens.map((i) => i.key)))}>Selecionar todas</button>
+                <button type="button" className="text-slate-400 hover:text-slate-600" onClick={() => setExportSel(new Set())}>Limpar</button>
+              </div>
+              <ul className="flex-1 overflow-y-auto px-3 pb-2">
+                {itens.map((i) => {
+                  const on = exportSel.has(i.key);
+                  return (
+                    <li key={i.key}>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => setExportSel((prev) => { const n = new Set(prev); if (on) n.delete(i.key); else n.add(i.key); return n; })}
+                          className="h-4 w-4 rounded border-slate-300 accent-indigo-600"
+                        />
+                        <span className="truncate">{i.label}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+                {itens.length === 1 && <li className="px-3 py-4 text-center text-sm text-slate-400">Esta planilha ainda não tem colunas.</li>}
+              </ul>
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+                <span className="text-xs text-slate-400">{escolhidas} de {unifiedCols.length} colunas{todas ? " (todas)" : ""}</span>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setExportOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancelar</button>
+                  <button type="button" disabled={nenhuma} onClick={confirmar} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">Exportar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Menu de contexto (botão direito) */}
       {menu && (

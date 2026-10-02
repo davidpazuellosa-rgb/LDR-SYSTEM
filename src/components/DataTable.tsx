@@ -51,6 +51,8 @@ export default function DataTable({
 }) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(defaultSort ?? null);
+  const [expOpen, setExpOpen] = useState(false);
+  const [expSel, setExpSel] = useState<Set<string>>(new Set());
 
   const view = useMemo(() => {
     const n = q.trim().toLowerCase();
@@ -75,13 +77,14 @@ export default function DataTable({
     setSort((s) => (s?.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: kind === "text" || !kind ? 1 : -1 }));
   }
 
-  function exportar() {
+  function exportar(chaves: Set<string>) {
+    const cs = cols.filter((c) => chaves.has(c.key));
     const esc = (v: unknown) => {
       const s = String(v ?? "");
       return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const linhas = [cols.map((c) => esc(c.label)).join(";"), ...view.map((r) => cols.map((c) => esc(r[c.key])).join(";"))];
-    if (total) linhas.push(cols.map((c) => esc(total[c.key])).join(";"));
+    const linhas = [cs.map((c) => esc(c.label)).join(";"), ...view.map((r) => cs.map((c) => esc(r[c.key])).join(";"))];
+    if (total) linhas.push(cs.map((c) => esc(total[c.key])).join(";"));
     const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -112,8 +115,38 @@ export default function DataTable({
     return <span>{v == null || v === "" ? "—" : String(v)}</span>;
   }
 
+  const popup = expOpen && (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && setExpOpen(false)}>
+      <div role="dialog" aria-modal="true" className="flex max-h-[85vh] w-full max-w-sm flex-col rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-slate-800">Exportar tabela</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Escolha as colunas do arquivo (CSV).</p>
+        </div>
+        <div className="flex items-center justify-between px-6 py-2 text-xs">
+          <button type="button" className="font-medium text-indigo-600 hover:underline" onClick={() => setExpSel(new Set(cols.map((c) => c.key)))}>Selecionar todas</button>
+          <button type="button" className="text-slate-400 hover:text-slate-600" onClick={() => setExpSel(new Set())}>Limpar</button>
+        </div>
+        <ul className="flex-1 overflow-y-auto px-3 pb-2">
+          {cols.map((c) => (
+            <li key={c.key}>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                <input type="checkbox" checked={expSel.has(c.key)} onChange={() => setExpSel((p) => { const n = new Set(p); if (n.has(c.key)) n.delete(c.key); else n.add(c.key); return n; })} className="h-4 w-4 rounded border-slate-300 accent-indigo-600" />
+                {c.label}
+              </label>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+          <button type="button" onClick={() => setExpOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancelar</button>
+          <button type="button" disabled={expSel.size === 0} onClick={() => { exportar(expSel); setExpOpen(false); }} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">Exportar</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
+      {popup}
       {(searchKeys.length > 0 || csvName) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           {searchKeys.length > 0 ? (
@@ -123,7 +156,7 @@ export default function DataTable({
             </div>
           ) : <span />}
           {csvName && (
-            <button type="button" onClick={exportar} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={() => { setExpSel(new Set(cols.map((c) => c.key))); setExpOpen(true); }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               Exportar CSV
             </button>
           )}

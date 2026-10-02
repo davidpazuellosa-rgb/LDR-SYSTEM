@@ -52,7 +52,15 @@ export async function GET(
   if (uf) rows = rows.filter((c) => ufDe(c.estado) === uf.toUpperCase() || ufDe(c.estado) === uf);
 
   const headersJson = base.headers as Record<string, unknown> | null;
-  const cols = resolveBaseColumns(headersJson);
+  let cols = resolveBaseColumns(headersJson);
+  // Colunas escolhidas no popup de exportação (?cols=a,b,c — chaves da grade). Sem o
+  // parâmetro, exporta todas (compatível com links antigos). Mantém a ordem da planilha.
+  const escolhidas = url.searchParams.get("cols");
+  if (escolhidas !== null) {
+    const set = new Set(escolhidas.split(",").map((s) => s.trim()).filter(Boolean));
+    cols = cols.filter((c) => set.has(c.key));
+  }
+  const comSituacao = url.searchParams.get("situacao") !== "0";
 
   // Valores das colunas personalizadas (tabela própria, fora de Contact).
   await ensureContactCustomTable();
@@ -73,6 +81,7 @@ export async function GET(
     cols,
     rows: rows as unknown as ExportRow[],
     customValues: Object.fromEntries(customValues),
+    comSituacao,
   });
 
   const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "");
