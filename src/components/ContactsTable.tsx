@@ -15,6 +15,9 @@ import { useDialog } from "@/components/Dialog";
 import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
 import ColumnFilterPopover from "@/components/ColumnFilterPopover";
+import ListaEditor from "@/components/ListaEditor";
+import { corDaOpcao, valorValidoNaLista, CORES_LISTA } from "@/lib/coluna-lista";
+import type { CustomCol } from "@/lib/base-columns";
 import { useRealtimeSheet, type EditItem, type ReorderPayload, type RowsPayload, type LayoutPayload } from "@/lib/useRealtimeSheet";
 
 type Contact = {
@@ -227,7 +230,7 @@ export default function ContactsTable({
   initialFormats?: Record<string, Record<string, CellFmt>>;
   initialHeaders?: Record<string, string>;
   initialMerges?: MergeRegion[];
-  initialCols?: { key: string; label: string }[];
+  initialCols?: CustomCol[];
   initialCustomValues?: Record<string, Record<string, string>>;
   initialSort?: { key: string; dir: "asc" | "desc" } | null;
   initialOrder?: string[];
@@ -379,8 +382,26 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   );
 
   // ---- Colunas personalizadas (bloco à direita) ----
-  const [customCols, setCustomCols] = useState<{ key: string; label: string }[]>(initialCols);
+  const [customCols, setCustomCols] = useState<CustomCol[]>(initialCols);
   const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(initialCustomValues);
+  // Linha NOVA de verdade (inserida à mão aqui ou por um colega): colunas de lista com valor
+  // padrão já mostram o padrão. Só preenche o que ainda não tem valor (não pisa em linha
+  // restaurada por desfazer). O servidor grava o mesmo padrão em POST /api/contacts.
+  const aplicarPadroesRef = useRef<(novas: Contact[]) => void>(() => {});
+  function aplicarPadroes(novas: Contact[]) {
+    const padroes = customCols.filter((c) => c.tipo === "lista" && c.padrao);
+    if (padroes.length === 0 || novas.length === 0) return;
+    setCustomValues((prev) => {
+      const next = { ...prev };
+      for (const ct of novas) {
+        for (const col of padroes) {
+          if (next[ct.id]?.[col.key] === undefined) next[ct.id] = { ...(next[ct.id] || {}), [col.key]: col.padrao as string };
+        }
+      }
+      return next;
+    });
+  }
+  aplicarPadroesRef.current = aplicarPadroes;
   const customValOf = useCallback(
     (contactId: string, key: string) => customValues[contactId]?.[key] ?? "",
     [customValues]
@@ -426,7 +447,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
 
   // Estrutura das colunas (admin): cria/renomeia/move/exclui. Persiste em headers.__cols__.
   const saveCols = useCallback(
-    (next: { key: string; label: string }[]) => {
+    (next: CustomCol[]) => {
       setCustomCols(next);
       broadcastLayoutRef.current({ customCols: next });
       markSaving();
@@ -576,6 +597,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       created.forEach((c) => next.delete(c.id));
       return next;
     });
+    aplicarPadroesRef.current(created);
     if (p.formats && Object.keys(p.formats).length) {
       setFormats((prev) => ({ ...prev, ...(p.formats as Record<string, Record<string, CellFmt>>) }));
     }
@@ -764,7 +786,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // exportação usa no servidor, para o CSV nunca mais divergir da tela.
   type UnifiedCol =
     | { kind: "native"; key: string; nativeIndex: number; field: (typeof CONTACT_FIELDS)[number] }
-    | { kind: "custom"; key: string; col: { key: string; label: string } };
+    | { kind: "custom"; key: string; col: CustomCol };
   const unifiedCols = useMemo<UnifiedCol[]>(() => {
     // nativeIndex = posição entre as colunas fixas visíveis (usado só pelo
     // congelamento da primeira coluna).
@@ -971,6 +993,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
 
   // O CSV sai da visão ativa: aba de UF + região (quando veio de um card).
   // As colunas o servidor já resolve sozinho (headers.__cols__/__order__/__hidden__).
+  const [listaEditorKey, setListaEditorKey] = useState<string | null>(null); // coluna cujo TIPO está sendo editado (admin)
   const [exportOpen, setExportOpen] = useState(false);
   const [exportSel, setExportSel] = useState<Set<string>>(new Set());
 
@@ -1989,6 +2012,7 @@ async function insertRowNear(rowIndex: number, side: "above" | "below", count = 
     created.forEach((c) => next.delete(c.id));
     return next;
   });
+  aplicarPadroes(created);
   const positions = created.map((_, i) => insertAt + i);
   recordInsert(created, positions);
   broadcastRowsRef.current({ op: "insert", contacts: created, positions });
@@ -2077,7 +2101,19 @@ async function saveCell(id: string, key: string, value: string) {
     }
   }
 
-  async function persistCells(updates: Array<{ id: string; key: string; value: string }>) {
+  async function persistCells(todas: Array<{ id: string; key: string; value: string }>) {
+    // Coluna de lista suspensa: valor fora da lista é RECUSADO (colar/digitar). Vazio pode.
+    const updates = todas.filter((u) => {
+      const col = customCols.find((c) => c.key === u.key);
+      return !(col?.tipo === "lista") || valorValidoNaLista(col.opcoes, u.value);
+    });
+    const recusadas = todas.length - updates.length;
+    if (recusadas > 0) {
+      toast.error(
+        recusadas === 1 ? "Valor fora da lista" : `${recusadas} valores fora da lista`,
+        "Essa coluna só aceita as opções da lista suspensa — escolha uma delas.",
+      );
+    }
     if (updates.length === 0) return;
 
     // Registra o lote no histórico (capturando os valores anteriores) para que
@@ -3253,6 +3289,8 @@ async function saveCell(id: string, key: string, value: string) {
                     const isActiveCell = focusCell?.row === rowIndex && focusCell?.col === colIndex;
                     const editing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
                     const value = cellValue(c, col.key);
+                    // Coluna do tipo lista suspensa (só custom): célula escolhe UMA opção colorida.
+                    const listaCol = item.kind === "custom" && item.col.tipo === "lista" ? item.col : null;
                     // Marca-d'água de copiar/recortar (tracejado nas bordas do retângulo).
                     const inClip =
                       !!clip &&
@@ -3311,7 +3349,37 @@ async function saveCell(id: string, key: string, value: string) {
                       }}
                       onDoubleClick={() => startEditing(rowIndex, colIndex)}
                     >
-                      {editing ? (
+                      {editing && listaCol ? (
+                        <select
+                          key={`edit:${c.id}:${col.key}`}
+                          autoFocus
+                          data-grid-cell={`${rowIndex}:${colIndex}`}
+                          defaultValue={value}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (next !== value) {
+                              recordEdit({ id: c.id, key: col.key, prev: value, next });
+                              saveCellValue(c.id, col.key, next);
+                            }
+                            stopEditing(true);
+                          }}
+                          onBlur={() => stopEditing(false)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              stopEditing(true);
+                            }
+                          }}
+                          style={{ minWidth: colW(col) }}
+                          className={`w-full rounded border border-indigo-300 bg-white px-2 ${padY} text-sm text-slate-700 outline-none`}
+                        >
+                          <option value="">— vazio —</option>
+                          {value && !valorValidoNaLista(listaCol.opcoes, value) && <option value={value}>{value} (fora da lista)</option>}
+                          {listaCol.opcoes?.map((o) => (
+                            <option key={o.valor} value={o.valor}>{o.valor}</option>
+                          ))}
+                        </select>
+                      ) : editing ? (
                         <textarea
                           key={`edit:${c.id}:${col.key}`}
                           autoFocus
@@ -3401,7 +3469,18 @@ async function saveCell(id: string, key: string, value: string) {
                               : "text-slate-700"
                           }`}
                         >
-                          {value || " "}
+                          {listaCol && value ? (
+                            (() => {
+                              const cor = corDaOpcao(listaCol.opcoes, value);
+                              return cor ? (
+                                <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${CORES_LISTA[cor].chip}`}>{value}</span>
+                              ) : (
+                                <span title="Esta opção não existe mais na lista" className="inline-block rounded-full border border-dashed border-slate-300 px-2.5 py-0.5 text-xs text-slate-500">{value} · fora da lista</span>
+                              );
+                            })()
+                          ) : (
+                            value || " "
+                          )}
                         </div>
                       )}
                       {isActiveCell && !editing && (
@@ -3518,6 +3597,23 @@ async function saveCell(id: string, key: string, value: string) {
           {tip.text}
         </div>
       )}
+
+      {/* Editor do tipo da coluna (lista suspensa) — só admin */}
+      {canEditHeaders && listaEditorKey && (() => {
+        const col = customCols.find((c) => c.key === listaEditorKey);
+        if (!col) return null;
+        return (
+          <ListaEditor
+            titulo={col.label}
+            inicial={{ tipo: col.tipo, opcoes: col.opcoes, padrao: col.padrao }}
+            onFechar={() => setListaEditorKey(null)}
+            onSalvar={(extra) => {
+              saveCols(customCols.map((c) => (c.key === col.key ? { key: c.key, label: c.label, ...extra } : c)));
+              setListaEditorKey(null);
+            }}
+          />
+        );
+      })()}
 
       {/* Popup de exportação: escolher as colunas (checklist) */}
       {exportOpen && (() => {
@@ -3669,6 +3765,21 @@ async function saveCell(id: string, key: string, value: string) {
                     if (idx !== undefined) hideColumns([idx]);
                   }}
                 />
+                {canEditHeaders && (
+                  <MenuRow
+                    icon={
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="m9 11 3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    }
+                    label="Tipo da coluna (lista suspensa)…"
+                    onClick={() => {
+                      setListaEditorKey(menu.colKey);
+                      setMenu(null);
+                    }}
+                  />
+                )}
                 <div className="my-1 h-px bg-slate-200" />
                 <MenuRow
                   icon={

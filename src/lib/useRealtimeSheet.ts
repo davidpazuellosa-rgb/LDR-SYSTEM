@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 import { apiPath } from "@/lib/path";
+import type { CustomCol } from "@/lib/base-columns";
 
 export type Peer = { id: string; nome: string; inicial: string; cor: string };
 export type EditItem = { id: string; key: string; value: string; custom?: boolean };
@@ -25,7 +26,7 @@ export type LayoutPayload = {
   order?: string[];
   hidden?: string[];
   deleted?: string[];
-  customCols?: { key: string; label: string }[];
+  customCols?: CustomCol[];
   headerLabels?: Record<string, string>;
   merges?: unknown[];
   abas?: string[];

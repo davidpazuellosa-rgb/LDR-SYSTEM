@@ -16,6 +16,7 @@
 // Não importe nada que puxe o prisma (ex.: custom-columns.ts) — o PrismaClient
 // iria parar no bundle do navegador e a página quebra com erro de servidor.
 import { CONTACT_FIELDS, type ContactField } from "@/lib/contact-fields";
+import { sanitizarLista, type ColunaExtra } from "@/lib/coluna-lista";
 
 export const COLS_KEY = "__cols__";
 export const ORDER_KEY = "__order__";
@@ -34,7 +35,7 @@ export type ResolvedCol =
 
 type Headers = Record<string, unknown> | null | undefined;
 
-export type CustomCol = { key: string; label: string };
+export type CustomCol = { key: string; label: string } & ColunaExtra;
 
 // Lê/normaliza as definições de colunas personalizadas guardadas em headers.__cols__.
 export function parseCustomCols(headers: Headers): CustomCol[] {
@@ -42,7 +43,7 @@ export function parseCustomCols(headers: Headers): CustomCol[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
-    .map((c) => ({ key: String(c.key || ""), label: String(c.label || "").slice(0, 60) }))
+    .map((c) => ({ key: String(c.key || ""), label: String(c.label || "").slice(0, 60), ...sanitizarLista(c) }))
     .filter((c) => c.key && c.label)
     .slice(0, 30);
 }

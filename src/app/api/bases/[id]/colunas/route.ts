@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/guard";
 import { reprocessarConclusaoDaBase } from "@/lib/contact-fill";
+import { sanitizarLista } from "@/lib/coluna-lista";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const cols = raw
     .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
-    .map((c) => ({ key: String(c.key || "").slice(0, 40), label: String(c.label || "").trim().slice(0, 60) }))
+    .map((c) => ({ key: String(c.key || "").slice(0, 40), label: String(c.label || "").trim().slice(0, 60), ...sanitizarLista(c) }))
     .filter((c) => c.key && c.label)
     .slice(0, 30);
 

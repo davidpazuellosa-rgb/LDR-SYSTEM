@@ -27,7 +27,8 @@ test("base-columns não pode importar nada que carregue o prisma", () => {
   const fonte = readFileSync(new URL("../src/lib/base-columns.ts", import.meta.url), "utf8");
   const imports = [...fonte.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
 
-  assert.deepEqual(imports, ["@/lib/contact-fields"]);
+  // coluna-lista é puro (paleta/validação), sem banco — pode.
+  assert.deepEqual(imports, ["@/lib/contact-fields", "@/lib/coluna-lista"]);
 });
 
 test("resolveBaseColumns inclui as colunas personalizadas", () => {

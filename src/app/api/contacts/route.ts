@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/guard";
 import { looksLikeValidPhone } from "@/lib/import";
 import { CONTACT_FIELD_KEYS, PHONE_FIELD } from "@/lib/contact-fields";
 import { STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
+import { parseCustomCols } from "@/lib/base-columns";
+import { ensureContactCustomTable } from "@/lib/custom-columns";
 
 // Cadastro manual de um novo contato (prefeitura) dentro de uma base.
 export async function POST(req: Request) {
@@ -39,5 +41,18 @@ export async function POST(req: Request) {
       status: looksLikeValidPhone(phone) ? STATUS_OK : phone ? STATUS_INCORRETO : STATUS_OK,
     },
   });
+
+  // Colunas de lista suspensa com VALOR PADRÃO: a linha inserida à mão já nasce com ele.
+  // (Só aqui — linhas em branco de página nova e importação não recebem padrão, senão
+  // virariam "linha com dado" nos contadores.)
+  const base = await prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } });
+  const padroes = parseCustomCols(base?.headers as Record<string, unknown> | null).filter((c) => c.tipo === "lista" && c.padrao);
+  if (padroes.length) {
+    await ensureContactCustomTable();
+    await prisma.contactCustomValue.createMany({
+      data: padroes.map((c) => ({ contactId: contact.id, colKey: c.key, valor: c.padrao as string })),
+      skipDuplicates: true,
+    });
+  }
   return NextResponse.json(contact);
 }
