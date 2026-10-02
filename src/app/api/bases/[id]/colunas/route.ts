@@ -10,9 +10,8 @@ const COLS_KEY = "__cols__";
 // Definições das colunas personalizadas (bloco à direita) — guardadas em
 // Base.headers.__cols__. Só admin altera a estrutura. Sem coluna nova no banco.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { session, deny } = await requireAdmin();
+  const { deny } = await requireAdmin();
   if (deny) return deny;
-  const meId = (session.user as { id?: string }).id || null;
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -31,6 +30,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const current = ((base.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
   await prisma.base.update({ where: { id }, data: { headers: { ...current, [COLS_KEY]: cols } } });
   // A régua mudou (coluna criada/excluída): recalcula a conclusão de todos os contatos.
-  await reprocessarConclusaoDaBase(id, meId);
+  // SEM crédito: quem tirou o crédito de quem deixou de estar completo, mas NÃO atribui
+  // as linhas que passaram a estar completas a quem mexeu na coluna (antes isso creditava
+  // centenas de linhas de uma vez a quem criou/excluiu a coluna e distorcia o ranking —
+  // ex.: 1.870 linhas na Sala Comercial em 24/09). Crédito só nasce de quem preenche.
+  await reprocessarConclusaoDaBase(id, null);
   return NextResponse.json({ ok: true, cols });
 }

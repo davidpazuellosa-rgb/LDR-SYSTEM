@@ -5,6 +5,7 @@ import { getProprietarioDoUsuario } from "@/lib/user-proprietario";
 import PageHeader from "@/components/PageHeader";
 import CorrectionsList from "@/components/CorrectionsList";
 import CrmSync from "@/components/CrmSync";
+import { isCampanhaAtiva } from "@/lib/campanhas";
 
 export const dynamic = "force-dynamic";
 
@@ -17,28 +18,36 @@ export default async function CorrecoesPage() {
   const proprietario = prevendedor ? await getProprietarioDoUsuario(u?.id || "") : null;
   const semVinculo = prevendedor && !proprietario;
 
-  const pending = semVinculo
-    ? []
-    : await prisma.correction.findMany({
-        where: {
-          status: "pending",
-          ...(proprietario ? { contact: { is: { proprietario } } } : {}),
+  // Só campanhas ATIVAS aparecem nesta tela (CorrectionsList ignora o resto). Antes o
+  // servidor mandava TODAS as ~8.900 pendências (≈5 MB por carregamento), das quais
+  // ~8.000 nunca eram exibidas (sem campanha ou de campanha inativa). Agora só vai o
+  // que aparece, e só os campos que a tela usa.
+  let pending: {
+    id: string;
+    oldValue: string | null;
+    reason: string | null;
+    contact: { id: string; cidade: string | null; estado: string | null; nomePrefeito: string | null; campanha: string | null; regiao: string | null; proprietario: string | null };
+  }[] = [];
+  if (!semVinculo) {
+    const nomes = (await prisma.contact.findMany({ where: { campanha: { not: null } }, select: { campanha: true }, distinct: ["campanha"] }))
+      .map((c) => c.campanha as string)
+      .filter((c) => isCampanhaAtiva(c));
+    pending = nomes.length === 0 ? [] : await prisma.correction.findMany({
+      where: {
+        status: "pending",
+        contact: { is: { campanha: { in: nomes }, ...(proprietario ? { proprietario } : {}) } },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        oldValue: true,
+        reason: true,
+        contact: {
+          select: { id: true, cidade: true, estado: true, nomePrefeito: true, campanha: true, regiao: true, proprietario: true },
         },
-        orderBy: { createdAt: "desc" },
-        include: {
-          contact: {
-            select: {
-              id: true,
-              cidade: true,
-              estado: true,
-              nomePrefeito: true,
-              campanha: true,
-              regiao: true,
-              proprietario: true,
-            },
-          },
-        },
-      });
+      },
+    });
+  }
 
   return (
     <>
