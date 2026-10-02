@@ -267,7 +267,19 @@ function PessoaModal({
   );
 }
 
-export default function CorrectionsList({ items, hideProprietario = false }: { items: CorrectionItem[]; hideProprietario?: boolean }) {
+// Pendências sem campanha (HubSpot sem o campo): ficam num grupo próprio, carregado só
+// quando a pessoa abre (?sem=1) — são milhares e não devem pesar no carregamento normal.
+export const SEM_CAMPANHA = "Sem campanha";
+
+export default function CorrectionsList({
+  items,
+  hideProprietario = false,
+  semCampanha = 0,
+}: {
+  items: CorrectionItem[];
+  hideProprietario?: boolean;
+  semCampanha?: number; // quantas pendências sem campanha existem (card no seletor)
+}) {
   const router = useRouter();
   const toast = useToast();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -286,7 +298,7 @@ export default function CorrectionsList({ items, hideProprietario = false }: { i
   const [owner, setOwner] = useState("all");
 
   const campanhas = useMemo(
-    () => uniq(items.map((item) => item.contact.campanha)).filter(isCampanhaAtiva),
+    () => uniq(items.map((item) => item.contact.campanha)).filter((c) => isCampanhaAtiva(c) || c === SEM_CAMPANHA),
     [items],
   );
 
@@ -509,7 +521,7 @@ export default function CorrectionsList({ items, hideProprietario = false }: { i
     }
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && semCampanha === 0) {
     return <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">Nenhuma correção pendente.</div>;
   }
 
@@ -530,6 +542,9 @@ export default function CorrectionsList({ items, hideProprietario = false }: { i
               }}
             />
           ))}
+          {semCampanha > 0 && !campanhas.includes(SEM_CAMPANHA) && (
+            <ScopeCard title={SEM_CAMPANHA} count={semCampanha} onClick={() => router.push("/correcoes?sem=1")} />
+          )}
         </div>
       </div>
     );

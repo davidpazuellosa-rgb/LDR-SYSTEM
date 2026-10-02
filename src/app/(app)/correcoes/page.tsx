@@ -6,10 +6,13 @@ import PageHeader from "@/components/PageHeader";
 import CorrectionsList from "@/components/CorrectionsList";
 import CrmSync from "@/components/CrmSync";
 import { isCampanhaAtiva } from "@/lib/campanhas";
+import { SEM_CAMPANHA } from "@/components/CorrectionsList";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function CorrecoesPage() {
+export default async function CorrecoesPage({ searchParams }: { searchParams: Promise<{ sem?: string }> }) {
+  const modoSem = (await searchParams).sem === "1";
   const session = await auth();
   const u = session?.user as { id?: string; role?: string } | undefined;
   const prevendedor = (await currentRole(session)) === "prevendedor";
@@ -28,7 +31,23 @@ export default async function CorrecoesPage() {
     reason: string | null;
     contact: { id: string; cidade: string | null; estado: string | null; nomePrefeito: string | null; campanha: string | null; regiao: string | null; proprietario: string | null };
   }[] = [];
-  if (!semVinculo) {
+  const ondeSem = { OR: [{ campanha: null }, { campanha: "" }, { campanha: "-" }] };
+  const escopoProp = proprietario ? { proprietario } : {};
+  let semCampanha = 0;
+  if (!semVinculo && modoSem) {
+    // Grupo "Sem campanha": carregado só sob demanda (são milhares).
+    const rows = await prisma.correction.findMany({
+      where: { status: "pending", contact: { is: { ...ondeSem, ...escopoProp } } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, oldValue: true, reason: true,
+        contact: { select: { id: true, cidade: true, estado: true, nomePrefeito: true, campanha: true, regiao: true, proprietario: true } },
+      },
+    });
+    pending = rows.map((r) => ({ ...r, contact: { ...r.contact, campanha: SEM_CAMPANHA, regiao: r.contact.regiao?.trim() || "Sem região" } }));
+    semCampanha = pending.length;
+  } else if (!semVinculo) {
+    semCampanha = await prisma.correction.count({ where: { status: "pending", contact: { is: { ...ondeSem, ...escopoProp } } } });
     const nomes = (await prisma.contact.findMany({ where: { campanha: { not: null } }, select: { campanha: true }, distinct: ["campanha"] }))
       .map((c) => c.campanha as string)
       .filter((c) => isCampanhaAtiva(c));
@@ -62,7 +81,7 @@ export default async function CorrecoesPage() {
                 correção aparece aqui.
               </p>
             </div>
-          ) : pending.length === 0 ? (
+          ) : pending.length === 0 && semCampanha === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <p className="text-sm text-slate-500">
                 Nenhuma correção pendente. A integração com o HubSpot é sincronizada
@@ -71,7 +90,14 @@ export default async function CorrecoesPage() {
               </p>
             </div>
           ) : (
-            <CorrectionsList items={pending} hideProprietario={prevendedor} />
+            <>
+              {modoSem && (
+                <Link href="/correcoes" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                  ← Voltar às campanhas ativas
+                </Link>
+              )}
+              <CorrectionsList items={pending} hideProprietario={prevendedor} semCampanha={semCampanha} />
+            </>
           )}
         </section>
       </div>
