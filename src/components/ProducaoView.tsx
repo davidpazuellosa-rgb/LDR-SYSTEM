@@ -5,6 +5,8 @@ import { apiPath } from "@/lib/path";
 import type { Producao } from "@/lib/producao";
 import HorariosView from "@/components/HorariosView";
 import DataTable from "@/components/DataTable";
+import ExportColunasButton from "@/components/ExportColunasButton";
+import { EXPORT_COLS } from "@/lib/export-cols";
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -286,8 +288,8 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
               <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pessoa" className="w-40 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400" />
             </div>
-            <a href={exportHref("pessoas")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Exportar resumo</a>
-            <a href={exportHref("detalhe")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Exportar detalhado</a>
+            <ExportColunasButton href={exportHref("pessoas")} colunas={EXPORT_COLS.pessoas} titulo="Exportar resumo" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Exportar resumo</ExportColunasButton>
+            <ExportColunasButton href={exportHref("detalhe")} colunas={EXPORT_COLS.detalhe} titulo="Exportar detalhado" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Exportar detalhado</ExportColunasButton>
           </div>
         </div>
         <div className="overflow-x-auto">

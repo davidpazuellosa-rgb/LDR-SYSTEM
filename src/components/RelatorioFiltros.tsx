@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
+import ExportColunasButton from "@/components/ExportColunasButton";
+import { EXPORT_COLS } from "@/lib/export-cols";
 
 type Periodo = "semana" | "mes" | "tudo";
 
@@ -87,14 +89,16 @@ export default function RelatorioFiltros({
       {/* Exportar CSV — botões discretos */}
       <div className="ml-auto flex items-center gap-1.5">
         {([["producao", "Produção"], ["metas", "Metas"]] as const).map(([tipo, label]) => (
-          <a
+          <ExportColunasButton
             key={tipo}
             href={exportHref(tipo)}
+            colunas={EXPORT_COLS[tipo]}
+            titulo={`Exportar ${label.toLowerCase()}`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             {label} CSV
-          </a>
+          </ExportColunasButton>
         ))}
       </div>
     </div>

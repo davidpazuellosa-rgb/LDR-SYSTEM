@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/guard";
 import { buildRelatorio, parsePeriodo } from "@/lib/relatorio";
+import { filtrarColunas } from "@/lib/export-cols";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
 
   const data = new Date().toISOString().slice(0, 10);
   const filename = `relatorio-${tipo}-${periodo}-${data}.csv`;
-  return new Response(toCsv(rows), {
+  return new Response(toCsv(filtrarColunas(rows, url.searchParams.get("cols"))), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

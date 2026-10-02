@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/guard";
 import { buildProducao, type ParamsProducao } from "@/lib/producao";
+import { filtrarColunas } from "@/lib/export-cols";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
 
   const ini = d.faixa.de.slice(0, 10);
   const fim = new Date(new Date(d.faixa.ate).getTime() - 1).toISOString().slice(0, 10);
-  return new Response(toCsv(rows), {
+  return new Response(toCsv(filtrarColunas(rows, url.searchParams.get("cols"))), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="producao-${detalhe ? "detalhe" : "pessoas"}-${ini}_a_${fim}.csv"`,
