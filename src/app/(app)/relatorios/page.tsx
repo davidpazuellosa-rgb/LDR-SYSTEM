@@ -7,11 +7,11 @@ import RelatorioFiltros from "@/components/RelatorioFiltros";
 import RelatoriosTabs from "@/components/RelatoriosTabs";
 import Link from "next/link";
 import DataTable from "@/components/DataTable";
+import HeatmapClick from "@/components/HeatmapClick";
 import { regiaoDaUf } from "@/lib/uf";
 
 export const dynamic = "force-dynamic";
 
-const DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -280,26 +280,7 @@ export default async function RelatoriosPage({
           <div className={CARD}>
             <h2 className={TITLE}>Atividade por dia e hora</h2>
             <p className={`mb-3 ${SUB}`}>Horário de Brasília{r.ldrId ? " · LDR filtrado" : ""}</p>
-            <div className="space-y-1">
-              <div className="flex items-center gap-0.5 pl-7 text-[9px] text-slate-400">
-                {Array.from({ length: 24 }, (_, h) => (
-                  <span key={h} className="flex-1 text-center">{h % 6 === 0 ? `${h}h` : ""}</span>
-                ))}
-              </div>
-              {r.heat.map((linha, wd) => (
-                <div key={wd} className="flex items-center gap-0.5">
-                  <span className="w-7 shrink-0 text-[10px] font-medium text-slate-400">{DIAS_SEMANA[wd]}</span>
-                  {linha.map((count, h) => (
-                    <span
-                      key={h}
-                      title={`${DIAS_SEMANA[wd]} ${h}h — ${count}`}
-                      className="aspect-square flex-1 rounded-[2px]"
-                      style={{ backgroundColor: count ? `rgba(99,102,241,${(0.15 + 0.85 * (count / r.heatMax)).toFixed(3)})` : "#f1f5f9" }}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
+            <HeatmapClick mapa={r.heat} pico={r.heatMax} ranking={r.heatRanking} />
             <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-slate-400">
               <span>menos</span>
               <span className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: "rgba(99,102,241,0.2)" }} />

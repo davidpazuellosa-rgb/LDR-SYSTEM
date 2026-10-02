@@ -1,6 +1,6 @@
 import type { Horarios } from "@/lib/horarios";
+import HeatmapClick, { type RankingCelula } from "@/components/HeatmapClick";
 
-const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const TURNOS = [
   { k: "madrugada", label: "Madrugada", faixa: "00–06h" },
   { k: "manha", label: "Manhã", faixa: "06–12h" },
@@ -10,7 +10,7 @@ const TURNOS = [
 
 // Horários de produção: frases, curva por hora, mapa de calor dia × hora e turnos.
 // Sem estado — funciona em Server e Client Components.
-export default function HorariosView({ h, compacto = false }: { h: Horarios; compacto?: boolean }) {
+export default function HorariosView({ h, compacto = false, ranking }: { h: Horarios; compacto?: boolean; ranking?: RankingCelula }) {
   if (h.total === 0) return <p className="py-8 text-center text-xs text-slate-400">{h.frases[0]}</p>;
   const maxHora = Math.max(1, ...h.porHora);
   return (
@@ -60,24 +60,7 @@ export default function HorariosView({ h, compacto = false }: { h: Horarios; com
 
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-slate-500">Mapa de calor · dia da semana × hora</p>
-        <div className="space-y-[3px]">
-          <div className="flex items-center gap-[2px] pl-8 text-[9px] text-slate-400">
-            {Array.from({ length: 24 }, (_, hora) => <span key={hora} className="flex-1 text-center">{hora % 6 === 0 ? `${hora}h` : ""}</span>)}
-          </div>
-          {h.mapa.map((linha, d) => (
-            <div key={d} className="flex items-center gap-[2px]">
-              <span className="w-8 shrink-0 text-[10px] font-medium text-slate-400">{DIAS[d]}</span>
-              {linha.map((v, hora) => (
-                <span
-                  key={hora}
-                  title={`${DIAS[d]} ${String(hora).padStart(2, "0")}h — ${v}`}
-                  className="aspect-square flex-1 rounded-[2px]"
-                  style={{ backgroundColor: v ? `rgba(99,102,241,${(0.15 + 0.85 * (v / h.pico)).toFixed(3)})` : "#f1f5f9" }}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
+        <HeatmapClick mapa={h.mapa} pico={h.pico} ranking={ranking} />
       </div>
     </div>
   );

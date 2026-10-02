@@ -276,14 +276,28 @@ export async function buildRelatorio(f: RelatorioFiltros) {
 
   // ---- Heatmap de atividade (dia da semana × hora, em horário de Brasília UTC-3) ----
   const heat: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
-  const addHeat = (d: Date) => {
+  const porCelula = new Map<string, Map<string, number>>(); // "dia:hora" -> pessoaId -> qtd
+  const addHeat = (d: Date, pessoaId: string | null) => {
     const brt = new Date(d.getTime() - 3 * 3600000);
     const wd = (brt.getUTCDay() + 6) % 7; // segunda = 0
     heat[wd][brt.getUTCHours()]++;
+    const k = `${wd}:${brt.getUTCHours()}`;
+    const m = porCelula.get(k) ?? new Map<string, number>();
+    const id = pessoaId || "?";
+    m.set(id, (m.get(id) ?? 0) + 1);
+    porCelula.set(k, m);
   };
-  for (const fr of fillRows) if (!ldrId || fr.preenchidoPorId === ldrId) addHeat(new Date(fr.concluidoEm));
-  for (const c of corrRows) if (c.resolvedAt && (!ldrId || c.resolvedById === ldrId)) addHeat(new Date(c.resolvedAt));
+  for (const fr of fillRows) if (!ldrId || fr.preenchidoPorId === ldrId) addHeat(new Date(fr.concluidoEm), fr.preenchidoPorId);
+  for (const c of corrRows) if (c.resolvedAt && (!ldrId || c.resolvedById === ldrId)) addHeat(new Date(c.resolvedAt), c.resolvedById);
   const heatMax = Math.max(1, ...heat.flat());
+  // Nomes de quem produziu (inclui admin, que não está na lista de LDRs).
+  const idsHeat = new Set<string>();
+  for (const m of porCelula.values()) for (const id of m.keys()) idsHeat.add(id);
+  const nomesHeat = new Map((await prisma.user.findMany({ where: { id: { in: [...idsHeat] } }, select: { id: true, name: true, email: true } })).map((u) => [u.id, u.name || u.email]));
+  const heatRanking: Record<string, { nome: string; qtd: number }[]> = {};
+  for (const [k, m] of porCelula) {
+    heatRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomesHeat.get(id) || "—", qtd })).sort((a, b) => b.qtd - a.qtd);
+  }
 
   return {
     periodo, ldrId, campanha, now,
@@ -291,6 +305,6 @@ export async function buildRelatorio(f: RelatorioFiltros) {
     kpis, ranking, rankMax, dias, serieMax,
     metasView, semaforo,
     funil, funilMax, completudePorBase, backlog,
-    mapaUF, heat, heatMax,
+    mapaUF, heat, heatMax, heatRanking,
   };
 }

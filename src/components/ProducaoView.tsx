@@ -396,7 +396,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
         <div className={CARD}>
           <h2 className={TITLE}>Horários de produção · seleção atual</h2>
           <p className={`mb-3 ${SUB}`}>Horário de Brasília · quando a linha ficou completa / correção resolvida</p>
-          <HorariosView h={data.horarios} compacto />
+          <HorariosView h={data.horarios} compacto ranking={data.horariosRanking} />
         </div>
         <div className={CARD}>
           <h2 className={TITLE}>Quando cada pessoa mais produz</h2>

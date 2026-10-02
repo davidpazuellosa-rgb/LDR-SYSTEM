@@ -146,6 +146,19 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
 
   // Horários (hora/dia em que mais produz): da seleção atual e de cada pessoa.
   const horarios = calcularHorarios(atuais.map((e) => e.quando));
+  const nomeDePessoa = new Map(pessoas.map((p) => [p.id, p.nome]));
+  const celulas = new Map<string, Map<string, number>>();
+  for (const e of atuais) {
+    const b = new Date(e.quando.getTime() - 3 * 3600000);
+    const k = `${(b.getUTCDay() + 6) % 7}:${b.getUTCHours()}`;
+    const m = celulas.get(k) ?? new Map<string, number>();
+    m.set(e.pessoaId, (m.get(e.pessoaId) ?? 0) + 1);
+    celulas.set(k, m);
+  }
+  const horariosRanking: Record<string, { nome: string; qtd: number }[]> = {};
+  for (const [k, m] of celulas) {
+    horariosRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomeDePessoa.get(id) || "—", qtd })).sort((a, b) => b.qtd - a.qtd);
+  }
   const horariosPorPessoa: Record<string, ReturnType<typeof calcularHorarios>> = {};
   for (const p of pessoasVisiveis) {
     horariosPorPessoa[p.id] = calcularHorarios(atuais.filter((e) => e.pessoaId === p.id).map((e) => e.quando));
@@ -203,7 +216,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       metasBatidas, totalMetas: metasCalc.length,
       pctMetas: somaMeta > 0 ? Math.round((somaFeito / somaMeta) * 100) : null,
     },
-    linhas, dias, porEstado, porCampanha, detalhe, metasCalc, horarios, horariosPorPessoa,
+    linhas, dias, porEstado, porCampanha, detalhe, metasCalc, horarios, horariosRanking, horariosPorPessoa,
     operadorIds: pessoasDb.map((u) => u.id),
     opcoes: { pessoas, arvore, campanhas: campanhasOpcoes, orgaos: Object.keys(arvore).sort() },
     nomeBase: Object.fromEntries(nomeBase),
