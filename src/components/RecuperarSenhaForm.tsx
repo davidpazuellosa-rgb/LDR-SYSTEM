@@ -45,7 +45,7 @@ export default function RecuperarSenhaForm() {
           Ele vale por <strong>1 hora</strong>.
         </p>
         <p className="mt-4 text-xs text-slate-400">
-          Não chegou? Confira a caixa de spam ou tente de novo em 1 minuto.
+          Não chegou em alguns minutos? O envio de e-mail pode não estar disponível — peça a um administrador do sistema para gerar um novo link de senha para você (em Usuários).
         </p>
         <Link
           href="/login"

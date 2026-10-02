@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
+import { arquivarEApagarBase } from "@/lib/lixeira";
 
 // Alterar os cabeçalhos das colunas é restrito ao admin. O LDR só preenche os dados.
 export async function PATCH(
@@ -64,10 +65,13 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { deny } = await requirePermission("contacts.delete");
+  const { session, deny } = await requirePermission("contacts.delete");
   if (deny) return deny;
 
   const { id } = await params;
-  await prisma.base.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  // Vai para a LIXEIRA (30 dias, restaurável) em vez de sumir de vez.
+  const u = session?.user as { id?: string; name?: string | null; email?: string | null } | undefined;
+  const achou = await arquivarEApagarBase(id, { id: u?.id, nome: u?.name || u?.email });
+  if (!achou) return NextResponse.json({ error: "Base não encontrada" }, { status: 404 });
+  return NextResponse.json({ ok: true, lixeira: true });
 }

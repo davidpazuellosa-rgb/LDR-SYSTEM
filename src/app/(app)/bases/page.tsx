@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { currentRole } from "@/lib/current-role";
+import { can } from "@/lib/permissions";
+import { contarLixeira } from "@/lib/lixeira";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
@@ -64,7 +66,10 @@ export default async function BasesPage({
 
   // Pré-vendedor não acessa Bases de Dados (cargo lido do banco — sem re-login).
   const session = await auth();
-  if ((await currentRole(session)) === "prevendedor") redirect("/dashboard");
+  const papel = await currentRole(session);
+  if (papel === "prevendedor") redirect("/dashboard");
+  const podeApagar = can(papel, "contacts.delete");
+  const naLixeira = podeApagar ? await contarLixeira() : 0;
 
   // Independentes entre si — buscar junto corta o tempo pela metade nesta página.
   const [bases, contacts] = await Promise.all([
@@ -145,7 +150,14 @@ export default async function BasesPage({
               {lista.length} {lista.length === 1 ? "tipo de órgão" : "tipos de órgão"} · {bases.length}{" "}
               {bases.length === 1 ? "planilha" : "planilhas"}
             </p>
-            <NovoOrgaoButton />
+            <div className="flex items-center gap-2">
+              {podeApagar && (
+                <Link href="/bases/lixeira" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Lixeira{naLixeira > 0 ? ` (${naLixeira})` : ""}
+                </Link>
+              )}
+              <NovoOrgaoButton />
+            </div>
           </div>
 
           {bases.length === 0 ? (
