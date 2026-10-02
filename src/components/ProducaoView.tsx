@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { apiPath } from "@/lib/path";
 import type { Producao } from "@/lib/producao";
+import HorariosView from "@/components/HorariosView";
+import DataTable from "@/components/DataTable";
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -333,6 +335,80 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
         </div>
       </section>
 
+      {/* Comparativo: produção por pessoa × dia (intensidade da cor) */}
+      {data.linhas.length > 0 && k.total.total > 0 && (
+        <section className={CARD}>
+          <h2 className={TITLE}>Comparativo da equipe por {data.dias.length > 62 ? "semana" : "dia"}</h2>
+          <p className={`mb-3 ${SUB}`}>Cada linha é uma pessoa; quanto mais escura a célula, mais ela produziu naquele dia</p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-separate border-spacing-[2px] text-[10px]">
+              <thead>
+                <tr>
+                  <th className="w-40 text-left font-medium text-slate-400" />
+                  {data.dias.map((d, i) => <th key={d.chave} className="font-normal text-slate-400">{i % Math.ceil(data.dias.length / 12) === 0 ? d.label : ""}</th>)}
+                  <th className="pl-2 text-right font-medium text-slate-500">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...data.linhas].sort((a, b) => b.producao.total - a.producao.total).map((l) => {
+                  const dias = data.detalhe[l.id]?.dias ?? [];
+                  const pico = Math.max(1, ...dias.map((x) => x.preenchimento + x.correcao));
+                  return (
+                    <tr key={l.id}>
+                      <td className="max-w-[10rem] truncate pr-2 text-left text-xs text-slate-600">{l.nome}</td>
+                      {dias.map((x) => {
+                        const v = x.preenchimento + x.correcao;
+                        return <td key={x.chave} title={`${l.nome} · ${x.label}: ${v}`} className="h-5 rounded-[3px]" style={{ backgroundColor: v ? `rgba(99,102,241,${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "#f1f5f9" }} />;
+                      })}
+                      <td className="pl-2 text-right text-xs font-semibold tabular-nums text-slate-700">{nf(l.producao.total)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Horários: equipe (conforme os filtros) + comparativo por pessoa */}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className={CARD}>
+          <h2 className={TITLE}>Horários de produção · seleção atual</h2>
+          <p className={`mb-3 ${SUB}`}>Horário de Brasília · quando a linha ficou completa / correção resolvida</p>
+          <HorariosView h={data.horarios} compacto />
+        </div>
+        <div className={CARD}>
+          <h2 className={TITLE}>Quando cada pessoa mais produz</h2>
+          <p className={`mb-3 ${SUB}`}>Comparativo de horários, dia e turno</p>
+          <DataTable
+            maxHeight={420}
+            searchKeys={["nome"]}
+            searchPlaceholder="Buscar pessoa"
+            csvName="horarios-por-pessoa"
+            empty="Nenhuma pessoa."
+            defaultSort={{ key: "total", dir: -1 }}
+            cols={[
+              { key: "nome", label: "Pessoa", kind: "text" },
+              { key: "total", label: "Total", kind: "num" },
+              { key: "janela", label: "Melhor janela", kind: "text" },
+              { key: "dia", label: "Melhor dia", kind: "text" },
+              { key: "turno", label: "Turno", kind: "text" },
+            ]}
+            rows={data.linhas.map((l) => {
+              const h = data.horariosPorPessoa[l.id];
+              const t = h && h.total ? Object.entries(h.turnos).sort((a, b) => b[1] - a[1])[0][0] : null;
+              return {
+                nome: l.nome,
+                total: h?.total ?? 0,
+                janela: h?.melhorJanela ? `${String(h.melhorJanela.de).padStart(2, "0")}h–${String(h.melhorJanela.ate).padStart(2, "0")}h` : null,
+                dia: h?.melhorDia?.nome ?? null,
+                turno: t ? ({ madrugada: "Madrugada", manha: "Manhã", tarde: "Tarde", noite: "Noite" } as Record<string, string>)[t] : null,
+              };
+            })}
+          />
+        </div>
+      </section>
+
       {/* Painel de detalhe */}
       {pessoaAberta && det && (
         <div className="fixed inset-0 z-[80] flex justify-end bg-slate-900/40" onMouseDown={(e) => e.target === e.currentTarget && setAberto(null)}>
@@ -373,6 +449,12 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                   </div>
                 )}
               </div>
+              {data.horariosPorPessoa[pessoaAberta.id] && (
+                <div>
+                  <h4 className={`mb-2 ${TITLE}`}>Horários</h4>
+                  <HorariosView h={data.horariosPorPessoa[pessoaAberta.id]} compacto />
+                </div>
+              )}
               {det.estados.length > 0 && (
                 <div>
                   <h4 className={`mb-2 ${TITLE}`}>Por estado</h4>

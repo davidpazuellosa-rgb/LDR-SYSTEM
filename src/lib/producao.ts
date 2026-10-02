@@ -7,6 +7,7 @@ import { isCampanhaAtiva } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { territoriosCompartilhados } from "@/lib/meta-progress";
+import { calcularHorarios } from "@/lib/horarios";
 import {
   calcularMeta, contarPor, contarTotal, faixaAnterior, faixaDoPeriodo, filtrarEventos, filtrarMetas,
   linhasPorPessoa, parsePreset, serie, variacao,
@@ -143,6 +144,13 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     };
   }
 
+  // Horários (hora/dia em que mais produz): da seleção atual e de cada pessoa.
+  const horarios = calcularHorarios(atuais.map((e) => e.quando));
+  const horariosPorPessoa: Record<string, ReturnType<typeof calcularHorarios>> = {};
+  for (const p of pessoasVisiveis) {
+    horariosPorPessoa[p.id] = calcularHorarios(atuais.filter((e) => e.pessoaId === p.id).map((e) => e.quando));
+  }
+
   const metasBatidas = metasCalc.filter((m) => m.p >= 100).length;
   const somaMeta = metasCalc.reduce((a, m) => a + m.meta, 0);
   const somaFeito = metasCalc.reduce((a, m) => a + Math.min(m.feito, m.meta), 0);
@@ -195,10 +203,40 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       metasBatidas, totalMetas: metasCalc.length,
       pctMetas: somaMeta > 0 ? Math.round((somaFeito / somaMeta) * 100) : null,
     },
-    linhas, dias, porEstado, porCampanha, detalhe, metasCalc,
+    linhas, dias, porEstado, porCampanha, detalhe, metasCalc, horarios, horariosPorPessoa,
+    operadorIds: pessoasDb.map((u) => u.id),
     opcoes: { pessoas, arvore, campanhas: campanhasOpcoes, orgaos: Object.keys(arvore).sort() },
     nomeBase: Object.fromEntries(nomeBase),
   };
 }
 
 export type Producao = Awaited<ReturnType<typeof buildProducao>>;
+
+
+// ---- Relatório do próprio LDR e ranking (visão restrita) ----
+// SEGURANÇA: o `pessoas` é SEMPRE o id da sessão, nunca vem da URL. O que sai daqui
+// contém só dados da própria pessoa (+ o ranking, que só tem nome e total).
+export async function buildMeuRelatorio(meId: string, sp: ParamsProducao) {
+  const d = await buildProducao({ periodo: sp.periodo, de: sp.de, ate: sp.ate, pessoas: meId });
+  const eu = d.linhas.find((l) => l.id === meId);
+  return {
+    preset: d.preset, de: d.de, ate: d.ate, faixa: d.faixa,
+    kpis: d.kpis, dias: d.dias, porEstado: d.porEstado, porCampanha: d.porCampanha,
+    metas: d.metasCalc.filter((m) => m.userId === meId),
+    eu: eu ? { producao: eu.producao, meta: eu.meta, feitoMeta: eu.feitoMeta, p: eu.p, temMeta: eu.temMeta } : null,
+    horarios: d.horariosPorPessoa[meId] ?? d.horarios,
+  };
+}
+
+export type LinhaRanking = { posicao: number; id: string; nome: string; total: number };
+
+// Ranking de operadores (LDR / pré-vendedor): só posição, nome e total produzido.
+export async function buildRanking(sp: ParamsProducao): Promise<LinhaRanking[]> {
+  const d = await buildProducao({ periodo: sp.periodo, de: sp.de, ate: sp.ate });
+  const ops = new Set(d.operadorIds);
+  return d.linhas
+    .filter((l) => ops.has(l.id))
+    .map((l) => ({ id: l.id, nome: l.nome, total: l.producao.total }))
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome))
+    .map((l, i) => ({ posicao: i + 1, ...l }));
+}
