@@ -10,7 +10,7 @@ export const EXPORT_COLS = {
 // Aplica ?cols=0,2,3 (índices) a uma matriz de linhas. Sem o parâmetro, devolve tudo.
 export function filtrarColunas<T>(rows: T[][], cols: string | null): T[][] {
   if (cols === null) return rows;
-  const idx = cols.split(",").map((s) => Number(s)).filter((n) => Number.isInteger(n) && n >= 0);
+  const idx = cols.split(",").map((s) => s.trim()).filter((s) => /^\d+$/.test(s)).map(Number);
   if (idx.length === 0) return rows;
   return rows.map((r) => idx.filter((i) => i < r.length).map((i) => r[i]));
 }

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { filtrarColunas, EXPORT_COLS } from "../src/lib/export-cols";
 
-const rows = [["A", "B", "C"], [1, 2, 3]];
+const rows: (string | number)[][] = [["A", "B", "C"], [1, 2, 3]];
 
 test("sem ?cols devolve tudo", () => {
   assert.deepEqual(filtrarColunas(rows, null), rows);
