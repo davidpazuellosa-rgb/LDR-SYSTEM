@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin, requirePermission } from "@/lib/guard";
+import { headersPlanilhaNova } from "@/lib/base-columns";
+import type { Prisma } from "@prisma/client";
 import { REGIOES_BRASIL, regiaoCanonica, tipoOrgao } from "@/lib/completude";
 
 // Cria/completa um "órgão": gera uma base vazia por região do Brasil ("{Órgão} - {Região}"),
@@ -39,7 +41,7 @@ export async function POST(req: Request) {
   const faltam = REGIOES_BRASIL.filter((r) => !jaTem.has(r));
   if (faltam.length > 0) {
     await prisma.base.createMany({
-      data: faltam.map((r) => ({ name: `${nome} - ${r}`, description, source: "manual" })),
+      data: faltam.map((r) => ({ name: `${nome} - ${r}`, description, source: "manual", headers: headersPlanilhaNova() as Prisma.InputJsonValue })),
     });
   }
 

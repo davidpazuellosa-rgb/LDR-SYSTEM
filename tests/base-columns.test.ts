@@ -87,3 +87,16 @@ test("o CSV traz o valor das colunas personalizadas e escapa o separador", () =>
   assert.deepEqual(linhas[0].split(";"), ["Cidade", "Ouvidoria", SITUACAO_LABEL]);
   assert.equal(linhas[1], 'Abatia;"(43) 99607-9015; ramal 2";Telefone Atualizado');
 });
+
+test("planilha nova nasce sem nenhuma coluna visível (todas ocultas+excluídas) e marcada", async () => {
+  const { headersPlanilhaNova, parseHiddenCols, resolveBaseColumns, SEM_PADRAO_KEY } = await import("../src/lib/base-columns");
+  const h = headersPlanilhaNova();
+  assert.equal(h[SEM_PADRAO_KEY], true);
+  assert.equal(resolveBaseColumns(h).length, 0);
+  assert.ok(parseHiddenCols(h).length >= 19);
+});
+
+test("planilha antiga (sem a marca) continua com as colunas padrão", async () => {
+  const { resolveBaseColumns } = await import("../src/lib/base-columns");
+  assert.ok(resolveBaseColumns({}).length >= 19);
+});

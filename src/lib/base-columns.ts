@@ -21,6 +21,9 @@ export const COLS_KEY = "__cols__";
 export const ORDER_KEY = "__order__";
 export const HIDDEN_KEY = "__hidden__";
 export const DELETED_KEY = "__deleted__";
+// Planilha que "nasce vazia": sem nenhuma das colunas padrão. As colunas só passam a
+// existir por importação (as reconhecidas são reexibidas) ou criação manual.
+export const SEM_PADRAO_KEY = "__semPadrao__";
 
 // Chaves reservadas dentro de headers: são estrutura, não rótulo de coluna.
 const isReservedKey = (k: string) => k.startsWith("__") && k.endsWith("__");
@@ -138,4 +141,12 @@ export function resolveBaseColumns(headers: Headers): ResolvedCol[] {
 export function completeOrder(visibleKeys: string[], allKeys: string[]): string[] {
   const resto = allKeys.filter((k) => !visibleKeys.includes(k));
   return [...visibleKeys, ...resto];
+}
+
+// Headers de uma planilha NOVA: todas as colunas padrão ocultas + excluídas (nenhuma
+// coluna visível) e a marca __semPadrao__, que faz a importação reexibir só as
+// colunas que o arquivo realmente trouxer. Planilhas que já existem não mudam.
+export function headersPlanilhaNova(): Record<string, unknown> {
+  const todas = CONTACT_FIELDS.map((f) => f.key);
+  return { [SEM_PADRAO_KEY]: true, [HIDDEN_KEY]: todas, [DELETED_KEY]: todas };
 }

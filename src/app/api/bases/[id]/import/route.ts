@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/guard";
 import { parseSpreadsheetWithMeta, looksLikeValidPhone, validateSpreadsheetFile, type ImportedRow } from "@/lib/import";
 import { CONTACT_FIELD_KEYS, PHONE_FIELD } from "@/lib/contact-fields";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
-import { parseCustomCols, type CustomCol } from "@/lib/base-columns";
+import { parseCustomCols, parseHiddenCols, parseColOrder, SEM_PADRAO_KEY, HIDDEN_KEY, DELETED_KEY, ORDER_KEY, type CustomCol } from "@/lib/base-columns";
 import {
   ensureBaseEventoTable,
   type MergeSnapshot,
@@ -388,6 +388,34 @@ export async function POST(
       await prisma.base.update({
         where: { id },
         data: { headers: { ...headers2, __cols__: newColsForHeaders } as Prisma.InputJsonValue },
+      });
+    }
+  }
+
+  // Planilha que nasceu sem colunas (__semPadrao__): reexibe só as colunas padrão que o
+  // arquivo trouxe e põe tudo na ORDEM do arquivo. As que o arquivo não tem seguem
+  // ocultas. Planilhas antigas (sem a marca) não passam por aqui — nada muda para elas.
+  {
+    const b3 = await prisma.base.findUnique({ where: { id }, select: { headers: true } });
+    const h3 = ((b3?.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+    if (h3[SEM_PADRAO_KEY]) {
+      const nativoDoCabecalho = new Map(parsed.matchedColumns.map((c) => [c.header, c.field] as const));
+      const doArquivo = parsed.headers
+        .map((hd) => nativoDoCabecalho.get(hd) ?? headerToCol.get(hd)?.key)
+        .filter((k): k is string => !!k);
+      const aparecem = new Set(parsed.matchedColumns.map((c) => c.field));
+      const ordemAtual = parseColOrder(h3);
+      const ordem = [...ordemAtual, ...doArquivo.filter((k) => !ordemAtual.includes(k))];
+      await prisma.base.update({
+        where: { id },
+        data: {
+          headers: {
+            ...h3,
+            [HIDDEN_KEY]: parseHiddenCols(h3).filter((k) => !aparecem.has(k)),
+            [DELETED_KEY]: ((h3[DELETED_KEY] as string[] | undefined) || []).filter((k) => !aparecem.has(k)),
+            [ORDER_KEY]: ordem,
+          } as Prisma.InputJsonValue,
+        },
       });
     }
   }
