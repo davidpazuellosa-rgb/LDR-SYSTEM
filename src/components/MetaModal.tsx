@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
+import { ESTADO_TODOS, rotuloEstado } from "@/lib/meta-progress";
 
 type RegiaoOpt = { regiao: string; baseId: string; estados: string[] };
 type TipoOpt = { tipo: string; regioes: RegiaoOpt[] };
@@ -100,7 +101,10 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
 
   // Estados disponíveis = união dos estados das regiões escolhidas.
   const regioesEscolhidas = regioesDe(bTipo).filter((r) => bRegioes.includes(r.regiao));
-  const estadosDisponiveis = Array.from(new Set(regioesEscolhidas.flatMap((r) => r.estados))).sort();
+  const soUfs = Array.from(new Set(regioesEscolhidas.flatMap((r) => r.estados))).sort();
+  // "Toda a planilha" (*) sempre disponível: é o único jeito de dar meta a planilhas cujos
+  // contatos não têm estado nos campos do sistema (ex.: Defensoria Pública).
+  const estadosDisponiveis = regioesEscolhidas.length > 0 ? [ESTADO_TODOS, ...soUfs] : [];
 
   function updFill(key: string, patch: Partial<FillRow>) {
     setFillRows((prev) => prev.map((r) => (fillKey(r) === key ? { ...r, ...patch } : r)));
@@ -113,7 +117,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     const alvoNum = Math.max(0, Math.trunc(Number(bAlvo) || 0));
     const novos: FillRow[] = [];
     for (const rg of regioesEscolhidas) {
-      for (const uf of rg.estados) {
+      for (const uf of [...rg.estados, ESTADO_TODOS]) {
         if (bEstados.includes(uf)) novos.push({ tipo: bTipo, regiao: rg.regiao, estado: uf, baseId: rg.baseId, prazo: bPrazo, alvo: "" });
       }
     }
@@ -308,8 +312,8 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estados</span>
                     {estadosDisponiveis.length > 0 && (
-                      <button type="button" className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => setBEstados(bEstados.length === estadosDisponiveis.length ? [] : estadosDisponiveis)}>
-                        {bEstados.length === estadosDisponiveis.length ? "Limpar" : "Todos"}
+                      <button type="button" className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => setBEstados(soUfs.every((u) => bEstados.includes(u)) && soUfs.length > 0 ? bEstados.filter((u) => u === ESTADO_TODOS) : Array.from(new Set([...bEstados, ...soUfs])))}>
+                        {soUfs.length > 0 && soUfs.every((u) => bEstados.includes(u)) ? "Limpar estados" : "Todos os estados"}
                       </button>
                     )}
                   </div>
@@ -317,7 +321,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                     {estadosDisponiveis.length === 0 && <span className="text-sm text-slate-400">Escolha ao menos uma região.</span>}
                     {estadosDisponiveis.map((uf) => (
                       <button key={uf} type="button" className={chip(bEstados.includes(uf))} onClick={() => setBEstados(toggle(bEstados, uf))}>
-                        {uf}
+                        {uf === ESTADO_TODOS ? "Toda a planilha" : uf}
                       </button>
                     ))}
                   </div>
@@ -365,7 +369,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                           const k = fillKey(r);
                           return (
                             <div key={k} className="flex items-center gap-3 px-4 py-2">
-                              <span className="w-10 text-sm font-semibold text-slate-700">{r.estado}</span>
+                              <span className="w-28 text-sm font-semibold text-slate-700">{rotuloEstado(r.estado)}</span>
                               <select value={r.prazo} onChange={(e) => updFill(k, { prazo: e.target.value })} className={`${selCls} !w-32`}>
                                 <option value="diaria">Diária</option>
                                 <option value="semanal">Semanal</option>

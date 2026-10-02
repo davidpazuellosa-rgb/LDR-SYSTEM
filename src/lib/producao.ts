@@ -6,7 +6,7 @@ import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
-import { territoriosCompartilhados } from "@/lib/meta-progress";
+import { territoriosCompartilhados, rotuloEstado } from "@/lib/meta-progress";
 import { calcularHorarios } from "@/lib/horarios";
 import {
   calcularMeta, contarPor, contarTotal, faixaAnterior, faixaDoPeriodo, filtrarEventos, filtrarMetas,
@@ -108,7 +108,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     campanha: m.campanha, prazo: m.prazo, alvo: m.alvo, orgao: m.tipo === "correcao" ? "" : orgaoDaBase.get(m.baseId || "") || "Órgão",
   }));
   const rotulo = (m: MetaIn) =>
-    m.tipo === "correcao" ? `Campanha: ${m.campanha || "—"}` : `${m.orgao} · ${m.regiao || "—"} · ${ufSigla(m.estado) || m.estado || "—"}`;
+    m.tipo === "correcao" ? `Campanha: ${m.campanha || "—"}` : `${m.orgao} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
   const compartilhados = territoriosCompartilhados(metas);
   const metasCalc = filtrarMetas(metas, filtros).map((m) => calcularMeta(m, todos, faixa, now, rotulo(m), compartilhados));
 

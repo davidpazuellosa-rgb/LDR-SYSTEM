@@ -2,10 +2,9 @@
 // conquistas. Histórico é calculado dos timestamps (ContactFill/Correction) contra o
 // alvo atual — sem versionar (ver planejamento). Reaproveita a lógica de meta-progress.
 import { prisma } from "@/lib/prisma";
-import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
-import { regiaoKey, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { territorioConfere, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { cached } from "@/lib/mini-cache";
@@ -18,7 +17,7 @@ function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: 
     return corrections.filter((c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && c.resolvedAt < end && normCampanha(c.campanha) === camp).length;
   }
   const dividido = !!compartilhados?.has(chaveTerritorio(m));
-  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado && (!dividido || f.porId === m.userId)).length;
+  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && territorioConfere(m, f) && (!dividido || f.porId === m.userId)).length;
 }
 
 function statusDe(feito: number, alvo: number, decorrido: number): StatusMeta {
@@ -40,7 +39,7 @@ const pior = (a: StatusMeta | null, b: StatusMeta): StatusMeta => {
 function rotuloMeta(m: Meta, baseName: (id: string | null) => string): string {
   return m.tipo === "correcao"
     ? `Campanha: ${m.campanha || "—"}`
-    : `${tipoOrgao(baseName(m.baseId))} · ${m.regiao || "—"} · ${ufSigla(m.estado) || m.estado || "—"}`;
+    : `${tipoOrgao(baseName(m.baseId))} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
 }
 
 function janelasPassadas(prazo: string, now: Date, quantas: number) {

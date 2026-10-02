@@ -1,7 +1,7 @@
 // Cálculo PURO (sem banco) do relatório "Produção por pessoa": períodos, filtros,
 // normalização de metas e agregações. O carregamento do banco fica em producao.ts.
 import { normCampanha } from "@/lib/campanhas";
-import { chaveTerritorio } from "@/lib/meta-progress";
+import { chaveTerritorio, territorioConfere } from "@/lib/meta-progress";
 
 export type TipoEvento = "preenchimento" | "correcao";
 export type Evento = {
@@ -163,7 +163,7 @@ export function feitoDaMeta(m: MetaIn, todos: Evento[], faixa: Faixa, compartilh
   const dividido = !!compartilhados?.has(chaveTerritorio(m));
   return todos.filter(
     (e) =>
-      e.tipo === "preenchimento" && e.baseId === m.baseId && (e.regiao || "Sem região") === m.regiao && e.estado === m.estado &&
+      e.tipo === "preenchimento" && territorioConfere(m, { baseId: e.baseId, regiao: e.regiao, estado: e.estado }) &&
       naFaixa(e.quando, faixa) && (!dividido || e.pessoaId === m.userId)
   ).length;
 }

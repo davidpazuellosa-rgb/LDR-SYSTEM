@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/guard";
 import { ensureMetaTable } from "@/lib/meta";
 import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
-import { tipoOrgao } from "@/lib/completude";
+import { tipoOrgao, regiaoCanonica } from "@/lib/completude";
 import { sanitizeMetas } from "@/lib/metas-input";
 
 export const dynamic = "force-dynamic";
@@ -62,8 +62,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
   for (const b of bases) {
     const tipo = tipoOrgao(b.name);
     basesById[b.id] = { name: b.name, tipo };
-    const regs = tree.get(b.id);
-    if (!regs) continue;
+    let regs = tree.get(b.id);
+    if (!regs || regs.size === 0) {
+      // Planilha sem estado/região nos campos do sistema (ex.: nasceu sem colunas, dados só
+      // em colunas personalizadas): ainda assim é uma planilha a que se atribui meta — a
+      // região vem do nome ("{Órgão} - {Região}") e a meta vale para a planilha toda.
+      regs = new Map([[regiaoCanonica(b.name.split(" - ")[1] || "") || "Sem região", new Set<string>()]]);
+    }
     if (!tipoMap.has(tipo)) tipoMap.set(tipo, new Map());
     const byRegiao = tipoMap.get(tipo)!;
     for (const [regiao, ufs] of regs.entries()) {

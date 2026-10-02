@@ -8,6 +8,7 @@ import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
 import {
   metaFeito,
+  rotuloEstado,
   territoriosCompartilhados,
   periodStart,
   periodEnd,
@@ -190,7 +191,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const rotuloMeta = (m: Meta) =>
     m.tipo === "correcao"
       ? `Campanha: ${m.campanha || "—"}`
-      : `${tipoOrgao(baseName.get(m.baseId || "") || "")} · ${m.regiao || "—"} · ${ufSigla(m.estado) || m.estado || "—"}`;
+      : `${tipoOrgao(baseName.get(m.baseId || "") || "")} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
 
   const metasView = metasFiltradas
     .map((m) => {

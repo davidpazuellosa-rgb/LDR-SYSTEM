@@ -5,7 +5,7 @@ import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
-import { metaFeito, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { metaFeito, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import PageHeader from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +75,7 @@ function MetaBar({ label, sub, feito, alvo }: { label: string; sub: string; feit
 }
 
 function fillLabel(m: Meta, baseName: (id: string | null) => string) {
-  return `${tipoOrgao(baseName(m.baseId))} · ${m.regiao} · ${m.estado}`;
+  return `${tipoOrgao(baseName(m.baseId))} · ${m.regiao} · ${rotuloEstado(m.estado)}`;
 }
 
 // ===================== Visão do LDR =====================

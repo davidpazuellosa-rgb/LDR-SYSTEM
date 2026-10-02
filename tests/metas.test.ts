@@ -121,3 +121,24 @@ test("mesmo estado para 2 pessoas: cada uma conta só o que ela completou", () =
   assert.equal(metaFeito(m1, now, fills, [], comp), 2);
   assert.equal(metaFeito(m2, now, fills, [], comp), 1);
 });
+
+test("meta da planilha inteira (estado '*'): conta qualquer linha da base, mesmo sem estado/região", () => {
+  const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "*", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const now = new Date();
+  const fills = [
+    { concluidoEm: now, baseId: "b1", regiao: null, estado: null }, // planilha sem campos de território
+    { concluidoEm: now, baseId: "b1", regiao: "Sul", estado: "RS" },
+    { concluidoEm: now, baseId: "b2", regiao: "Norte", estado: "AM" }, // outra planilha → não
+  ];
+  assert.equal(metaFeito(meta, now, fills, []), 2);
+});
+
+test("meta por estado continua exigindo região+estado (nada mudou para as metas antigas)", () => {
+  const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const now = new Date();
+  const fills = [
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM" },
+    { concluidoEm: now, baseId: "b1", regiao: null, estado: null },
+  ];
+  assert.equal(metaFeito(meta, now, fills, []), 1);
+});

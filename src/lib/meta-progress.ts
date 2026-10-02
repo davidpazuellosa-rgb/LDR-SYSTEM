@@ -54,6 +54,21 @@ export const regiaoKey = (regiao: string | null) => (regiao && regiao.trim()) ||
 // Território (base+região+estado) atribuído a MAIS DE UMA pessoa. Nesse caso cada uma
 // conta só o que ela mesma completou; território de uma pessoa só continua contando
 // tudo que ficou completo nele (independe de quem digitou).
+// Estado "*" = meta da PLANILHA INTEIRA (sem separar por estado). Necessário para
+// planilhas que nascem sem colunas padrão (os contatos não têm estado/região nos campos
+// do sistema, só nas colunas personalizadas — ex.: Defensoria Pública).
+export const ESTADO_TODOS = "*";
+export const rotuloEstado = (estado: string | null | undefined) => (estado === ESTADO_TODOS ? "Toda a planilha" : ufSigla(estado) || estado || "—");
+// A linha preenchida pertence ao território da meta?
+export function territorioConfere(
+  m: { baseId: string | null; regiao: string | null; estado: string | null },
+  f: { baseId: string; regiao: string | null; estado: string | null }
+): boolean {
+  if (f.baseId !== m.baseId) return false;
+  if (m.estado === ESTADO_TODOS) return true;
+  return regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado;
+}
+
 export const chaveTerritorio = (m: { baseId: string | null; regiao: string | null; estado: string | null }) =>
   `${m.baseId || ""}|${m.regiao || ""}|${m.estado || ""}`;
 export function territoriosCompartilhados(metas: { userId: string; tipo: string; baseId: string | null; regiao: string | null; estado: string | null }[]): Set<string> {
@@ -77,7 +92,7 @@ export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDo
   const dividido = !!compartilhados?.has(chaveTerritorio(m));
   return fills.filter(
     (f) =>
-      f.concluidoEm >= start && f.baseId === m.baseId && regiaoKey(f.regiao) === m.regiao && ufSigla(f.estado) === m.estado &&
+      f.concluidoEm >= start && territorioConfere(m, f) &&
       (!dividido || f.porId === m.userId)
   ).length;
 }
