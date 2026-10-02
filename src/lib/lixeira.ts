@@ -49,6 +49,10 @@ export async function arquivarEApagarBase(baseId: string, quem: { id?: string | 
          )`,
       baseId, lixeiraId, base.name, quem.id ?? null, quem.nome ?? null
     ),
+    // Créditos e valores de coluna não têm chave estrangeira (não somem sozinhos com a
+    // base): limpa aqui — a cópia acima já os guarda para o caso de restaurar.
+    prisma.$executeRawUnsafe(`DELETE FROM "ContactFill" f USING "Contact" c WHERE c.id=f."contactId" AND c."baseId"=$1`, baseId),
+    prisma.$executeRawUnsafe(`DELETE FROM "ContactCustomValue" v USING "Contact" c WHERE c.id=v."contactId" AND c."baseId"=$1`, baseId),
     prisma.base.delete({ where: { id: baseId } }),
   ]);
   return true;
