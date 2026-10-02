@@ -157,7 +157,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
   }
   const horariosRanking: Record<string, { nome: string; qtd: number }[]> = {};
   for (const [k, m] of celulas) {
-    horariosRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomeDePessoa.get(id) || "—", qtd })).sort((a, b) => b.qtd - a.qtd);
+    horariosRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomeDePessoa.get(id) || "Sem usuário identificado", qtd })).sort((a, b) => b.qtd - a.qtd);
   }
   const horariosPorPessoa: Record<string, ReturnType<typeof calcularHorarios>> = {};
   for (const p of pessoasVisiveis) {

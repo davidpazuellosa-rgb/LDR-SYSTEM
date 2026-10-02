@@ -296,7 +296,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const nomesHeat = new Map((await prisma.user.findMany({ where: { id: { in: [...idsHeat] } }, select: { id: true, name: true, email: true } })).map((u) => [u.id, u.name || u.email]));
   const heatRanking: Record<string, { nome: string; qtd: number }[]> = {};
   for (const [k, m] of porCelula) {
-    heatRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomesHeat.get(id) || "—", qtd })).sort((a, b) => b.qtd - a.qtd);
+    heatRanking[k] = [...m.entries()].map(([id, qtd]) => ({ nome: nomesHeat.get(id) || "Sem usuário identificado", qtd })).sort((a, b) => b.qtd - a.qtd);
   }
 
   return {
