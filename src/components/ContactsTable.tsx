@@ -3176,6 +3176,9 @@ async function saveCell(id: string, key: string, value: string) {
                           title={col.label}
                           className="block w-full cursor-pointer select-none truncate py-1 pl-1 pr-7 text-sm font-bold uppercase text-slate-600"
                         >
+                          {item.col.tipo === "lista" && (
+                            <svg className="mr-1 inline h-3.5 w-3.5 -translate-y-px text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-label="Lista suspensa"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          )}
                           {col.label}
                         </div>
                       )}
@@ -3353,6 +3356,10 @@ async function saveCell(id: string, key: string, value: string) {
                         <select
                           key={`edit:${c.id}:${col.key}`}
                           autoFocus
+                          ref={(el) => {
+                            // abre a lista na hora (um clique na setinha já mostra as opções)
+                            if (el) setTimeout(() => { try { el.showPicker?.(); } catch { /* sem gesto do usuário: segue só focado */ } }, 0);
+                          }}
                           data-grid-cell={`${rowIndex}:${colIndex}`}
                           defaultValue={value}
                           onChange={(e) => {
@@ -3469,7 +3476,10 @@ async function saveCell(id: string, key: string, value: string) {
                               : "text-slate-700"
                           }`}
                         >
-                          {listaCol && value ? (
+                          {listaCol ? (
+                            <div className="flex min-h-[1.25rem] items-center justify-between gap-1">
+                              <span className="min-w-0">
+                          {value ? (
                             (() => {
                               const cor = corDaOpcao(listaCol.opcoes, value);
                               return cor ? (
@@ -3478,6 +3488,20 @@ async function saveCell(id: string, key: string, value: string) {
                                 <span title="Esta opção não existe mais na lista" className="inline-block rounded-full border border-dashed border-slate-300 px-2.5 py-0.5 text-xs text-slate-500">{value} · fora da lista</span>
                               );
                             })()
+                          ) : null}
+                              </span>
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                aria-label="Abrir lista de opções"
+                                title="Abrir lista de opções"
+                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onClick={(e) => { e.stopPropagation(); startEditing(rowIndex, colIndex); }}
+                                className={`grid h-5 w-5 shrink-0 place-items-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700 ${value ? "opacity-40 hover:opacity-100" : ""}`}
+                              >
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                              </button>
+                            </div>
                           ) : (
                             value || " "
                           )}
@@ -3610,6 +3634,12 @@ async function saveCell(id: string, key: string, value: string) {
             onSalvar={(extra) => {
               saveCols(customCols.map((c) => (c.key === col.key ? { key: c.key, label: c.label, ...extra } : c)));
               setListaEditorKey(null);
+              toast.success(
+                extra.tipo === "lista" ? "Coluna salva como lista suspensa" : "Coluna salva como texto livre",
+                extra.tipo === "lista"
+                  ? `"${col.label}": clique na setinha ▾ de qualquer célula para escolher uma das ${extra.opcoes?.length ?? 0} opções.`
+                  : `"${col.label}" voltou a aceitar qualquer texto.`,
+              );
             }}
           />
         );
