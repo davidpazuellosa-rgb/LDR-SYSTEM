@@ -5,6 +5,7 @@ import { buildRelatorio, parsePeriodo, PERIODO_LABEL } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
 import RelatorioFiltros from "@/components/RelatorioFiltros";
 import RelatoriosTabs from "@/components/RelatoriosTabs";
+import Link from "next/link";
 import DataTable from "@/components/DataTable";
 import { regiaoDaUf } from "@/lib/uf";
 
@@ -37,7 +38,7 @@ const STATUS_META = {
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; ldr?: string; campanha?: string }>;
+  searchParams: Promise<{ periodo?: string; ldr?: string; campanha?: string; situacao?: string }>;
 }) {
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
@@ -45,6 +46,7 @@ export default async function RelatoriosPage({
 
   const sp = await searchParams;
   const periodo = parsePeriodo(sp.periodo);
+  const situacao = (["ok", "risco", "atrasado"] as const).find((x) => x === sp.situacao) ?? null;
   const r = await buildRelatorio({ periodo, ldrId: sp.ldr || null, campanha: sp.campanha || null });
 
   return (
@@ -71,15 +73,28 @@ export default async function RelatoriosPage({
           ))}
         </section>
 
-        {/* Semáforo de metas — faixa única */}
+        {/* Semáforo de metas — clicável: filtra a tabela Meta × Realizado pela situação */}
         <section className="flex divide-x divide-slate-100 overflow-hidden rounded-xl border border-slate-200/70 bg-white shadow-sm">
-          {(["ok", "risco", "atrasado"] as const).map((k) => (
-            <div key={k} className="flex flex-1 items-center gap-3 px-4 py-3">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[k].dot}`} />
-              <span className="text-xl font-semibold tabular-nums text-slate-900">{r.semaforo[k]}</span>
-              <span className="text-xs text-slate-500">{STATUS_META[k].label}</span>
-            </div>
-          ))}
+          {(["ok", "risco", "atrasado"] as const).map((k) => {
+            const qs = new URLSearchParams();
+            if (sp.periodo) qs.set("periodo", sp.periodo);
+            if (sp.ldr) qs.set("ldr", sp.ldr);
+            if (sp.campanha) qs.set("campanha", sp.campanha);
+            if (situacao !== k) qs.set("situacao", k); // clicar na ativa limpa o filtro
+            const q = qs.toString();
+            return (
+              <Link
+                key={k}
+                href={`/relatorios${q ? `?${q}` : ""}#metas`}
+                scroll
+                className={`flex flex-1 items-center gap-3 px-4 py-3 transition hover:bg-slate-50 ${situacao === k ? "bg-indigo-50/70 ring-2 ring-inset ring-indigo-300" : ""}`}
+              >
+                <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[k].dot}`} />
+                <span className="text-xl font-semibold tabular-nums text-slate-900">{r.semaforo[k]}</span>
+                <span className="text-xs text-slate-500">{STATUS_META[k].label}</span>
+              </Link>
+            );
+          })}
         </section>
 
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -135,8 +150,8 @@ export default async function RelatoriosPage({
         </section>
 
         {/* Meta × Realizado — tabela (antes: uma barra por meta) */}
-        <section className={CARD}>
-          <h2 className={TITLE}>Meta × Realizado</h2>
+        <section id="metas" className={CARD}>
+          <h2 className={TITLE}>Meta × Realizado{situacao ? <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">só {STATUS_META[situacao].label}</span> : null}</h2>
           <p className={`mb-3 ${SUB}`}>Cada meta no seu prazo · ordene e busque por pessoa, território ou situação</p>
           <DataTable
             csvName="meta-x-realizado"
@@ -152,7 +167,7 @@ export default async function RelatoriosPage({
               { key: "p", label: "%", kind: "pct", ok: 100, meio: 60 },
               { key: "status", label: "Situação", kind: "status" },
             ]}
-            rows={r.metasView.map((m) => ({ nome: m.nome, rotulo: m.rotulo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status }))}
+            rows={r.metasView.filter((m) => !situacao || m.status === situacao).map((m) => ({ nome: m.nome, rotulo: m.rotulo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status }))}
           />
         </section>
 

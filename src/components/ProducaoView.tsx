@@ -242,19 +242,38 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
           <div className="mb-3 flex items-start justify-between">
             <div>
               <h2 className={TITLE}>Produção por estado</h2>
-              <p className={SUB}>Top 10 estados no período</p>
+              <p className={SUB}>Top 5 em barras · tabela com todos os estados abaixo</p>
             </div>
             <Legenda />
           </div>
           {data.porEstado.length === 0 ? <p className="py-8 text-center text-xs text-slate-400">Sem dados.</p> : (
             <div className="space-y-2">
-              {data.porEstado.slice(0, 10).map((e) => (
+              {data.porEstado.slice(0, 5).map((e) => (
                 <div key={e.uf} className="flex items-center gap-3">
                   <span className="w-7 text-xs font-semibold text-slate-600">{e.uf}</span>
                   <div className="flex-1"><BarraEmpilhada p={e.preenchimento} c={e.correcao} max={maxEstado} /></div>
                   <span className="w-12 text-right text-xs tabular-nums text-slate-500">{nf(e.total)}</span>
                 </div>
               ))}
+              {data.porEstado.length > 5 && (
+                <div className="pt-2">
+                  <DataTable
+                    maxHeight={220}
+                    csvName="producao-por-estado"
+                    searchKeys={["uf"]}
+                    searchPlaceholder="Buscar UF"
+                    defaultSort={{ key: "total", dir: -1 }}
+                    cols={[
+                      { key: "uf", label: "UF", kind: "text" },
+                      { key: "preenchimento", label: "Preench.", kind: "num" },
+                      { key: "correcao", label: "Corrig.", kind: "num" },
+                      { key: "total", label: "Total", kind: "num" },
+                    ]}
+                    rows={data.porEstado.map((e) => ({ ...e }))}
+                    total={{ uf: "Total", preenchimento: data.porEstado.reduce((a, e) => a + e.preenchimento, 0), correcao: data.porEstado.reduce((a, e) => a + e.correcao, 0), total: data.porEstado.reduce((a, e) => a + e.total, 0) }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
