@@ -107,3 +107,18 @@ export function regiaoCanonica(value?: string | null): Regiao | null {
   if (n.includes("sul")) return "Sul";
   return null;
 }
+
+// Região de uma planilha pelo NOME ("{Órgão} - {Região}"), ou null se o nome não tiver região.
+export function regiaoDoNomeDaBase(nomeBase: string): Regiao | null {
+  return regiaoCanonica(nomeBase.split(" - ")[1] || "");
+}
+
+// REGRA ÚNICA da região de um contato, usada em TODOS os cards, filtros e exportações:
+// vale a do próprio contato; se ele não tem (planilhas que nascem sem colunas padrão —
+// os dados ficam em colunas personalizadas), vale a da planilha pelo nome; senão
+// "Sem região". Vale para qualquer planilha, de qualquer órgão, atual ou futuro.
+export function regiaoEfetiva(regiaoDoContato: string | null | undefined, nomeBase: string): string {
+  const r = (regiaoDoContato || "").trim();
+  if (r) return r;
+  return regiaoDoNomeDaBase(nomeBase) ?? "Sem região";
+}

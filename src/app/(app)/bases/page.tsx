@@ -9,7 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import CardMenu from "@/components/CardMenu";
 import RegioesGrid from "@/components/RegioesGrid";
-import { isCompleteVisivel, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
+import { isCompleteVisivel, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, regiaoEfetiva, regiaoDoNomeDaBase, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { parseHiddenCols } from "@/lib/base-columns";
 
@@ -107,6 +107,7 @@ export default async function BasesPage({
     }
   }
 
+  const nomeDaBase = new Map(bases.map((b) => [b.id, b.name]));
   const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, regioes: new Map() }]));
   for (const c of contacts) {
     const b = agg.get(c.baseId);
@@ -117,7 +118,7 @@ export default async function BasesPage({
     const ok = isCompleteVisivel(c, ocultasDe.get(c.baseId) ?? []) && customsCompletos(baseKeys.get(c.baseId) ?? [], customByContact.get(c.id));
     b.total += 1;
     if (ok) b.done += 1;
-    const reg = (c.regiao && c.regiao.trim()) || "Sem região";
+    const reg = regiaoEfetiva(c.regiao, nomeDaBase.get(c.baseId) ?? "");
     const s = b.regioes.get(reg) ?? { regiao: reg, total: 0, done: 0 };
     s.total += 1;
     if (ok) s.done += 1;
@@ -235,7 +236,7 @@ export default async function BasesPage({
     const a = agg.get(b.id)!;
     // Região da planilha pelo nome ("{Órgão} - {Região}"): usada quando os contatos não têm
     // região nos campos do sistema (planilhas que nascem sem colunas padrão, ex.: Defensoria).
-    const regiaoDoNome = regiaoCanonica(b.name.split(" - ")[1] || "");
+    const regiaoDoNome = regiaoDoNomeDaBase(b.name);
     if (a.regioes.size > 0) {
       for (const s of a.regioes.values()) {
         const r = regiaoCanonica(s.regiao) ?? regiaoDoNome;
@@ -248,7 +249,7 @@ export default async function BasesPage({
         byReg.set(r, cur);
       }
     } else {
-      const r = regiaoCanonica(b.name.split(" - ")[1] || "");
+      const r = regiaoDoNomeDaBase(b.name);
       if (r && !byReg.has(r)) byReg.set(r, { total: 0, done: 0, baseId: b.id, isImport: b.source === "import" });
     }
   }

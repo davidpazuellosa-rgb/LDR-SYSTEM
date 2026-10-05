@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/guard";
 import { resolveBaseColumns } from "@/lib/base-columns";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
 import { ensureContactOrdemColuna } from "@/lib/contact-ordem";
+import { regiaoEfetiva } from "@/lib/completude";
 import { buildBaseCsv, type ExportRow } from "@/lib/base-export";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export async function GET(
 
   // Filtros da visão ativa (mesma regra da grade e da página).
   const ufDe = (v: string | null) => (v || "").trim().toUpperCase() || "__no_uf__";
-  const regiaoDe = (v: string | null) => (v && v.trim()) || "Sem região";
+  const regiaoDe = (v: string | null) => regiaoEfetiva(v, base.name);
   let rows = base.contacts;
   if (regiao) rows = rows.filter((c) => regiaoDe(c.regiao) === regiao);
   if (uf) rows = rows.filter((c) => ufDe(c.estado) === uf.toUpperCase() || ufDe(c.estado) === uf);

@@ -1,7 +1,7 @@
 // Carrega do banco os dados do relatório "Produção por pessoa" e monta o que a tela usa.
 import { prisma } from "@/lib/prisma";
 import { OPERATOR_ROLES } from "@/lib/permissions";
-import { tipoOrgao } from "@/lib/completude";
+import { tipoOrgao, regiaoEfetiva } from "@/lib/completude";
 import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 import { ensureMetaTable } from "@/lib/meta";
@@ -77,7 +77,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     if (!c) continue;
     todos.push({
       tipo: "preenchimento", pessoaId: f.preenchidoPorId, quando: f.concluidoEm, baseId: c.baseId,
-      orgao: orgaoDaBase.get(c.baseId) || "Órgão", regiao: (c.regiao && c.regiao.trim()) || null,
+      orgao: orgaoDaBase.get(c.baseId) || "Órgão", regiao: regiaoEfetiva(c.regiao, nomeBase.get(c.baseId) ?? ""),
       estado: ufSigla(c.estado) || null, campanha: c.campanha,
     });
   }
@@ -85,7 +85,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     if (!r.resolvedAt || !r.resolvedById) continue;
     todos.push({
       tipo: "correcao", pessoaId: r.resolvedById, quando: r.resolvedAt, baseId: r.contact.baseId,
-      orgao: orgaoDaBase.get(r.contact.baseId) || "Órgão", regiao: (r.contact.regiao && r.contact.regiao.trim()) || null,
+      orgao: orgaoDaBase.get(r.contact.baseId) || "Órgão", regiao: regiaoEfetiva(r.contact.regiao, nomeBase.get(r.contact.baseId) ?? ""),
       estado: ufSigla(r.contact.estado) || null, campanha: r.contact.campanha,
     });
   }
@@ -177,11 +177,13 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
   const arvore: Record<string, Record<string, string[]>> = {};
   for (const p of pares) {
     const org = orgaoDaBase.get(p.baseId);
+    if (!org) continue;
     const uf = ufSigla(p.estado);
-    if (!org || !uf) continue;
-    const reg = (p.regiao && p.regiao.trim()) || "Sem região";
+    // Planilha sem estado nos campos (ex.: Defensoria) também entra no filtro de órgão/região —
+    // só fica sem UFs para escolher.
+    const reg = regiaoEfetiva(p.regiao, nomeBase.get(p.baseId) ?? "");
     const ufs = ((arvore[org] ||= {})[reg] ||= []);
-    if (!ufs.includes(uf)) ufs.push(uf);
+    if (uf && !ufs.includes(uf)) ufs.push(uf);
   }
   for (const org of Object.values(arvore)) for (const reg of Object.keys(org)) org[reg].sort();
   const campanhasOpcoes = Array.from(
