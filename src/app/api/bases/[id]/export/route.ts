@@ -5,6 +5,7 @@ import { resolveBaseColumns } from "@/lib/base-columns";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
 import { ensureContactOrdemColuna } from "@/lib/contact-ordem";
 import { regiaoEfetiva } from "@/lib/completude";
+import { PAGINA_COL } from "@/lib/base-abas";
 import { buildBaseCsv, type ExportRow } from "@/lib/base-export";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export async function GET(
   const url = new URL(req.url);
   const uf = (url.searchParams.get("uf") || "").trim();
   const regiao = (url.searchParams.get("regiao") || "").trim();
+  const pagina = (url.searchParams.get("pagina") || "").trim();
 
   // Mesma ordem de linhas da planilha: o "Classificar A→Z/Z→A" compartilhado
   // (Contact.ordem); quem nunca foi ordenado cai no fim, por data de criação.
@@ -51,6 +53,14 @@ export async function GET(
   let rows = base.contacts;
   if (regiao) rows = rows.filter((c) => regiaoDe(c.regiao) === regiao);
   if (uf) rows = rows.filter((c) => ufDe(c.estado) === uf.toUpperCase() || ufDe(c.estado) === uf);
+  // Página livre (?pagina=Nome): só as linhas atribuídas a ela.
+  if (pagina) {
+    await ensureContactCustomTable();
+    const naPagina = new Set(
+      (await prisma.contactCustomValue.findMany({ where: { colKey: PAGINA_COL, valor: pagina, contactId: { in: rows.map((c) => c.id) } }, select: { contactId: true } })).map((v) => v.contactId)
+    );
+    rows = rows.filter((c) => naPagina.has(c.id));
+  }
 
   const headersJson = base.headers as Record<string, unknown> | null;
   let cols = resolveBaseColumns(headersJson);

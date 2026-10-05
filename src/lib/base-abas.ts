@@ -35,3 +35,33 @@ export function parseAbas(headers: Headers): string[] {
 export function foiSemeada(headers: Headers): boolean {
   return (headers || {})[SEMEADA_KEY] === true;
 }
+
+// ---- Páginas LIVRES (nome qualquer, não só UF) ----
+// A lista de nomes mora em headers.__paginas__; a página de CADA linha é um valor
+// reservado em ContactCustomValue (colKey "__pagina__") — sem coluna nova no banco. Na
+// planilha a aba de uma página livre tem a chave "p:<nome>".
+export const PAGINAS_KEY = "__paginas__";
+export const PAGINA_COL = "__pagina__";
+export const PREFIXO_PAGINA = "p:";
+export const MAX_PAGINAS = 30;
+export const MAX_NOME_PAGINA = 40;
+
+// Nome válido: 1 a 40 caracteres, sem começar por "__" (reservado). Devolve o nome
+// já aparado ou null.
+export function nomePaginaValido(v: unknown): string | null {
+  const n = String(v ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_NOME_PAGINA);
+  if (!n || n.startsWith("__")) return null;
+  return n;
+}
+
+export function parsePaginas(headers: Headers): string[] {
+  const raw = (headers || {})[PAGINAS_KEY];
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const n = nomePaginaValido(v);
+    if (n && !out.some((x) => x.toLowerCase() === n.toLowerCase())) out.push(n);
+    if (out.length >= MAX_PAGINAS) break;
+  }
+  return out;
+}

@@ -10,7 +10,7 @@ import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
 import { parseColOrder, parseHeaderLabels, parseHiddenCols, parseDeletedCols } from "@/lib/base-columns";
 import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
-import { parseAbas } from "@/lib/base-abas";
+import { parseAbas, parsePaginas } from "@/lib/base-abas";
 import { garantirLinhasIniciais } from "@/lib/linhas-iniciais";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +92,7 @@ export default async function BaseDetailPage({
   const initialDeleted = parseDeletedCols(rawHeaders);
   // Páginas (abas) guardadas: existem mesmo sem nenhuma linha na UF ainda.
   const initialAbas = parseAbas(rawHeaders);
+  const initialPaginas = parsePaginas(rawHeaders);
   await ensureContactCustomTable();
   const customRows = rows.length
     ? await prisma.contactCustomValue.findMany({
@@ -132,6 +133,7 @@ export default async function BaseDetailPage({
           initialHidden={initialHidden}
           initialDeleted={initialDeleted}
           initialAbas={initialAbas}
+          initialPaginas={initialPaginas}
           regiao={regiao ?? null}
           me={{
             id: (session?.user as { id?: string } | undefined)?.id || "",

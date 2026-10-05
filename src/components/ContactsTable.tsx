@@ -16,6 +16,7 @@ import { useTitle } from "@/components/TitleContext";
 import HistoricoModal from "@/components/HistoricoModal";
 import ColumnFilterPopover from "@/components/ColumnFilterPopover";
 import ListaEditor from "@/components/ListaEditor";
+import { PAGINA_COL, PREFIXO_PAGINA } from "@/lib/base-abas";
 import { corDaOpcao, valorValidoNaLista, CORES_LISTA } from "@/lib/coluna-lista";
 import type { CustomCol } from "@/lib/base-columns";
 import { useRealtimeSheet, type EditItem, type ReorderPayload, type RowsPayload, type LayoutPayload } from "@/lib/useRealtimeSheet";
@@ -215,6 +216,7 @@ export default function ContactsTable({
   initialHidden = [],
   initialDeleted = [],
   initialAbas = [],
+  initialPaginas = [],
   regiao = null,
   initialSavedAt = null,
   me = { id: "", nome: "" },
@@ -237,6 +239,7 @@ export default function ContactsTable({
   initialHidden?: string[];
   initialDeleted?: string[];
   initialAbas?: string[];
+  initialPaginas?: string[];
   regiao?: string | null;
   initialSavedAt?: string | null;
   canDelete?: boolean;
@@ -559,6 +562,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         for (const e of custom) next[e.id] = { ...(next[e.id] || {}), [e.key]: e.value };
         return next;
       });
+      if (custom.some((e) => e.key === PAGINA_COL)) setPaginaVer((v) => v + 1);
     }
   }, []);
 
@@ -971,7 +975,18 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     );
   }
 
-  const ufOf = (c: Contact) => ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
+  // "Em qual aba está esta linha": a PÁGINA LIVRE atribuída a ela (chave "p:<nome>") ou, se não
+  // tiver, a UF (como sempre foi). A página fica num valor reservado (__pagina__), sem coluna nova.
+  const ufOf = useCallback(
+    (c: Contact) => {
+      const pg = customValues[c.id]?.[PAGINA_COL];
+      if (pg) return PREFIXO_PAGINA + pg;
+      return ((c.estado as string) || "").trim().toUpperCase() || NO_UF;
+    },
+    [customValues],
+  );
+  // Muda quando alguma linha troca de página (mover): faz a lista visível recalcular na hora.
+  const [paginaVer, setPaginaVer] = useState(0);
 
   // Filtro por situação do telefone (nomenclatura do CRM).
   const [phoneFilter] = useState<string>("all");
@@ -1001,7 +1016,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Páginas criadas à mão (guardadas em headers.__abas__) — existem mesmo sem
   // nenhuma linha ainda. A lista de abas é a UNIÃO delas com as UFs derivadas
   // dos contatos, então tudo que já existia continua aparecendo igual.
-  const [abas, setAbas] = useState<string[]>(initialAbas);
+  const [abas, setAbas] = useState<string[]>([...initialAbas, ...initialPaginas.map((n) => PREFIXO_PAGINA + n)]);
   const allUfs = useMemo(() => {
     const set = new Set<string>(abas);
     for (const c of contacts) {
@@ -1011,12 +1026,9 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       if (uf === NO_UF && isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
       set.add(uf);
     }
-    return Array.from(set).sort((a, b) => {
-      if (a === NO_UF) return 1;
-      if (b === NO_UF) return -1;
-      return a.localeCompare(b);
-    });
-  }, [contacts, abas, customValues]);
+    const grupo = (k: string) => (k === NO_UF ? 2 : k.startsWith(PREFIXO_PAGINA) ? 1 : 0);
+    return Array.from(set).sort((a, b) => grupo(a) - grupo(b) || a.localeCompare(b));
+  }, [contacts, abas, customValues, ufOf]);
 
   // Total por aba, ignorando as linhas ainda em branco (as que a planilha cria
   // sozinha) — senão criar uma página faria o total pular de 0 para 50 sem
@@ -1030,7 +1042,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
     }
     return allUfs.map((uf) => [uf, counts.get(uf) || 0] as [string, number]);
-  }, [contacts, allUfs, matchesPhone, customValues]);
+  }, [contacts, allUfs, matchesPhone, customValues, ufOf]);
 
   // Quantas linhas de cada UF já estão "preenchidas" (mesma régua do cabeçalho
   // da tela, em src/lib/completude.ts) — mostrado nas abas como preenchidos/total.
@@ -1047,7 +1059,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       counts.set(ufOf(c), (counts.get(ufOf(c)) || 0) + 1);
     }
     return counts;
-  }, [contacts, allUfs, matchesPhone, customCols, customValues, hiddenColumns]);
+  }, [contacts, allUfs, matchesPhone, customCols, customValues, hiddenColumns, ufOf]);
 
   // Contador do topo ("X concluídos / Y a preencher"): reflete a ABA atual
   // (Todas ou uma UF específica), não a base inteira — antes era um número fixo
@@ -1066,7 +1078,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       }
     }
     return { concluidos, aPreencher: comDado - concluidos };
-  }, [contacts, tab, matchesPhone, customValues, customCols, hiddenColumns]);
+  }, [contacts, tab, matchesPhone, customValues, customCols, hiddenColumns, ufOf]);
 
   // ---- Criar/excluir página (aba) ----
   // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu
@@ -1074,6 +1086,140 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // fixa, ancorado no retângulo do botão — mesmo padrão do ColumnFilterPopover.
   const [novaAbaRect, setNovaAbaRect] = useState<DOMRect | null>(null);
   const [criandoAba, setCriandoAba] = useState(false);
+
+  // ---- Páginas LIVRES (nome qualquer) ----
+  const [paginaMenu, setPaginaMenu] = useState<{ nome: string; x: number; y: number } | null>(null);
+  const [moverIds, setMoverIds] = useState<string[] | null>(null);
+  const paginasLivres = abas.filter((a) => a.startsWith(PREFIXO_PAGINA)).map((a) => a.slice(PREFIXO_PAGINA.length));
+
+  // Atribui (ou tira, com nome null) linhas de uma página: tela local + avisa os colegas.
+  function atribuirPaginaLocal(ids: string[], nome: string | null) {
+    if (ids.length === 0) return;
+    setCustomValues((prev) => {
+      const next = { ...prev };
+      for (const id of ids) {
+        const cur = { ...(next[id] || {}) };
+        if (nome) cur[PAGINA_COL] = nome;
+        else delete cur[PAGINA_COL];
+        next[id] = cur;
+      }
+      return next;
+    });
+    setPaginaVer((v) => v + 1);
+    broadcastRef.current(ids.map((id) => ({ id, key: PAGINA_COL, value: nome ?? "", custom: true })));
+  }
+
+  async function criarPaginaLivre() {
+    setNovaAbaRect(null);
+    const nome = (await dialog.prompt({ title: "Nova página", label: "Nome da página", message: "Pode ser qualquer nome — ex.: Capitais, Prioridade, Revisar.", confirmLabel: "Criar" }))?.trim();
+    if (!nome) return;
+    setCriandoAba(true);
+    markSaving();
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}/paginas`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Não foi possível criar a página.", data.error);
+        markSaveError();
+        return;
+      }
+      const chave = PREFIXO_PAGINA + data.nome;
+      setAbas((prev) => {
+        const next = prev.includes(chave) ? prev : [...prev, chave];
+        broadcastLayoutRef.current({ abas: next });
+        return next;
+      });
+      const criadas = (data.criadas || []) as Contact[];
+      if (criadas.length) {
+        setContacts((prev) => [...prev, ...criadas]);
+        broadcastRowsRef.current({ op: "insert", contacts: criadas });
+        atribuirPaginaLocal(criadas.map((c) => c.id), data.nome);
+      }
+      setTab(chave);
+      markSaved();
+      toast.success("Página criada.", `"${data.nome}" — para colocar linhas nela, selecione e use "Mover para página…" (botão direito).`);
+    } catch (e) {
+      toast.error("Não foi possível criar a página.", (e as Error).message);
+      markSaveError();
+    } finally {
+      setCriandoAba(false);
+    }
+  }
+
+  async function renomearPagina(nome: string) {
+    setPaginaMenu(null);
+    const novo = (await dialog.prompt({ title: "Renomear página", label: "Novo nome", defaultValue: nome, confirmLabel: "Renomear" }))?.trim();
+    if (!novo || novo === nome) return;
+    markSaving();
+    const res = await fetch(apiPath(`/api/bases/${baseId}/paginas`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, novo }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error("Não foi possível renomear.", data.error);
+      markSaveError();
+      return;
+    }
+    const antiga = PREFIXO_PAGINA + nome;
+    const nova = PREFIXO_PAGINA + data.nome;
+    const afetados = Object.entries(customValues).filter(([, v]) => v[PAGINA_COL] === nome).map(([id]) => id);
+    setAbas((prev) => {
+      const next = prev.map((a) => (a === antiga ? nova : a));
+      broadcastLayoutRef.current({ abas: next });
+      return next;
+    });
+    atribuirPaginaLocal(afetados, data.nome);
+    if (tab === antiga) setTab(nova);
+    markSaved();
+  }
+
+  async function excluirPaginaLivre(nome: string) {
+    setPaginaMenu(null);
+    if (!(await dialog.confirm({ title: `Excluir a página "${nome}"?`, message: "As linhas NÃO são apagadas: só saem da página e continuam em \"Todas\".", confirmLabel: "Excluir página", danger: true }))) return;
+    markSaving();
+    const res = await fetch(apiPath(`/api/bases/${baseId}/paginas`), { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) });
+    if (!res.ok) {
+      toast.error("Não foi possível excluir a página.");
+      markSaveError();
+      return;
+    }
+    const chave = PREFIXO_PAGINA + nome;
+    const afetados = Object.entries(customValues).filter(([, v]) => v[PAGINA_COL] === nome).map(([id]) => id);
+    setAbas((prev) => {
+      const next = prev.filter((a) => a !== chave);
+      broadcastLayoutRef.current({ abas: next });
+      return next;
+    });
+    atribuirPaginaLocal(afetados, null);
+    if (tab === chave) setTab(ALL);
+    markSaved();
+  }
+
+  function abrirMover(indices: number[]) {
+    const ids = indices.map((i) => visible[i]?.id).filter(Boolean) as string[];
+    setMenu(null);
+    if (ids.length === 0) return;
+    if (paginasLivres.length === 0) {
+      toast.error("Ainda não há páginas.", 'Crie uma com o botão "+" no rodapé (Página com nome livre).');
+      return;
+    }
+    setMoverIds(ids);
+  }
+
+  async function moverParaPagina(nome: string | null) {
+    const ids = moverIds;
+    setMoverIds(null);
+    if (!ids) return;
+    markSaving();
+    const res = await fetch(apiPath(`/api/bases/${baseId}/paginas/mover`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, nome }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error("Não foi possível mover.", data.error);
+      markSaveError();
+      return;
+    }
+    atribuirPaginaLocal(data.ids as string[], nome);
+    markSaved();
+    toast.success(nome ? `${data.movidas} linha(s) movida(s) para "${nome}".` : `${data.movidas} linha(s) tirada(s) da página.`);
+  }
 
   async function criarAba(uf: string) {
     setCriandoAba(true);
@@ -1169,7 +1315,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       })
       .map((c) => c.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds, colFilterMap, cellValue]);
+  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds, colFilterMap, cellValue, paginaVer]);
 
   // Mapa id -> contato ATUAL (para a tela refletir as edições na hora).
   const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
@@ -1977,14 +2123,15 @@ function showAllColumns() {
 
 async function insertRowNear(rowIndex: number, side: "above" | "below", count = 1) {
   setClip(null);
-  const estado = tab !== ALL && tab !== NO_UF ? tab : undefined;
+  const emPagina = tab.startsWith(PREFIXO_PAGINA) ? tab.slice(PREFIXO_PAGINA.length) : null;
+  const estado = tab !== ALL && tab !== NO_UF && !emPagina ? tab : undefined;
   // Cria N contatos novos (N = linhas selecionadas, estilo Excel).
   const created: Contact[] = [];
   for (let i = 0; i < Math.max(1, count); i++) {
     const res = await fetch(apiPath("/api/contacts"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseId, estado, regiao }),
+      body: JSON.stringify({ baseId, estado, regiao, pagina: emPagina }),
     });
     if (!res.ok) {
       toast.error("Não foi possível inserir a linha.");
@@ -2013,6 +2160,7 @@ async function insertRowNear(rowIndex: number, side: "above" | "below", count = 
     return next;
   });
   aplicarPadroes(created);
+  if (emPagina) atribuirPaginaLocal(created.map((c) => c.id), emPagina);
   const positions = created.map((_, i) => insertAt + i);
   recordInsert(created, positions);
   broadcastRowsRef.current({ op: "insert", contacts: created, positions });
@@ -3557,16 +3705,17 @@ async function saveCell(id: string, key: string, value: string) {
             onContextMenu={(e) => {
               if (!canEditHeaders || uf === NO_UF) return;
               e.preventDefault();
-              excluirAba(uf);
+              if (uf.startsWith(PREFIXO_PAGINA)) setPaginaMenu({ nome: uf.slice(PREFIXO_PAGINA.length), x: e.clientX, y: e.clientY });
+              else excluirAba(uf);
             }}
-            title={canEditHeaders && uf !== NO_UF ? "Botão direito para excluir a página" : undefined}
+            title={canEditHeaders && uf !== NO_UF ? (uf.startsWith(PREFIXO_PAGINA) ? "Botão direito para renomear ou excluir a página" : "Botão direito para excluir a página") : undefined}
             className={`shrink-0 whitespace-nowrap px-4 text-sm transition ${
               tab === uf
                 ? "rounded-b-md border border-t-0 border-slate-300 bg-white pb-1.5 pt-2.5 font-semibold text-slate-800"
                 : "border-r border-slate-300 pb-1.5 pt-1.5 font-medium text-slate-500 hover:bg-slate-200/70 hover:text-slate-700"
             }`}
           >
-            {uf === NO_UF ? "Sem UF" : ufSigla(uf)} <span className="text-xs text-slate-500">({estadosCompletos.get(uf) || 0}/{n})</span>
+            {uf === NO_UF ? "Sem UF" : uf.startsWith(PREFIXO_PAGINA) ? uf.slice(PREFIXO_PAGINA.length) : ufSigla(uf)} <span className="text-xs text-slate-500">({estadosCompletos.get(uf) || 0}/{n})</span>
           </button>
         ))}
         {canEditHeaders && (
@@ -3575,7 +3724,7 @@ async function saveCell(id: string, key: string, value: string) {
               setNovaAbaRect((prev) => (prev ? null : e.currentTarget.getBoundingClientRect()))
             }
             disabled={criandoAba}
-            title="Adicionar página (estado)"
+            title="Adicionar página (nome livre ou estado)"
             className="shrink-0 px-3 pb-1.5 pt-1.5 text-lg font-medium leading-none text-slate-500 transition hover:text-slate-800 disabled:opacity-40"
           >
             +
@@ -3598,7 +3747,11 @@ async function saveCell(id: string, key: string, value: string) {
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <p className="px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">Nova página</p>
+              <button onClick={criarPaginaLivre} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50">
+                <span className="text-base leading-none">+</span> Página com nome livre…
+              </button>
+              <div className="my-1 h-px bg-slate-200" />
+              <p className="px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">Ou por estado</p>
               {UFS_BRASIL.map((uf) => {
                 const existe = allUfs.includes(uf);
                 return (
@@ -3624,6 +3777,46 @@ async function saveCell(id: string, key: string, value: string) {
           style={{ left: tip.x, top: tip.y }}
         >
           {tip.text}
+        </div>
+      )}
+
+      {/* Menu da aba de página livre (renomear/excluir) */}
+      {paginaMenu && canEditHeaders &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[70]" onMouseDown={() => setPaginaMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPaginaMenu(null); }} />
+            <div className="fixed z-[71] w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-xl" style={{ bottom: Math.max(8, window.innerHeight - paginaMenu.y + 6), left: Math.min(paginaMenu.x, window.innerWidth - 200) }}>
+              <p className="truncate px-3 py-1 text-[11px] font-semibold uppercase text-slate-400">{paginaMenu.nome}</p>
+              <button onClick={() => renomearPagina(paginaMenu.nome)} className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Renomear página</button>
+              <button onClick={() => excluirPaginaLivre(paginaMenu.nome)} className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">Excluir página</button>
+            </div>
+          </>,
+          document.body
+        )}
+
+      {/* Mover linhas para uma página */}
+      {moverIds && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && setMoverIds(null)}>
+          <div role="dialog" aria-modal="true" className="flex max-h-[80vh] w-full max-w-sm flex-col rounded-2xl bg-white shadow-xl">
+            <div className="border-b border-slate-100 px-6 py-4">
+              <h2 className="text-lg font-semibold text-slate-800">Mover para página</h2>
+              <p className="mt-0.5 text-sm text-slate-500">{moverIds.length} linha(s) selecionada(s)</p>
+            </div>
+            <ul className="flex-1 overflow-y-auto px-3 py-2">
+              {paginasLivres.map((n) => (
+                <li key={n}>
+                  <button onClick={() => moverParaPagina(n)} className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">{n}</button>
+                </li>
+              ))}
+              <li><div className="my-1 h-px bg-slate-100" /></li>
+              <li>
+                <button onClick={() => moverParaPagina(null)} className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm text-slate-500 hover:bg-slate-50">Tirar de qualquer página (voltar para “Todas”)</button>
+              </li>
+            </ul>
+            <div className="flex justify-end border-t border-slate-100 px-6 py-3">
+              <button onClick={() => setMoverIds(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3665,7 +3858,8 @@ async function saveCell(id: string, key: string, value: string) {
         const confirmar = () => {
           const p = new URLSearchParams();
           if (regiao) p.set("regiao", regiao);
-          if (tab !== ALL) p.set("uf", tab);
+          if (tab !== ALL && tab.startsWith(PREFIXO_PAGINA)) p.set("pagina", tab.slice(PREFIXO_PAGINA.length));
+          else if (tab !== ALL) p.set("uf", tab);
           p.set("cols", unifiedCols.filter((c) => exportSel.has(c.key)).map((c) => c.key).join(","));
           if (!exportSel.has("__situacao__")) p.set("situacao", "0");
           const a = document.createElement("a");
@@ -3973,6 +4167,16 @@ async function saveCell(id: string, key: string, value: string) {
                 }
                 label={selRows > 1 ? `Ocultar ${selRows} linhas` : "Ocultar linha"}
                 onClick={() => hideRows(selRowIndices)}
+              />
+              <MenuRow
+                icon={
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" strokeLinejoin="round" />
+                    <path d="M12 11v5m0 0-2-2m2 2 2-2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                }
+                label={selRows > 1 ? `Mover ${selRows} linhas para página…` : "Mover para página…"}
+                onClick={() => abrirMover(selRowIndices)}
               />
 
               {/* Colunas — campos fixos: dá pra ocultar (não excluir de verdade) */}

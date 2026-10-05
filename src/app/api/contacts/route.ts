@@ -5,6 +5,7 @@ import { looksLikeValidPhone } from "@/lib/import";
 import { CONTACT_FIELD_KEYS, PHONE_FIELD } from "@/lib/contact-fields";
 import { STATUS_OK, STATUS_INCORRETO } from "@/lib/status";
 import { parseCustomCols } from "@/lib/base-columns";
+import { PAGINA_COL, parsePaginas } from "@/lib/base-abas";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
 
 // Cadastro manual de um novo contato (prefeitura) dentro de uma base.
@@ -46,6 +47,16 @@ export async function POST(req: Request) {
   // (Só aqui — linhas em branco de página nova e importação não recebem padrão, senão
   // virariam "linha com dado" nos contadores.)
   const base = await prisma.base.findUnique({ where: { id: baseId }, select: { headers: true } });
+  // Linha inserida DENTRO de uma página livre já nasce nela.
+  const pagina = body?.pagina ? String(body.pagina) : null;
+  if (pagina && parsePaginas(base?.headers as Record<string, unknown> | null).includes(pagina)) {
+    await ensureContactCustomTable();
+    await prisma.contactCustomValue.upsert({
+      where: { contactId_colKey: { contactId: contact.id, colKey: PAGINA_COL } },
+      create: { contactId: contact.id, colKey: PAGINA_COL, valor: pagina },
+      update: { valor: pagina },
+    });
+  }
   const padroes = parseCustomCols(base?.headers as Record<string, unknown> | null).filter((c) => c.tipo === "lista" && c.padrao);
   if (padroes.length) {
     await ensureContactCustomTable();

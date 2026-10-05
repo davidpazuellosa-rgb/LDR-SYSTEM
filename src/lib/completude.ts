@@ -60,7 +60,8 @@ export function isRowVazia(
     const v = row[k];
     if (typeof v === "string" && v.trim()) return false;
   }
-  for (const v of Object.values(customVals || {})) {
+  for (const [k, v] of Object.entries(customVals || {})) {
+    if (k.startsWith("__")) continue; // chaves reservadas (ex.: __pagina__) não são dado
     if (v && v.trim()) return false;
   }
   return true;
