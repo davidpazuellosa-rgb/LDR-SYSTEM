@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import CardMenu from "@/components/CardMenu";
+import BasesBusca from "@/components/BasesBusca";
 import RegioesGrid from "@/components/RegioesGrid";
 import { isCompleteVisivel, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, regiaoEfetiva, regiaoDoNomeDaBase, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
@@ -161,17 +162,24 @@ export default async function BasesPage({
             </div>
           </div>
 
-          {bases.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
-              Nenhuma base ainda. Clique em <strong>+ Nova base</strong> para começar.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {lista.map((e) => {
-                const pct = pctOf(e.done, e.total);
-                const t = tier(pct);
-                return (
-                  <div key={e.tipo} className="relative">
+          <BasesBusca
+            nenhum={
+              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+                Nenhuma base ainda. Clique em <strong>+ Nova base</strong> para começar.
+              </div>
+            }
+            itens={lista.map((e) => {
+              const pct = pctOf(e.done, e.total);
+              const t = tier(pct);
+              return {
+                key: e.tipo,
+                nome: e.tipo,
+                situacao: e.total > 0 ? t.label : "Não iniciado",
+                pct,
+                total: e.total,
+                planilhas: e.planilhas,
+                node: (
+                  <div className="relative">
                   <CardMenu kind="orgao" nome={e.tipo} contatos={e.total} />
                   <Link
                     href={`/bases?tipo=${encodeURIComponent(e.tipo)}`}
@@ -218,10 +226,10 @@ export default async function BasesPage({
                     </div>
                   </Link>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ),
+              };
+            })}
+          />
         </div>
       </>
     );
