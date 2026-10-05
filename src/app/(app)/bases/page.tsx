@@ -233,9 +233,12 @@ export default async function BasesPage({
   const byReg = new Map<string, { total: number; done: number; baseId: string | null; isImport: boolean }>();
   for (const b of doTipo) {
     const a = agg.get(b.id)!;
+    // Região da planilha pelo nome ("{Órgão} - {Região}"): usada quando os contatos não têm
+    // região nos campos do sistema (planilhas que nascem sem colunas padrão, ex.: Defensoria).
+    const regiaoDoNome = regiaoCanonica(b.name.split(" - ")[1] || "");
     if (a.regioes.size > 0) {
       for (const s of a.regioes.values()) {
-        const r = regiaoCanonica(s.regiao);
+        const r = regiaoCanonica(s.regiao) ?? regiaoDoNome;
         if (!r) continue;
         const cur = byReg.get(r) ?? { total: 0, done: 0, baseId: b.id, isImport: false };
         cur.total += s.total;
