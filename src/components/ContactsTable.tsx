@@ -10,6 +10,7 @@ import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
 import { valorDeValidacao } from "@/lib/validacao";
+import { matrizParaTSV, tsvParaMatriz } from "@/lib/tsv";
 import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useDialog } from "@/components/Dialog";
@@ -2496,7 +2497,7 @@ async function saveCell(id: string, key: string, value: string) {
   function buildSelectionTSV(): string {
     if (!selBounds) return "";
     const { startRow, endRow, startCol, endCol } = selBounds;
-    const lines: string[] = [];
+    const linhas: string[][] = [];
     for (let row = startRow; row <= endRow; row++) {
       const contact = visible[row];
       if (!contact) continue;
@@ -2505,9 +2506,10 @@ async function saveCell(id: string, key: string, value: string) {
         const key = unifiedKeys[col];
         values.push(key ? cellValue(contact, key) : "");
       }
-      lines.push(values.join("\t"));
+      linhas.push(values);
     }
-    return lines.join("\n");
+    // Células com quebra de linha vão entre aspas (como no Excel) — senão viram 2 linhas ao colar.
+    return matrizParaTSV(linhas);
   }
 
   async function copySelectedCells() {
@@ -2527,9 +2529,7 @@ async function saveCell(id: string, key: string, value: string) {
     transpose = false,
     fillRect?: { startRow: number; endRow: number; startCol: number; endCol: number } | null
   ) {
-    const lines = text.replace(/\r/g, "").split("\n");
-    if (lines.at(-1) === "") lines.pop();
-    let matrix = lines.map((line) => line.split("\t"));
+    let matrix = tsvParaMatriz(text);
     if (transpose) {
       const nRows = matrix.length;
       const nCols = matrix.reduce((m, r) => Math.max(m, r.length), 0);
