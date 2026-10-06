@@ -9,10 +9,12 @@ import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
 import CardMenu from "@/components/CardMenu";
 import BasesBusca from "@/components/BasesBusca";
+import ValidacaoResumo, { type ValidacaoContagem } from "@/components/ValidacaoResumo";
 import RegioesGrid from "@/components/RegioesGrid";
 import { isCompleteVisivel, customsCompletos, isRowVazia, pctOf, tier, tipoOrgao, regiaoCanonica, regiaoEfetiva, regiaoDoNomeDaBase, REGIOES_BRASIL, type ReqRow } from "@/lib/completude";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { parseHiddenCols } from "@/lib/base-columns";
+import { colunaValidacao, validacaoAtiva, valorDeValidacao } from "@/lib/validacao";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +25,10 @@ export const dynamic = "force-dynamic";
 // A régua de conclusão + cores ficam em @/lib/completude (compartilhado).
 
 type ContactRow = ReqRow & { id: string; baseId: string; regiao: string | null };
-type RegiaoAgg = { regiao: string; total: number; done: number };
-type BaseAgg = { total: number; done: number; regioes: Map<string, RegiaoAgg> };
+type RegiaoAgg = { regiao: string; total: number; done: number; val?: ValidacaoContagem };
+type BaseAgg = { total: number; done: number; regioes: Map<string, RegiaoAgg>; val?: ValidacaoContagem };
+const somaVal = (a: ValidacaoContagem | undefined, b: ValidacaoContagem | undefined): ValidacaoContagem | undefined =>
+  !a ? b : !b ? a : { sim: a.sim + b.sim, nao: a.nao + b.nao, aValidar: a.aValidar + b.aValidar };
 
 // Ícone por tipo de órgão (nível 1). Cai no genérico de banco para tipos novos.
 function TipoIcon({ tipo }: { tipo: string }) {
@@ -108,6 +112,20 @@ export default async function BasesPage({
     }
   }
 
+  // Planilhas com validação ligada: valor Sim/Não/– de cada contato (só dessas planilhas).
+  const valKeyDe = new Map<string, string>();
+  for (const b of bases) {
+    const h = b.headers as Record<string, unknown> | null;
+    const col = validacaoAtiva(h) ? colunaValidacao(h) : null;
+    if (col) valKeyDe.set(b.id, col.key);
+  }
+  const valorValidado = new Map<string, string>();
+  if (valKeyDe.size) {
+    await ensureContactCustomTable();
+    const vv = await prisma.contactCustomValue.findMany({ where: { colKey: { in: [...new Set(valKeyDe.values())] } }, select: { contactId: true, valor: true } });
+    for (const r of vv) valorValidado.set(r.contactId, r.valor ?? "");
+  }
+
   const nomeDaBase = new Map(bases.map((b) => [b.id, b.name]));
   const agg = new Map<string, BaseAgg>(bases.map((b) => [b.id, { total: 0, done: 0, regioes: new Map() }]));
   for (const c of contacts) {
@@ -123,12 +141,18 @@ export default async function BasesPage({
     const s = b.regioes.get(reg) ?? { regiao: reg, total: 0, done: 0 };
     s.total += 1;
     if (ok) s.done += 1;
+    if (valKeyDe.has(c.baseId)) {
+      const k = valorDeValidacao(valorValidado.get(c.id));
+      const um: ValidacaoContagem = { sim: k === "sim" ? 1 : 0, nao: k === "nao" ? 1 : 0, aValidar: k ? 0 : 1 };
+      b.val = somaVal(b.val, um);
+      s.val = somaVal(s.val, um);
+    }
     b.regioes.set(reg, s);
   }
 
   // ─── Nível 1: cards por tipo de órgão ────────────────────────────────────
   if (!tipo) {
-    type TipoAgg = { tipo: string; total: number; done: number; planilhas: number };
+    type TipoAgg = { tipo: string; total: number; done: number; planilhas: number; val?: ValidacaoContagem };
     const tipos = new Map<string, TipoAgg>();
     for (const b of bases) {
       const t = tipoOrgao(b.name);
@@ -137,6 +161,7 @@ export default async function BasesPage({
       e.total += a.total;
       e.done += a.done;
       e.planilhas += 1;
+      e.val = somaVal(e.val, a.val);
       tipos.set(t, e);
     }
     const lista = [...tipos.values()].sort(
@@ -209,6 +234,7 @@ export default async function BasesPage({
                         <p className="mt-1.5 text-xs text-slate-400">
                           {e.done.toLocaleString("pt-BR")} de {e.total.toLocaleString("pt-BR")} preenchidos
                         </p>
+                        {e.val && <ValidacaoResumo v={e.val} />}
                       </div>
                     )}
 
@@ -239,7 +265,7 @@ export default async function BasesPage({
   // Mostra SEMPRE as 5 regiões (mesmo sem planilha). Os dados vêm dos contatos;
   // bases vazias entram pela região do nome ("{Órgão} - {Região}").
   const doTipo = bases.filter((b) => tipoOrgao(b.name) === tipo);
-  const byReg = new Map<string, { total: number; done: number; baseId: string | null; isImport: boolean }>();
+  const byReg = new Map<string, { total: number; done: number; baseId: string | null; isImport: boolean; val?: ValidacaoContagem }>();
   for (const b of doTipo) {
     const a = agg.get(b.id)!;
     // Região da planilha pelo nome ("{Órgão} - {Região}"): usada quando os contatos não têm
@@ -252,6 +278,7 @@ export default async function BasesPage({
         const cur = byReg.get(r) ?? { total: 0, done: 0, baseId: b.id, isImport: false };
         cur.total += s.total;
         cur.done += s.done;
+        cur.val = somaVal(cur.val, s.val);
         cur.baseId = b.id;
         cur.isImport = cur.isImport || b.source === "import";
         byReg.set(r, cur);
@@ -267,6 +294,7 @@ export default async function BasesPage({
       regiao: r as string,
       total: e?.total ?? 0,
       done: e?.done ?? 0,
+      validacao: e?.val,
       baseId: e?.baseId ?? null,
       titulo: e?.baseId
         ? String((bases.find((b) => b.id === e.baseId)?.headers as Record<string, unknown> | null)?.__titulo__ || "") || undefined

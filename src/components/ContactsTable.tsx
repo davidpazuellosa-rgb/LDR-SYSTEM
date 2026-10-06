@@ -9,6 +9,7 @@ import { ufSigla, UFS_BRASIL } from "@/lib/uf";
 import { CONTACT_FIELDS } from "@/lib/contact-fields";
 import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
+import { valorDeValidacao } from "@/lib/validacao";
 import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useDialog } from "@/components/Dialog";
@@ -1135,6 +1136,23 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     }
     return { concluidos, aPreencher: comDado - concluidos };
   }, [contacts, tab, matchesPhone, customValues, customCols, hiddenColumns, ufOf]);
+
+  // Resumo de validação da ABA atual (só quando a planilha é validada): Sim · Não · a validar.
+  const validacaoCounts = useMemo(() => {
+    const vcol = validar ? customCols.find((c) => c.sistema === "validacao") : null;
+    if (!vcol) return null;
+    let sim = 0, nao = 0, aValidar = 0;
+    for (const c of contacts) {
+      if (tab !== ALL && ufOf(c) !== tab) continue;
+      if (!matchesPhone(c)) continue;
+      if (isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id])) continue;
+      const v = valorDeValidacao(customValues[c.id]?.[vcol.key]);
+      if (v === "sim") sim++;
+      else if (v === "nao") nao++;
+      else aValidar++;
+    }
+    return { sim, nao, aValidar };
+  }, [validar, contacts, tab, matchesPhone, customValues, customCols, ufOf]);
 
   // ---- Criar/excluir página (aba) ----
   // A faixa de abas tem rolagem própria (overflow-x), que recorta qualquer menu
@@ -2894,6 +2912,14 @@ async function saveCell(id: string, key: string, value: string) {
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
           {headerCounts.aPreencher.toLocaleString("pt-BR")}
         </span>
+        {validacaoCounts && (
+          <span title="Validados (Sim · Não · a validar) nesta página" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-medium ring-1 ring-slate-200">
+            <span className="text-slate-500">Validados</span>
+            <span className="text-emerald-700">{validacaoCounts.sim.toLocaleString("pt-BR")} Sim</span>
+            <span className="text-red-600">{validacaoCounts.nao.toLocaleString("pt-BR")} Não</span>
+            <span className="text-slate-500">{validacaoCounts.aValidar.toLocaleString("pt-BR")} a validar</span>
+          </span>
+        )}
         <div className="mx-1 h-6 w-px shrink-0 bg-slate-200" />
 
         {/* Buscar na planilha: só o ícone; abre um campo em dropdown ao clicar */}

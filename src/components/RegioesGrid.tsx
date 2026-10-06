@@ -7,6 +7,7 @@ import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 import CardMenu from "@/components/CardMenu";
 import { pctOf, tier, REGIOES_BRASIL } from "@/lib/completude";
+import ValidacaoResumo, { type ValidacaoContagem } from "@/components/ValidacaoResumo";
 
 export type RegiaoCard = {
   regiao: string;
@@ -15,6 +16,7 @@ export type RegiaoCard = {
   baseId: string | null;
   titulo?: string;
   hasPlanilha: boolean;
+  validacao?: ValidacaoContagem;
 };
 
 function DatabaseIcon() {
@@ -118,6 +120,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                   <p className="mt-1.5 text-xs text-slate-400">
                     {c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")} prefeituras preenchidas
                   </p>
+                  {c.validacao && <ValidacaoResumo v={c.validacao} />}
                 </div>
               ) : (
                 <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-3 py-4 text-center text-xs text-slate-400">
