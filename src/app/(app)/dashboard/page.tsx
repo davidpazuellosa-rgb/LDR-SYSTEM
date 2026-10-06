@@ -169,7 +169,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {fillMetas.map((m) => (
-                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} foraPor={metaDetalhe(m, now, progress.fills, progress.corrections, (id) => baseName(id)).foraPor} alvo={m.alvo} />
+                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`contatos completos ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} foraPor={metaDetalhe(m, now, progress.fills, progress.corrections, (id) => baseName(id)).foraPor} alvo={m.alvo} />
               ))}
             </div>
           )}

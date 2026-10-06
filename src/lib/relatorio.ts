@@ -181,7 +181,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   }
   const kpis: { label: string; value: number; prev: number | null }[] = [
     { label: "Telefones corrigidos", value: corrCur, prev: corrPrev },
-    { label: "Prefeituras preenchidas", value: fillCur, prev: fillPrev },
+    { label: "Contatos preenchidos", value: fillCur, prev: fillPrev },
     ...(ldrId ? [] : [{ label: "Contatos novos", value: novosCur ?? 0, prev: novosPrev }]),
   ];
 

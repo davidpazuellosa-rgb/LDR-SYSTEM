@@ -113,7 +113,7 @@ export default async function MinhasMetasPage() {
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className={CARD}>
                 <h2 className={TITLE}>Preenchimento</h2>
-                <p className={`mb-3 ${SUB}`}>Prefeituras completas no período</p>
+                <p className={`mb-3 ${SUB}`}>Contatos completos no período</p>
                 {fill.length === 0 ? (
                   <p className="py-4 text-center text-xs text-slate-400">Sem meta de preenchimento.</p>
                 ) : (

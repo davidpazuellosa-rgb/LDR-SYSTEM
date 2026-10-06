@@ -118,7 +118,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                     <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
                   </div>
                   <p className="mt-1.5 text-xs text-slate-400">
-                    {c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")} prefeituras preenchidas
+                    {c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")} contatos preenchidos
                   </p>
                   {c.validacao && <ValidacaoResumo v={c.validacao} />}
                 </div>
