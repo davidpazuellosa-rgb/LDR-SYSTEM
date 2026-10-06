@@ -81,18 +81,23 @@ export function territoriosCompartilhados(metas: { userId: string; tipo: string;
   return new Set([...donos].filter(([, u]) => u.size > 1).map(([k]) => k));
 }
 
-export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], compartilhados?: Set<string>): number {
+// Preenchimento conta TUDO que a própria pessoa completou no período (qualquer
+// planilha/região/estado) — o território da meta só separa o que está "na meta" do que
+// ficou "fora da meta". Correção continua sendo o que a pessoa resolveu na campanha.
+export function metaDetalhe(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): { feito: number; naMeta: number; fora: number } {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
-    return corrections.filter(
+    const n = corrections.filter(
       (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
     ).length;
+    return { feito: n, naMeta: n, fora: 0 };
   }
-  const dividido = !!compartilhados?.has(chaveTerritorio(m));
-  return fills.filter(
-    (f) =>
-      f.concluidoEm >= start && territorioConfere(m, f) &&
-      (!dividido || f.porId === m.userId)
-  ).length;
+  const minhas = fills.filter((f) => f.concluidoEm >= start && f.porId === m.userId);
+  const naMeta = minhas.filter((f) => territorioConfere(m, f)).length;
+  return { feito: minhas.length, naMeta, fora: minhas.length - naMeta };
+}
+
+export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], _compartilhados?: Set<string>): number {
+  return metaDetalhe(m, now, fills, corrections).feito;
 }

@@ -5,7 +5,7 @@ import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
-import { metaFeito, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { metaDetalhe, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import PageHeader from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ function StatCard({ label, value, hint, color }: { label: string; value: number 
   );
 }
 
-function MetaBar({ label, sub, feito, alvo }: { label: string; sub: string; feito: number; alvo: number }) {
+function MetaBar({ label, sub, feito, alvo, fora = 0 }: { label: string; sub: string; feito: number; alvo: number; fora?: number }) {
   const pct = alvo ? Math.min(100, percent(feito, alvo)) : feito > 0 ? 100 : 0;
   const bateu = alvo > 0 && feito >= alvo;
   return (
@@ -69,7 +69,10 @@ function MetaBar({ label, sub, feito, alvo }: { label: string; sub: string; feit
       <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
         <div className={`h-full rounded-full ${bateu ? "bg-emerald-500" : "bg-indigo-500"}`} style={{ width: `${Math.max(3, pct)}%` }} />
       </div>
-      <div className="mt-1 text-xs text-slate-400">{sub}</div>
+      <div className="mt-1 text-xs text-slate-400">
+        {sub}
+        {fora > 0 && <span className="ml-1 text-amber-600">· {fora} fora da meta (outro território)</span>}
+      </div>
     </div>
   );
 }
@@ -147,7 +150,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {fillMetas.map((m) => (
-                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`prefeituras completas ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} fora={metaDetalhe(m, now, progress.fills, progress.corrections).fora} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -163,7 +166,7 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="space-y-4">
               {corrMetas.map((m) => (
-                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
+                <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`contatos corrigidos ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} fora={metaDetalhe(m, now, progress.fills, progress.corrections).fora} alvo={m.alvo} />
               ))}
             </div>
           )}
@@ -272,7 +275,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preenchimento</p>
                           {fill.map((m) => (
-                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={fillLabel(m, baseName)} sub={`completas ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} fora={metaDetalhe(m, now, progress.fills, progress.corrections).fora} alvo={m.alvo} />
                           ))}
                         </div>
                       )}
@@ -280,7 +283,7 @@ async function AdminMain() {
                         <div className="space-y-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Correção</p>
                           {corr.map((m) => (
-                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaFeito(m, now, progress.fills, progress.corrections, progress.compartilhados)} alvo={m.alvo} />
+                            <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} fora={metaDetalhe(m, now, progress.fills, progress.corrections).fora} alvo={m.alvo} />
                           ))}
                         </div>
                       )}

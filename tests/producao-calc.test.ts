@@ -67,12 +67,13 @@ test("filtrar metas: território esconde correção; campanha esconde preenchime
   assert.equal(filtrarMetas([metaP, metaC], { ...F0, pessoas: ["z"] }).length, 0);
 });
 
-test("meta: preenchimento conta o território (mesmo se outro digitou); correção só de quem resolveu", () => {
+test("meta: preenchimento conta tudo que a pessoa completou (fora do território vai em `fora`); correção só de quem resolveu", () => {
   const faixa = faixaDoPeriodo("7d", now);
-  const todos = [ev({ pessoaId: "outro" }), ev({}), ev({ tipo: "correcao", campanha: "X" }), ev({ tipo: "correcao", pessoaId: "outro", campanha: "X" })];
+  const todos = [ev({ pessoaId: "outro" }), ev({}), ev({ estado: "BA" }), ev({ tipo: "correcao", campanha: "X" }), ev({ tipo: "correcao", pessoaId: "outro", campanha: "X" })];
   const p = calcularMeta(metaP, todos, faixa, now, "P");
   assert.equal(p.meta, 10);
-  assert.equal(p.feito, 2);
+  assert.equal(p.feito, 2); // AL + BA da pessoa "a"; o da pessoa "outro" não conta
+  assert.equal(p.fora, 1); // o de BA
   assert.equal(p.p, 20);
   const c = calcularMeta(metaC, todos, faixa, now, "C");
   assert.equal(c.feito, 1);

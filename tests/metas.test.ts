@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { tipoOrgao, isComplete, REQUIRED_FIELDS } from "../src/lib/completude";
 import { isCampanhaAtiva } from "../src/lib/campanhas";
 import { sanitizeMetas } from "../src/lib/metas-input";
-import { metaFeito, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
+import { metaFeito, metaDetalhe, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
 
 const completo = () =>
   Object.fromEntries(REQUIRED_FIELDS.map((f) => [f, "x"])) as Record<(typeof REQUIRED_FIELDS)[number], string | null>;
@@ -65,21 +65,22 @@ test("sanitizeMetas: entrada inválida vira lista vazia; alvo é truncado e limi
   assert.equal(m.alvo, 1_000_000); // teto
 });
 
-test("metaFeito (preenchimento): conta por território + período, não por quem digitou", () => {
+test("metaFeito (preenchimento): conta tudo que a pessoa completou no período; o que está fora do território vai em `fora`", () => {
   const now = new Date("2026-06-25T12:00:00");
   const recente = now;
   const antigo = new Date(now.getTime() - 60 * 24 * 3600 * 1000); // fora da semana e do mês
 
   const meta: Meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 5 };
   const fills: Fill[] = [
-    { concluidoEm: recente, baseId: "b1", regiao: "Norte", estado: "AM" }, // conta
-    { concluidoEm: recente, baseId: "b1", regiao: "Norte", estado: "PA" }, // estado errado → não
-    { concluidoEm: recente, baseId: "b2", regiao: "Norte", estado: "AM" }, // base errada → não
-    { concluidoEm: antigo, baseId: "b1", regiao: "Norte", estado: "AM" }, // fora do período → não
+    { concluidoEm: recente, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" }, // na meta
+    { concluidoEm: recente, baseId: "b1", regiao: "Norte", estado: "PA", porId: "u1" }, // outro estado → conta, mas fora da meta
+    { concluidoEm: recente, baseId: "b2", regiao: "Norte", estado: "AM", porId: "u1" }, // outra base → conta, fora da meta
+    { concluidoEm: recente, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u2" }, // de outra pessoa → não
+    { concluidoEm: antigo, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" }, // fora do período → não
   ];
-  assert.equal(metaFeito(meta, now, fills, []), 1);
-  // mensal pega o que está dentro do mês (o "recente"); o "antigo" (60d) continua fora
-  assert.equal(metaFeito({ ...meta, prazo: "mensal" }, now, fills, []), 1);
+  assert.equal(metaFeito(meta, now, fills, []), 3);
+  assert.deepEqual(metaDetalhe(meta, now, fills, []), { feito: 3, naMeta: 1, fora: 2 });
+  assert.equal(metaFeito({ ...meta, prazo: "mensal" }, now, fills, []), 3);
 });
 
 test("metaFeito (correção): conta correções resolvidas pelo LDR na campanha, no período", () => {
@@ -97,14 +98,14 @@ test("metaFeito (correção): conta correções resolvidas pelo LDR na campanha,
   assert.equal(metaFeito(meta, now, [], corrs), 1);
 });
 
-test("território de uma pessoa só: conta tudo que ficou completo (não importa quem digitou)", () => {
+test("território de uma pessoa só: o que outra pessoa completou não entra na meta dela", () => {
   const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
   const now = new Date();
   const fills = [
     { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
     { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "outro" },
   ];
-  assert.equal(metaFeito(meta, now, fills, [], territoriosCompartilhados([meta])), 2);
+  assert.equal(metaFeito(meta, now, fills, []), 1);
 });
 
 test("mesmo estado para 2 pessoas: cada uma conta só o que ela completou", () => {
@@ -116,29 +117,27 @@ test("mesmo estado para 2 pessoas: cada uma conta só o que ela completou", () =
     { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
     { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u2" },
   ];
-  const comp = territoriosCompartilhados([m1, m2]);
-  assert.equal(comp.size, 1);
-  assert.equal(metaFeito(m1, now, fills, [], comp), 2);
-  assert.equal(metaFeito(m2, now, fills, [], comp), 1);
+  assert.equal(metaFeito(m1, now, fills, []), 2);
+  assert.equal(metaFeito(m2, now, fills, []), 1);
 });
 
 test("meta da planilha inteira (estado '*'): conta qualquer linha da base, mesmo sem estado/região", () => {
   const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "*", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
   const now = new Date();
   const fills = [
-    { concluidoEm: now, baseId: "b1", regiao: null, estado: null }, // planilha sem campos de território
-    { concluidoEm: now, baseId: "b1", regiao: "Sul", estado: "RS" },
-    { concluidoEm: now, baseId: "b2", regiao: "Norte", estado: "AM" }, // outra planilha → não
+    { concluidoEm: now, baseId: "b1", regiao: null, estado: null, porId: "u1" }, // planilha sem campos de território
+    { concluidoEm: now, baseId: "b1", regiao: "Sul", estado: "RS", porId: "u1" },
+    { concluidoEm: now, baseId: "b2", regiao: "Norte", estado: "AM", porId: "u1" }, // outra planilha → não
   ];
-  assert.equal(metaFeito(meta, now, fills, []), 2);
+  assert.deepEqual(metaDetalhe(meta, now, fills, []), { feito: 3, naMeta: 2, fora: 1 }); // a outra planilha conta, como "fora"
 });
 
 test("meta por estado continua exigindo região+estado (nada mudou para as metas antigas)", () => {
   const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Norte", estado: "AM", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
   const now = new Date();
   const fills = [
-    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM" },
-    { concluidoEm: now, baseId: "b1", regiao: null, estado: null },
+    { concluidoEm: now, baseId: "b1", regiao: "Norte", estado: "AM", porId: "u1" },
+    { concluidoEm: now, baseId: "b1", regiao: null, estado: null, porId: "u1" },
   ];
-  assert.equal(metaFeito(meta, now, fills, []), 1);
+  assert.deepEqual(metaDetalhe(meta, now, fills, []), { feito: 2, naMeta: 1, fora: 1 });
 });
