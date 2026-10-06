@@ -227,7 +227,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const funilMax = Math.max(1, contacts.length);
 
   // ---- Completude por base (7 fixos + TODAS as colunas personalizadas) ----
-  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key)]));
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).filter((c) => c.sistema !== "validacao").map((c) => c.key)]));
   const customByContact = new Map<string, Record<string, string>>();
   if ([...baseKeys.values()].some((ks) => ks.length)) {
     await ensureContactCustomTable();

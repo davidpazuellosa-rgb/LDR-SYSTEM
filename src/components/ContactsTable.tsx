@@ -216,6 +216,7 @@ export default function ContactsTable({
   initialHidden = [],
   initialDeleted = [],
   initialAbas = [],
+  initialValidar = false,
   initialPaginas = [],
   regiao = null,
   initialSavedAt = null,
@@ -239,6 +240,7 @@ export default function ContactsTable({
   initialHidden?: string[];
   initialDeleted?: string[];
   initialAbas?: string[];
+  initialValidar?: boolean;
   initialPaginas?: string[];
   regiao?: string | null;
   initialSavedAt?: string | null;
@@ -489,13 +491,56 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     if (!l) return;
     saveCols(customCols.map((c) => (c.key === key ? { ...c, label: l } : c)));
   }
+  // "Validar planilha" (admin): liga/desliga a validação. Ligar cria (ou adota) a coluna
+  // Validado; desligar só a oculta (valores e créditos ficam guardados).
+  async function alternarValidacao() {
+    if (alternandoValidar) return;
+    const ativar = !validar;
+    const ok = await dialog.confirm(
+      ativar
+        ? { title: "Validar esta planilha?", message: "Cria a coluna Validado (Sim / Não / –). Cada validação fica registrada em nome de quem a fez, para metas e ranking. Se já existir uma coluna \"Validado\" com Sim/Não, ela será aproveitada.", confirmLabel: "Ligar validação" }
+        : { title: "Desligar a validação desta planilha?", message: "A coluna Validado fica oculta e deixa de entrar nos relatórios. Nada é apagado: ao ligar de novo, tudo volta como estava.", confirmLabel: "Desligar", danger: true }
+    );
+    if (!ok) return;
+    setAlternandoValidar(true);
+    try {
+      const res = await fetch(apiPath(`/api/bases/${baseId}/validacao`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: ativar }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("Não foi possível alterar a validação.", data.error);
+        return;
+      }
+      setValidar(data.validar);
+      setCustomCols(data.cols);
+      setHiddenColumns(new Set<string>(data.hidden));
+      setDeletedColumns(new Set<string>(data.deleted));
+      broadcastLayoutRef.current({ customCols: data.cols, hidden: data.hidden, deleted: data.deleted, validar: data.validar });
+      toast.success(data.validar ? "Validação ligada." : "Validação desligada.", data.validar ? (data.adotada ? "A coluna \"Validado\" que já existia foi aproveitada." : "A coluna Validado foi adicionada.") : "A coluna Validado ficou oculta.");
+    } catch {
+      toast.error("Não foi possível alterar a validação.");
+    } finally {
+      setAlternandoValidar(false);
+    }
+  }
   async function deleteCustomCol(key: string) {
     const col = customCols.find((c) => c.key === key);
+    if (col?.sistema === "validacao") {
+      toast.error("Esta coluna é do sistema.", "Para tirar a validação, desligue \"Validar planilha\" na barra da planilha.");
+      return;
+    }
     if (!col || !(await dialog.confirm({ title: `Excluir a coluna "${col.label}"?`, message: "Os dados dela serão perdidos.", confirmLabel: "Excluir", danger: true }))) return;
     saveCols(customCols.filter((c) => c.key !== key));
   }
   // Valor de uma célula personalizada (qualquer usuário) — otimista + persiste.
   function saveCustomValue(contactId: string, key: string, valor: string) {
+    // Coluna Validado: "–" é o mesmo que vazio (nunca é gravado).
+    const ehValidacao = customCols.find((c) => c.key === key)?.sistema === "validacao";
+    if (ehValidacao && valor.trim() === "–") valor = "";
+    const anterior = customValues[contactId]?.[key] ?? "";
     setCustomValues((prev) => ({ ...prev, [contactId]: { ...(prev[contactId] || {}), [key]: valor } }));
     broadcastRef.current([{ id: contactId, key, value: valor, custom: true }]);
     markSaving();
@@ -504,12 +549,19 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ colKey: key, valor }),
     })
-      .then((r) => {
+      .then(async (r) => {
         if (r.ok) {
           markSaved();
           scheduleCompletionRefresh();
         } else {
           markSaveError();
+          if (ehValidacao) {
+            // O servidor recusou (ex.: linha vazia): volta ao valor anterior e explica.
+            const data = await r.json().catch(() => ({}));
+            toast.error("Não foi possível validar.", data.error);
+            setCustomValues((prev) => ({ ...prev, [contactId]: { ...(prev[contactId] || {}), [key]: anterior } }));
+            broadcastRef.current([{ id: contactId, key, value: anterior, custom: true }]);
+          }
         }
       })
       .catch(() => markSaveError());
@@ -617,6 +669,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     if (p.headerLabels) setHeaderLabels((prev) => ({ ...prev, ...p.headerLabels }));
     if (p.merges) setMerges(p.merges as MergeRegion[]);
     if (p.abas) setAbas(p.abas);
+    if (typeof p.validar === "boolean") setValidar(p.validar);
   }, []);
 
   const { peers, broadcast, broadcastReorder, broadcastRows, broadcastLayout } = useRealtimeSheet(
@@ -1016,6 +1069,9 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Páginas criadas à mão (guardadas em headers.__abas__) — existem mesmo sem
   // nenhuma linha ainda. A lista de abas é a UNIÃO delas com as UFs derivadas
   // dos contatos, então tudo que já existia continua aparecendo igual.
+  // Planilha validada (toggle do admin): tem a coluna Validado (Sim / Não / –).
+  const [validar, setValidar] = useState(initialValidar);
+  const [alternandoValidar, setAlternandoValidar] = useState(false);
   const [abas, setAbas] = useState<string[]>([...initialAbas, ...initialPaginas.map((n) => PREFIXO_PAGINA + n)]);
   const allUfs = useMemo(() => {
     const set = new Set<string>(abas);
@@ -1049,7 +1105,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Acompanha o filtro de telefone ativo, igual ao total acima; a aba "Todas"
   // não usa isso (continua só com o total).
   const estadosCompletos = useMemo(() => {
-    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
+    const customKeys = customCols.filter((c) => c.sistema !== "validacao").map((c) => c.key).filter((k) => !hiddenColumns.has(k));
     const counts = new Map<string, number>();
     for (const uf of allUfs) counts.set(uf, 0);
     for (const c of contacts) {
@@ -1065,7 +1121,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // (Todas ou uma UF específica), não a base inteira — antes era um número fixo
   // calculado só no servidor; agora acompanha a página selecionada.
   const headerCounts = useMemo(() => {
-    const customKeys = customCols.map((c) => c.key).filter((k) => !hiddenColumns.has(k));
+    const customKeys = customCols.filter((c) => c.sistema !== "validacao").map((c) => c.key).filter((k) => !hiddenColumns.has(k));
     let concluidos = 0;
     let comDado = 0;
     for (const c of contacts) {
@@ -2082,6 +2138,11 @@ function hideColumns(colIndices: number[]) {
 async function excluirColunas(colIndices: number[]) {
   const keys = colIndices.map((i) => unifiedKeys[i]).filter(Boolean) as string[];
   if (keys.length === 0) return;
+  if (keys.some((k) => customCols.find((c) => c.key === k)?.sistema === "validacao")) {
+    toast.error("A coluna Validado é do sistema.", "Para tirar a validação, desligue \"Validar planilha\" na barra da planilha.");
+    setMenu(null);
+    return;
+  }
   const nomes = colIndices
     .map((i) => {
       const item = unifiedCols[i];
@@ -3099,6 +3160,23 @@ async function saveCell(id: string, key: string, value: string) {
               <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
+          {canEditHeaders && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={validar}
+              onClick={alternarValidacao}
+              disabled={alternandoValidar}
+              onMouseEnter={(e) => showTip(e, validar ? "Validação ligada — clique para desligar" : "Validar esta planilha (cria a coluna Validado)")}
+              onMouseLeave={() => setTip(null)}
+              className="flex h-9 items-center gap-2 rounded-md bg-slate-200 px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-300 disabled:opacity-60"
+            >
+              <span className={`relative h-4 w-7 rounded-full transition-colors ${validar ? "bg-emerald-500" : "bg-slate-400"}`}>
+                <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${validar ? "left-3.5" : "left-0.5"}`} />
+              </span>
+              Validar
+            </button>
+          )}
           {canImport && (
             <button
               type="button"
@@ -3320,7 +3398,7 @@ async function saveCell(id: string, key: string, value: string) {
                       ) : (
                         <div
                           onClick={(e) => selectColumn(uidx, e.shiftKey)}
-                          onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
+                          onDoubleClick={() => canEditHeaders && customCols.find((c) => c.key === col.key)?.sistema !== "validacao" && setEditingHeaderKey(col.key)}
                           title={col.label}
                           className="block w-full cursor-pointer select-none truncate py-1 pl-1 pr-7 text-sm font-bold uppercase text-slate-600"
                         >
@@ -3375,7 +3453,7 @@ async function saveCell(id: string, key: string, value: string) {
                     ) : (
                       <div
                         onClick={(e) => selectColumn(uidx, e.shiftKey)}
-                        onDoubleClick={() => canEditHeaders && setEditingHeaderKey(col.key)}
+                        onDoubleClick={() => canEditHeaders && customCols.find((c) => c.key === col.key)?.sistema !== "validacao" && setEditingHeaderKey(col.key)}
                         title={label}
                         className="block w-full cursor-pointer select-none truncate py-1 pl-1 pr-7 text-sm font-bold uppercase text-slate-600"
                       >
@@ -3641,6 +3719,8 @@ async function saveCell(id: string, key: string, value: string) {
                                 <span title="Esta opção não existe mais na lista" className="inline-block rounded-full border border-dashed border-slate-300 px-2.5 py-0.5 text-xs text-slate-500">{value} · fora da lista</span>
                               );
                             })()
+                          ) : listaCol.sistema === "validacao" ? (
+                            <span className="text-slate-300">–</span>
                           ) : null}
                               </span>
                               <button
@@ -3994,7 +4074,7 @@ async function saveCell(id: string, key: string, value: string) {
                     if (idx !== undefined) hideColumns([idx]);
                   }}
                 />
-                {canEditHeaders && (
+                {canEditHeaders && customCols.find((c) => c.key === menu.colKey)?.sistema !== "validacao" && (
                   <MenuRow
                     icon={
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -4020,6 +4100,7 @@ async function saveCell(id: string, key: string, value: string) {
                     </svg>
                   }
                   label="Excluir coluna (permanente)"
+                  disabled={customCols.find((c) => c.key === menu.colKey)?.sistema === "validacao"}
                   onClick={() => {
                     deleteCustomCol(menu.colKey);
                     setMenu(null);

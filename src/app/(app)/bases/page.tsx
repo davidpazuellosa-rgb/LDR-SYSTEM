@@ -96,7 +96,7 @@ export default async function BasesPage({
   // Coluna oculta/excluída NÃO conta (mesma regra da planilha) — antes o card exigia as
   // 7 colunas padrão mesmo escondidas e ficava 0% enquanto a planilha mostrava 102/102.
   const ocultasDe = new Map(bases.map((b) => [b.id, new Set(parseHiddenCols(b.headers as Record<string, unknown> | null))]));
-  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).map((c) => c.key).filter((k) => !ocultasDe.get(b.id)!.has(k))]));
+  const baseKeys = new Map(bases.map((b) => [b.id, parseCustomCols(b.headers as Record<string, unknown> | null).filter((c) => c.sistema !== "validacao").map((c) => c.key).filter((k) => !ocultasDe.get(b.id)!.has(k))]));
   const customByContact = new Map<string, Record<string, string>>();
   if ([...baseKeys.values()].some((ks) => ks.length)) {
     await ensureContactCustomTable();

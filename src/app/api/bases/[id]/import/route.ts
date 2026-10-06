@@ -163,6 +163,9 @@ export async function POST(
         for (const col of headerToCol.values()) merged.set(col.key, col);
         return Array.from(merged.values()).slice(0, 30);
       })();
+  // A coluna Validado (do sistema) nunca some numa importação.
+  const colValidacao = existingCols.find((c) => c.sistema === "validacao");
+  if (colValidacao && !newColsForHeaders.some((c) => c.key === colValidacao.key)) newColsForHeaders.push(colValidacao);
 
   // @ts-expect-error id custom na sessão
   const userId: string | null = session.user.id ?? null;

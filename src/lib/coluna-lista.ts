@@ -17,7 +17,8 @@ export type CorLista = keyof typeof CORES_LISTA;
 export const CORES_ORDEM = Object.keys(CORES_LISTA) as CorLista[];
 
 export type OpcaoLista = { valor: string; cor: CorLista };
-export type ColunaExtra = { tipo?: "lista"; opcoes?: OpcaoLista[]; padrao?: string };
+// `sistema`: coluna gerenciada pelo sistema (ex.: "validacao") — o admin não apaga nem edita.
+export type ColunaExtra = { tipo?: "lista"; opcoes?: OpcaoLista[]; padrao?: string; sistema?: "validacao" };
 
 export const MAX_OPCOES = 20;
 export const MAX_TAM_OPCAO = 40;
@@ -49,6 +50,7 @@ export function sanitizarLista(raw: Record<string, unknown>): ColunaExtra {
   const padrao = String(raw.padrao ?? "").trim();
   return {
     tipo: "lista",
+    ...(raw.sistema === "validacao" ? { sistema: "validacao" as const } : {}),
     opcoes,
     // o padrão só vale se for uma das opções
     ...(padrao && opcoes.some((o) => o.valor === padrao) ? { padrao } : {}),

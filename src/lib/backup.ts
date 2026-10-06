@@ -20,7 +20,7 @@ const RETENTION_DIAS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
 // backup automático nenhum além deste.
 const TABELAS = [
   "User", "Base", "Contact", "Scan", "Correction",
-  "ContactFill", "Meta", "MetaSnapshot", "MetaVisto",
+  "ContactFill", "ContactValidacao", "Meta", "MetaSnapshot", "MetaVisto",
   "ContactCustomValue", "BaseEvento", "Suggestion", "UserProprietario",
 ];
 

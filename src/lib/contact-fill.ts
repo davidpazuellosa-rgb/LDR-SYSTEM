@@ -53,7 +53,7 @@ export async function atualizarConclusao(contactId: string, meId: string | null)
       // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela
       // (isCompleteVisivel). Antes o servidor exigia as 7 fixas e ninguém era creditado.
       const ocultas = new Set(parseHiddenCols(headers));
-      const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key));
+      const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key) && c.sistema !== "validacao");
 
       let customOk = true;
       if (cols.length) {
@@ -92,7 +92,7 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
     }),
   ]);
   const ocultas = new Set(parseHiddenCols(base?.headers as Record<string, unknown> | null));
-  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null).filter((c) => !ocultas.has(c.key));
+  const cols = parseCustomCols(base?.headers as Record<string, unknown> | null).filter((c) => !ocultas.has(c.key) && c.sistema !== "validacao");
 
   const valsByContact = new Map<string, Record<string, string>>();
   if (cols.length) {

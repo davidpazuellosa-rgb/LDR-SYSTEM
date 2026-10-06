@@ -148,6 +148,19 @@ model ContactFill {
   @@index([concluidoEm])
 }
 
+// Quem registrou a validação (Sim/Não) de cada contato e quando. Tabela à parte, criada
+// sob demanda (ensureContactValidacaoTable), pelo mesmo motivo do ContactFill. Um registro
+// por contato: quem registrou por último fica com o crédito; voltar para "–" apaga.
+model ContactValidacao {
+  contactId String   @id
+  valor     String // sim | nao
+  porId     String?
+  em        DateTime @default(now())
+
+  @@index([porId])
+  @@index([em])
+}
+
 // Cada LDR tem duas submetas independentes que somam a meta dele:
 //  - preenchimento: completar a linha da prefeitura (base + região + estado)
 //  - correcao: arrumar contatos errados de uma campanha do HubSpot

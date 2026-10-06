@@ -62,7 +62,7 @@ export function isRowVazia(
   }
   for (const [k, v] of Object.entries(customVals || {})) {
     if (k.startsWith("__")) continue; // chaves reservadas (ex.: __pagina__) não são dado
-    if (v && v.trim()) return false;
+    if (v && v.trim() && v.trim() !== "–") return false; // "–" (ainda não validado) não é dado
   }
   return true;
 }

@@ -30,6 +30,7 @@ export type LayoutPayload = {
   headerLabels?: Record<string, string>;
   merges?: unknown[];
   abas?: string[];
+  validar?: boolean;
   from: string;
 };
 type AnyEvent = "edit" | "reorder" | "rows" | "layout";

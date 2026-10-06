@@ -8,6 +8,7 @@ import { tipoOrgao } from "@/lib/completude";
 import PageHeader from "@/components/PageHeader";
 import ContactsTable from "@/components/ContactsTable";
 import { ensureContactCustomTable, parseCustomCols } from "@/lib/custom-columns";
+import { validacaoAtiva } from "@/lib/validacao";
 import { parseColOrder, parseHeaderLabels, parseHiddenCols, parseDeletedCols } from "@/lib/base-columns";
 import { ensureContactOrdemColuna, parseSortBy } from "@/lib/contact-ordem";
 import { parseAbas, parsePaginas } from "@/lib/base-abas";
@@ -92,6 +93,7 @@ export default async function BaseDetailPage({
   const initialDeleted = parseDeletedCols(rawHeaders);
   // Páginas (abas) guardadas: existem mesmo sem nenhuma linha na UF ainda.
   const initialAbas = parseAbas(rawHeaders);
+  const initialValidar = validacaoAtiva(rawHeaders);
   const initialPaginas = parsePaginas(rawHeaders);
   await ensureContactCustomTable();
   const customRows = rows.length
@@ -133,6 +135,7 @@ export default async function BaseDetailPage({
           initialHidden={initialHidden}
           initialDeleted={initialDeleted}
           initialAbas={initialAbas}
+          initialValidar={initialValidar}
           initialPaginas={initialPaginas}
           regiao={regiao ?? null}
           me={{
