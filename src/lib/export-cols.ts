@@ -4,6 +4,7 @@ export const EXPORT_COLS = {
   producao: ["Posição", "LDR", "Preenchidas", "Corrigidas", "Total"],
   metas: ["LDR", "Meta", "Tipo", "Alvo", "Feito", "Percentual", "Situação"],
   pessoas: ["Pessoa", "Meta no período", "Feito (meta)", "% da meta", "Preenchidas", "Corrigidas", "Total produzido", "Situação"],
+  ranking: ["Posição", "Pessoa", "Atividades", "Preenchidas", "Corrigidas", "Validadas", "Sim", "Não", "Taxa de acerto"],
   detalhe: ["Pessoa", "Dia", "Tipo", "Órgão", "Região", "Estado", "Campanha", "Quantidade"],
 } as const;
 
