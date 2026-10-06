@@ -4,7 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
-import { territorioConfere, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { territorioConfere, foraPorTerritorio, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { cached } from "@/lib/mini-cache";
@@ -212,6 +212,7 @@ export async function buildMinhasMetas(userId: string, opts: { marcarVistoAoAbri
     return {
       id: m.id, tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m, baseName),
       feito, alvo: m.alvo, p, esperado: Math.round(m.alvo * decorrido),
+      foraPor: m.tipo === "correcao" ? [] : foraPorTerritorio(m, fills, ini, new Date(now.getTime() + 1), (id) => baseName(id)),
       status: statusDe(feito, m.alvo, decorrido),
     };
   });

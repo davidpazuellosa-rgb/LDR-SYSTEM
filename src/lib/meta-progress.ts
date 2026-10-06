@@ -84,18 +84,40 @@ export function territoriosCompartilhados(metas: { userId: string; tipo: string;
 // Preenchimento conta TUDO que a própria pessoa completou no período (qualquer
 // planilha/região/estado) — o território da meta só separa o que está "na meta" do que
 // ficou "fora da meta". Correção continua sendo o que a pessoa resolveu na campanha.
-export function metaDetalhe(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[]): { feito: number; naMeta: number; fora: number } {
+export type ForaItem = { rotulo: string; n: number };
+
+// Onde ficou o que foi preenchido FORA do território da meta: "planilha · UF" com a
+// quantidade, do maior para o menor.
+export function foraPorTerritorio(
+  m: { userId: string; baseId: string | null; regiao: string | null; estado: string | null },
+  fills: Fill[],
+  start: Date,
+  end: Date | null,
+  nomeBase: (baseId: string) => string = (id) => id
+): ForaItem[] {
+  const por = new Map<string, number>();
+  for (const f of fills) {
+    if (f.porId !== m.userId || f.concluidoEm < start || (end && f.concluidoEm >= end) || territorioConfere(m, f)) continue;
+    const rotulo = `${nomeBase(f.baseId)} · ${ufSigla(f.estado) || "sem estado"}`;
+    por.set(rotulo, (por.get(rotulo) ?? 0) + 1);
+  }
+  return [...por].map(([rotulo, n]) => ({ rotulo, n })).sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo));
+}
+
+export function metaDetalhe(
+  m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], nomeBase?: (baseId: string) => string
+): { feito: number; naMeta: number; fora: number; foraPor: ForaItem[] } {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
     const n = corrections.filter(
       (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
     ).length;
-    return { feito: n, naMeta: n, fora: 0 };
+    return { feito: n, naMeta: n, fora: 0, foraPor: [] };
   }
   const minhas = fills.filter((f) => f.concluidoEm >= start && f.porId === m.userId);
   const naMeta = minhas.filter((f) => territorioConfere(m, f)).length;
-  return { feito: minhas.length, naMeta, fora: minhas.length - naMeta };
+  return { feito: minhas.length, naMeta, fora: minhas.length - naMeta, foraPor: foraPorTerritorio(m, fills, start, null, nomeBase) };
 }
 
 export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], _compartilhados?: Set<string>): number {

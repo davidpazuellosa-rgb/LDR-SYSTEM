@@ -5,6 +5,7 @@ import { apiPath } from "@/lib/path";
 import type { Producao } from "@/lib/producao";
 import HorariosView from "@/components/HorariosView";
 import DataTable from "@/components/DataTable";
+import ForaDaMeta from "@/components/ForaDaMeta";
 import ExportColunasButton from "@/components/ExportColunasButton";
 import { EXPORT_COLS } from "@/lib/export-cols";
 
@@ -223,7 +224,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                     <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
                       <span className="min-w-0 truncate font-medium text-slate-700">{l.nome}</span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="tabular-nums text-slate-400">{nf(l.feitoMeta)}/{nf(l.meta)} · {l.p}%{l.foraMeta > 0 ? ` · ${nf(l.foraMeta)} fora da meta` : ""}</span>
+                        <span className="tabular-nums text-slate-400">{nf(l.feitoMeta)}/{nf(l.meta)} · {l.p}%</span>
                         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.chip}`}>{st.label}</span>
                       </span>
                     </div>
@@ -231,6 +232,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                       <div className={`h-full rounded-full ${st.bar}`} style={{ width: `${Math.max(2, Math.min(100, l.p))}%` }} />
                       <span className="absolute top-0 h-full w-px bg-slate-500" style={{ left: `${esperadoPct}%` }} title={`Esperado: ${nf(esperado)}`} />
                     </div>
+                    <ForaDaMeta itens={l.foraPor} />
                   </button>
                 );
               })}
@@ -461,9 +463,10 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                         <div key={m.id}>
                           <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                             <span className="min-w-0 truncate text-slate-600">{m.rotulo}</span>
-                            <span className="flex shrink-0 items-center gap-1.5"><span className="tabular-nums text-slate-400">{m.feito}/{m.meta} · {m.p}%{m.fora > 0 ? ` · ${m.fora} fora da meta` : ""}</span><span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.chip}`}>{st.label}</span></span>
+                            <span className="flex shrink-0 items-center gap-1.5"><span className="tabular-nums text-slate-400">{m.feito}/{m.meta} · {m.p}%</span><span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${st.chip}`}>{st.label}</span></span>
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${st.bar}`} style={{ width: `${Math.max(2, Math.min(100, m.p))}%` }} /></div>
+                          <ForaDaMeta itens={m.foraPor} />
                         </div>
                       );
                     })}
