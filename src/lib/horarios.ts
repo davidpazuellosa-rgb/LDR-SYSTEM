@@ -18,7 +18,9 @@ export type Horarios = {
 
 const hh = (h: number) => `${String(h % 24).padStart(2, "0")}h`;
 
-export function calcularHorarios(quandos: Date[]): Horarios {
+// `tema`: troca o vocabulário das frases ("produção" → "validações") sem mudar o cálculo.
+export function calcularHorarios(quandos: Date[], tema: "producao" | "validacao" = "producao"): Horarios {
+  const val = tema === "validacao";
   const porHora = new Array(24).fill(0) as number[];
   const mapa: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
   const porDiaSemana = new Array(7).fill(0) as number[];
@@ -50,14 +52,14 @@ export function calcularHorarios(quandos: Date[]): Horarios {
   }
 
   const frases: string[] = [];
-  if (melhorJanela) frases.push(`Mais produtivo entre ${hh(melhorJanela.de)} e ${hh(melhorJanela.ate)} (${melhorJanela.pct}% do total).`);
+  if (melhorJanela) frases.push(val ? `Mais validações entre ${hh(melhorJanela.de)} e ${hh(melhorJanela.ate)} (${melhorJanela.pct}% do total).` : `Mais produtivo entre ${hh(melhorJanela.de)} e ${hh(melhorJanela.ate)} (${melhorJanela.pct}% do total).`);
   if (melhorDia) frases.push(`Melhor dia da semana: ${melhorDia.nome} (${melhorDia.qtd}).`);
   if (total > 0) {
     const t = Object.entries(turnos).sort((a, b) => b[1] - a[1])[0];
     const nome = { madrugada: "madrugada", manha: "manhã", tarde: "tarde", noite: "noite" }[t[0] as keyof typeof turnos];
-    frases.push(`Turno com mais produção: ${nome} (${Math.round((t[1] / total) * 100)}%).`);
+    frases.push(`Turno com mais ${val ? "validações" : "produção"}: ${nome} (${Math.round((t[1] / total) * 100)}%).`);
   } else {
-    frases.push("Sem produção no período para calcular horários.");
+    frases.push(val ? "Sem validações no período para calcular horários." : "Sem produção no período para calcular horários.");
   }
   return { total, porHora, mapa, porDiaSemana, turnos, melhorJanela, melhorDia, pico: Math.max(1, ...mapa.flat()), frases };
 }

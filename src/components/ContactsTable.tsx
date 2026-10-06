@@ -555,6 +555,10 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         if (r.ok) {
           markSaved();
           scheduleCompletionRefresh();
+          if (ehValidacao) {
+            const data = await r.json().catch(() => ({}));
+            if (data.anteriorPor) toast.success("Validação passou para o seu nome.", `Antes estava com ${data.anteriorPor}.`);
+          }
         } else {
           markSaveError();
           if (ehValidacao) {

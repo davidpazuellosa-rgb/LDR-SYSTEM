@@ -38,3 +38,12 @@ test("sem produção: não quebra e avisa", () => {
   assert.equal(h.pico, 1);
   assert.match(h.frases[0], /Sem produção/);
 });
+
+test("tema validação: as frases falam de validações, não de produção", () => {
+  const h = calcularHorarios([new Date("2026-09-29T17:00:00Z")], "validacao");
+  assert.ok(h.frases.some((f) => f.startsWith("Mais validações entre")));
+  assert.ok(h.frases.some((f) => f.includes("Turno com mais validações")));
+  assert.match(calcularHorarios([], "validacao").frases[0], /Sem validações/);
+  // sem o tema, nada muda
+  assert.ok(calcularHorarios([new Date("2026-09-29T17:00:00Z")]).frases[0].startsWith("Mais produtivo"));
+});

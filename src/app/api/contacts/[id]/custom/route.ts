@@ -49,6 +49,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
     await Promise.all([ensureContactCustomTable(), ensureContactValidacaoTable()]);
+    // Se a validação já era de OUTRA pessoa, o crédito passa para quem registrou agora: avisa.
+    const anterior = await prisma.contactValidacao.findUnique({ where: { contactId: id }, select: { porId: true } });
+    let anteriorPor: string | null = null;
+    if (anterior?.porId && anterior.porId !== meId) {
+      const u = await prisma.user.findUnique({ where: { id: anterior.porId }, select: { name: true, email: true } });
+      anteriorPor = u?.name || u?.email || null;
+    }
     const gravado = valorGravado(v);
     await prisma.$transaction([
       prisma.contactCustomValue.upsert({
@@ -64,7 +71,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           })
         : prisma.contactValidacao.deleteMany({ where: { contactId: id } }),
     ]);
-    return NextResponse.json({ ok: true, valor: gravado ?? "" });
+    return NextResponse.json({ ok: true, valor: gravado ?? "", ...(v && anteriorPor ? { anteriorPor } : {}) });
   }
 
   await ensureContactCustomTable();

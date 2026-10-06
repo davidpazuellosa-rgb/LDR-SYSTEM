@@ -52,8 +52,8 @@ export async function buildRankings(sp: ParamsRanking, viewer: { id: string; adm
     orgaos: d.opcoes.orgaos as string[],
     linhas,
     equipe: { ...equipe, taxa: equipe.sim + equipe.nao > 0 ? Math.round((equipe.sim / (equipe.sim + equipe.nao)) * 100) : null },
-    horariosEquipe: calcularHorarios(quandos()),
-    horariosMeus: calcularHorarios(quandos(viewer.id)),
+    horariosEquipe: calcularHorarios(quandos(), "validacao"),
+    horariosMeus: calcularHorarios(quandos(viewer.id), "validacao"),
   };
 }
 export type Rankings = Awaited<ReturnType<typeof buildRankings>>;
