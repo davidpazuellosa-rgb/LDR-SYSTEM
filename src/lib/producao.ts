@@ -67,7 +67,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
 
   const ids = Array.from(new Set(fillRows.map((f) => f.contactId)));
   const contatos = ids.length
-    ? await prisma.contact.findMany({ where: { id: { in: ids } }, select: { id: true, baseId: true, regiao: true, estado: true, campanha: true } })
+    ? await prisma.contact.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true, campanha: true } })
     : [];
   const porId = new Map(contatos.map((c) => [c.id, c]));
 

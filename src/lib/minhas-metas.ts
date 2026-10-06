@@ -102,7 +102,7 @@ async function carregar(userId: string, desde: Date) {
   ]);
   const ids = Array.from(new Set(fillRows.map((f) => f.contactId)));
   const contacts = ids.length
-    ? await prisma.contact.findMany({ where: { id: { in: ids } }, select: { id: true, baseId: true, regiao: true, estado: true } })
+    ? await prisma.contact.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } })
     : [];
   const terr = new Map(contacts.map((c) => [c.id, c]));
   const fills: Fill[] = [];
@@ -167,7 +167,7 @@ export async function snapshotMetas(now = new Date()) {
   ]);
   const ids = Array.from(new Set(fillRows.map((f) => f.contactId)));
   const contacts = ids.length
-    ? await prisma.contact.findMany({ where: { id: { in: ids } }, select: { id: true, baseId: true, regiao: true, estado: true } })
+    ? await prisma.contact.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } })
     : [];
   const terr = new Map(contacts.map((c) => [c.id, c]));
   const fills: Fill[] = [];

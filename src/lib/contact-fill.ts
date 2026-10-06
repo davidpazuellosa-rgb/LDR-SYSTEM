@@ -33,39 +33,48 @@ export async function ensureContactFillTable() {
 // ContactFill (quem completou/quando) de acordo. Chamado ao salvar campo fixo ou
 // valor de coluna personalizada.
 export async function atualizarConclusao(contactId: string, meId: string | null) {
-  // Busca o contato, os valores personalizados (independem um do outro — os dois
-  // só precisam do contactId, que já temos) e garante a tabela, tudo em paralelo.
-  const [contact, vals] = await Promise.all([
-    prisma.contact.findUnique({ where: { id: contactId }, select: { baseId: true, ...REQUIRED_SELECT } }),
-    prisma.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } }),
-    ensureContactFillTable(),
-  ]);
-  if (!contact) return;
+  await ensureContactFillTable();
+  // Uma colagem dispara vários salvamentos da MESMA linha ao mesmo tempo (campos fixos +
+  // uma requisição por coluna personalizada). Sem serializar, um recálculo que leu o
+  // estado antigo ("incompleta") apagava o crédito que outro acabara de dar. O lock por
+  // contato faz cada recálculo ler o estado já gravado pelos anteriores.
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contactId}))`;
 
-  const base = await prisma.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
-  const headers = base?.headers as Record<string, unknown> | null;
-  // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela
-  // (isCompleteVisivel). Antes o servidor exigia as 7 fixas e ninguém era creditado.
-  const ocultas = new Set(parseHiddenCols(headers));
-  const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key));
+      const [contact, vals] = await Promise.all([
+        tx.contact.findUnique({ where: { id: contactId }, select: { baseId: true, ...REQUIRED_SELECT } }),
+        tx.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } }),
+      ]);
+      if (!contact) return;
 
-  let customOk = true;
-  if (cols.length) {
-    const map = new Map(vals.map((v) => [v.colKey, v.valor]));
-    customOk = cols.every((c) => !!(map.get(c.key) || "").trim());
-  }
+      const base = await tx.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
+      const headers = base?.headers as Record<string, unknown> | null;
+      // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela
+      // (isCompleteVisivel). Antes o servidor exigia as 7 fixas e ninguém era creditado.
+      const ocultas = new Set(parseHiddenCols(headers));
+      const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key));
 
-  const completo = isCompleteVisivel(contact as Parameters<typeof isComplete>[0], ocultas) && customOk;
+      let customOk = true;
+      if (cols.length) {
+        const map = new Map(vals.map((v) => [v.colKey, v.valor]));
+        customOk = cols.every((c) => !!(map.get(c.key) || "").trim());
+      }
 
-  if (completo && meId) {
-    await prisma.contactFill.upsert({
-      where: { contactId },
-      create: { contactId, preenchidoPorId: meId, concluidoEm: new Date() },
-      update: {},
-    });
-  } else if (!completo) {
-    await prisma.contactFill.deleteMany({ where: { contactId } });
-  }
+      const completo = isCompleteVisivel(contact as Parameters<typeof isComplete>[0], ocultas) && customOk;
+
+      if (completo && meId) {
+        await tx.contactFill.upsert({
+          where: { contactId },
+          create: { contactId, preenchidoPorId: meId, concluidoEm: new Date() },
+          update: {},
+        });
+      } else if (!completo) {
+        await tx.contactFill.deleteMany({ where: { contactId } });
+      }
+    },
+    { timeout: 10000 }
+  );
 }
 
 // Reprocessa a conclusão de TODOS os contatos de uma base — usado quando o admin
