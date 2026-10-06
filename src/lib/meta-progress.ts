@@ -104,9 +104,14 @@ export function foraPorTerritorio(
   return [...por].map(([rotulo, n]) => ({ rotulo, n })).sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo));
 }
 
+// Registro de validação (Sim/Não) de um contato, já com o território dele. `concluidoEm` é o
+// momento do registro (mesmo nome do Fill, para reaproveitar as regras de território).
+export type ValidacaoReg = Fill & { valor: "sim" | "nao" };
+
 export function metaDetalhe(
-  m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], nomeBase?: (baseId: string) => string
-): { feito: number; naMeta: number; fora: number; foraPor: ForaItem[] } {
+  m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], nomeBase?: (baseId: string) => string,
+  validacoes: ValidacaoReg[] = [], soSim = false
+): { feito: number; naMeta: number; fora: number; foraPor: ForaItem[]; sim?: number; nao?: number } {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
@@ -115,11 +120,19 @@ export function metaDetalhe(
     ).length;
     return { feito: n, naMeta: n, fora: 0, foraPor: [] };
   }
+  if (m.tipo === "validacao") {
+    // Validação: tudo que a PESSOA registrou (Sim + Não; "só Sim" é um filtro de leitura).
+    const todas = validacoes.filter((v) => v.concluidoEm >= start && v.porId === m.userId);
+    const sim = todas.filter((v) => v.valor === "sim").length;
+    const contadas = soSim ? todas.filter((v) => v.valor === "sim") : todas;
+    const naMeta = contadas.filter((v) => territorioConfere(m, v)).length;
+    return { feito: contadas.length, naMeta, fora: contadas.length - naMeta, foraPor: foraPorTerritorio(m, contadas, start, null, nomeBase), sim, nao: todas.length - sim };
+  }
   const minhas = fills.filter((f) => f.concluidoEm >= start && f.porId === m.userId);
   const naMeta = minhas.filter((f) => territorioConfere(m, f)).length;
   return { feito: minhas.length, naMeta, fora: minhas.length - naMeta, foraPor: foraPorTerritorio(m, fills, start, null, nomeBase) };
 }
 
-export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], _compartilhados?: Set<string>): number {
-  return metaDetalhe(m, now, fills, corrections).feito;
+export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], _compartilhados?: Set<string>, validacoes: ValidacaoReg[] = []): number {
+  return metaDetalhe(m, now, fills, corrections, undefined, validacoes).feito;
 }

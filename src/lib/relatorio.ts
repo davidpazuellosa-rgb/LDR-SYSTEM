@@ -6,8 +6,10 @@ import { parseHiddenCols } from "@/lib/base-columns";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { ufSigla } from "@/lib/uf";
 import { OPERATOR_ROLES } from "@/lib/permissions";
+import { carregarValidacoes } from "@/lib/validacoes-carga";
 import {
   metaFeito,
+  metaDetalhe,
   foraPorTerritorio,
   rotuloEstado,
   territoriosCompartilhados,
@@ -64,7 +66,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const s14 = startOfDay(now);
   s14.setDate(s14.getDate() - 13);
 
-  const [ldrs, metasAll, contactsAll, fillRowsAll, corrRowsAll, pendRows, bases] = await Promise.all([
+  const [ldrs, metasAll, contactsAll, fillRowsAll, corrRowsAll, pendRows, bases, validacoes] = await Promise.all([
     prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.meta.findMany() as Promise<Meta[]>,
     prisma.contact.findMany({
@@ -82,6 +84,7 @@ export async function buildRelatorio(f: RelatorioFiltros) {
     }),
     prisma.correction.findMany({ where: { status: "pending" }, select: { createdAt: true } }),
     prisma.base.findMany({ select: { id: true, name: true, headers: true } }),
+    carregarValidacoes(new Date(Math.min(start.getTime(), startOfWeek(now).getTime(), startOfMonth(now).getTime(), startOfDay(now).getTime()))),
   ]);
 
   // Lista de campanhas (para o filtro) — distintas e não vazias.
@@ -192,12 +195,13 @@ export async function buildRelatorio(f: RelatorioFiltros) {
   const rotuloMeta = (m: Meta) =>
     m.tipo === "correcao"
       ? `Campanha: ${m.campanha || "—"}`
-      : `${tipoOrgao(baseName.get(m.baseId || "") || "")} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
+      : `${m.tipo === "validacao" ? "Validação · " : ""}${tipoOrgao(baseName.get(m.baseId || "") || "")} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
 
   const metasView = metasFiltradas
     .map((m) => {
-      const feito = metaFeito(m, now, fillsTerr, corrections, compartilhados);
-      const foraPor = m.tipo === "correcao" ? [] : foraPorTerritorio(m, fillsTerr, periodStart(m.prazo, now), null, (id) => baseName.get(id) || id);
+      const det = metaDetalhe(m, now, fillsTerr, corrections, (id) => baseName.get(id) || id, validacoes);
+      const feito = det.feito;
+      const foraPor = det.foraPor;
       const p = pct(feito, m.alvo);
       const ini = periodStart(m.prazo, now);
       const fim = periodEnd(m.prazo, now);

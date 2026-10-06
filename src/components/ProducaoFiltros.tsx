@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
-type Filtros = { orgao: string | null; regioes: string[]; estados: string[]; pessoas: string[]; campanhas: string[]; tipo: string };
+type Filtros = { orgao: string | null; regioes: string[]; estados: string[]; pessoas: string[]; campanhas: string[]; tipo: string; soSim?: boolean };
 
 export default function ProducaoFiltros({
   preset,
@@ -41,6 +41,7 @@ export default function ProducaoFiltros({
     if (n.pessoas.length) p.set("pessoas", n.pessoas.join(","));
     if (n.campanhas.length) p.set("campanhas", n.campanhas.join(","));
     if (n.tipo !== "tudo") p.set("tipo", n.tipo);
+    if (n.soSim) p.set("valor", "sim");
     const qs = p.toString();
     router.push(qs ? `/relatorios/producao?${qs}` : "/relatorios/producao");
   }
@@ -62,6 +63,8 @@ export default function ProducaoFiltros({
   filtros.pessoas.forEach((id) => chips.push({ rotulo: opcoes.pessoas.find((p) => p.id === id)?.nome || id, remover: () => ir({ pessoas: filtros.pessoas.filter((x) => x !== id) }) }));
   filtros.campanhas.forEach((c) => chips.push({ rotulo: c, remover: () => ir({ campanhas: filtros.campanhas.filter((x) => x !== c) }) }));
   if (filtros.tipo !== "tudo") chips.push({ rotulo: filtros.tipo === "correcao" ? "Só correção" : "Só preenchimento", remover: () => ir({ tipo: "tudo" }) });
+
+  if (filtros.soSim) chips.push({ rotulo: "Validação: só Sim", remover: () => ir({ soSim: false }) });
 
   const dateCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400";
 
@@ -94,6 +97,14 @@ export default function ProducaoFiltros({
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
           {([["tudo", "Tudo"], ["preenchimento", "Preenchimento"], ["correcao", "Correção"]] as const).map(([v, t]) => (
             <button key={v} type="button" onClick={() => ir({ tipo: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${filtros.tipo === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5" title="Como contar as metas de validação">
+          <span className="px-2 text-xs text-slate-400">Validação</span>
+          {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
+            <button key={t} type="button" onClick={() => ir({ soSim: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${!!filtros.soSim === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
               {t}
             </button>
           ))}

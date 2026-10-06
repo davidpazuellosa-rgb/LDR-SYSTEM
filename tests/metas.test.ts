@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { tipoOrgao, isComplete, REQUIRED_FIELDS } from "../src/lib/completude";
 import { isCampanhaAtiva } from "../src/lib/campanhas";
 import { sanitizeMetas } from "../src/lib/metas-input";
-import { metaFeito, metaDetalhe, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
+import { metaFeito, metaDetalhe, ESTADO_TODOS, territoriosCompartilhados, type Meta, type Fill, type CorrDone } from "../src/lib/meta-progress";
 
 const completo = () =>
   Object.fromEntries(REQUIRED_FIELDS.map((f) => [f, "x"])) as Record<(typeof REQUIRED_FIELDS)[number], string | null>;
@@ -151,4 +151,22 @@ test("meta por estado continua exigindo região+estado (nada mudou para as metas
   ];
   const { feito, naMeta, fora } = metaDetalhe(meta, now, fills, []);
   assert.deepEqual({ feito, naMeta, fora }, { feito: 2, naMeta: 1, fora: 1 });
+});
+
+test("meta de validação: conta Sim+Não da própria pessoa; 'só Sim' é filtro; fora da planilha vira 'fora da meta'", () => {
+  const now = new Date();
+  const meta = { id: "m", userId: "u1", tipo: "validacao", baseId: "b1", regiao: "Nordeste", estado: ESTADO_TODOS, campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const v = (baseId: string, valor: "sim" | "nao", porId = "u1") => ({ concluidoEm: now, baseId, regiao: null, estado: null, porId, valor });
+  const vals = [v("b1", "sim"), v("b1", "sim"), v("b1", "nao"), v("b2", "sim"), v("b1", "sim", "u2")];
+  const d = metaDetalhe(meta, now, [], [], (id) => `Base ${id}`, vals);
+  assert.equal(d.feito, 4); // 3 em b1 + 1 em b2, só do u1
+  assert.equal(d.naMeta, 3);
+  assert.equal(d.fora, 1);
+  assert.equal(d.sim, 3);
+  assert.equal(d.nao, 1);
+  assert.deepEqual(d.foraPor, [{ rotulo: "Base b2 · sem estado", n: 1 }]);
+  const so = metaDetalhe(meta, now, [], [], undefined, vals, true);
+  assert.equal(so.feito, 3); // só Sim
+  // validações de outra pessoa nunca entram; sem registros = 0
+  assert.equal(metaDetalhe({ ...meta, userId: "u9" }, now, [], [], undefined, vals).feito, 0);
 });

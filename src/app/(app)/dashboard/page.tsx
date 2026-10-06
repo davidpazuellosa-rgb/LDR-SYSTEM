@@ -5,7 +5,8 @@ import { ufSigla } from "@/lib/uf";
 import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
-import { metaDetalhe, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
+import { carregarValidacoes } from "@/lib/validacoes-carga";
+import { metaDetalhe, type ValidacaoReg, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import ForaDaMeta from "@/components/ForaDaMeta";
 import PageHeader from "@/components/PageHeader";
 
@@ -21,9 +22,10 @@ function fmtDateTime(value: Date | null) {
 }
 const prazoLabel = (prazo: string) => (prazo === "mensal" ? "este mês" : prazo === "diaria" ? "hoje" : "esta semana");
 
-async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[]; compartilhados: Set<string> }> {
+async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[]; compartilhados: Set<string>; validacoes: ValidacaoReg[] }> {
   await ensureContactFillTable();
-  const [contacts, fillRows, corrections, todasMetas] = await Promise.all([
+  const agora = new Date();
+  const [contacts, fillRows, corrections, todasMetas, validacoes] = await Promise.all([
     prisma.contact.findMany({ where: { deletedAt: null }, select: { id: true, baseId: true, regiao: true, estado: true } }),
     prisma.contactFill.findMany({ select: { contactId: true, preenchidoPorId: true, concluidoEm: true } }),
     prisma.correction
@@ -33,6 +35,7 @@ async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[];
       })
       .then((rows) => rows.map((r) => ({ resolvedById: r.resolvedById, resolvedAt: r.resolvedAt, campanha: r.contact.campanha }))),
     prisma.meta.findMany({ select: { userId: true, tipo: true, baseId: true, regiao: true, estado: true } }),
+    carregarValidacoes(new Date(Math.min(startOfWeek(agora).getTime(), startOfMonth(agora).getTime()))),
   ]);
   // Junta cada conclusão ao território (base/região/estado) do seu contato.
   const terr = new Map(contacts.map((c) => [c.id, c]));
@@ -42,7 +45,7 @@ async function loadProgress(): Promise<{ fills: Fill[]; corrections: CorrDone[];
     if (c) fills.push({ concluidoEm: f.concluidoEm, baseId: c.baseId, regiao: c.regiao, estado: c.estado, porId: f.preenchidoPorId });
   }
   // Estado com mais de uma pessoa: cada uma conta só o que ela mesma completou.
-  return { fills, corrections, compartilhados: territoriosCompartilhados(todasMetas) };
+  return { fills, corrections, compartilhados: territoriosCompartilhados(todasMetas), validacoes };
 }
 
 function StatCard({ label, value, hint, color }: { label: string; value: number | string; hint: string; color: string }) {
@@ -75,6 +78,20 @@ function MetaBar({ label, sub, feito, alvo, foraPor }: { label: string; sub: str
       </div>
       <ForaDaMeta itens={foraPor} />
     </div>
+  );
+}
+
+// Barra de uma meta de validação: conta Sim + Não da própria pessoa; o detalhe mostra os Sim.
+function BarraValidacao({ m, now, progress, baseName }: { m: Meta; now: Date; progress: { fills: Fill[]; corrections: CorrDone[]; validacoes: ValidacaoReg[] }; baseName: (id: string | null) => string }) {
+  const d = metaDetalhe(m, now, progress.fills, progress.corrections, (id) => baseName(id), progress.validacoes);
+  return (
+    <MetaBar
+      label={`${tipoOrgao(baseName(m.baseId))} · ${m.regiao} · ${rotuloEstado(m.estado)}`}
+      sub={`validados ${prazoLabel(m.prazo)} · ${d.sim ?? 0} Sim · ${d.nao ?? 0} Não`}
+      feito={d.feito}
+      foraPor={d.foraPor}
+      alvo={m.alvo}
+    />
   );
 }
 
@@ -112,8 +129,9 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
   ]);
 
   const baseName = (id: string | null) => bases.find((b) => b.id === id)?.name || "Base";
-  const fillMetas = metas.filter((m) => m.tipo !== "correcao");
+  const fillMetas = metas.filter((m) => m.tipo !== "correcao" && m.tipo !== "validacao");
   const corrMetas = metas.filter((m) => m.tipo === "correcao");
+  const valMetas = metas.filter((m) => m.tipo === "validacao");
 
   const days: { key: string; label: string; count: number }[] = [];
   for (let i = 13; i >= 0; i--) {
@@ -173,6 +191,17 @@ async function LdrMain({ meId, meName }: { meId: string; meName: string }) {
           )}
         </div>
       </section>
+
+      {valMetas.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 font-semibold text-slate-800">Minhas metas de validação</h2>
+          <div className="space-y-4">
+            {valMetas.map((m) => (
+              <BarraValidacao key={m.id} m={m} now={now} progress={progress} baseName={baseName} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="mb-5 font-semibold text-slate-800">Sua produção · últimos 14 dias</h2>
@@ -260,8 +289,9 @@ async function AdminMain() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {ldrs.map((u) => {
               const mine = metasByUser.get(u.id) || [];
-              const fill = mine.filter((m) => m.tipo !== "correcao");
+              const fill = mine.filter((m) => m.tipo !== "correcao" && m.tipo !== "validacao");
               const corr = mine.filter((m) => m.tipo === "correcao");
+              const val = mine.filter((m) => m.tipo === "validacao");
               return (
                 <div key={u.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="mb-4 flex items-center justify-between gap-3">
@@ -285,6 +315,14 @@ async function AdminMain() {
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Correção</p>
                           {corr.map((m) => (
                             <MetaBar key={m.id} label={m.campanha || "Campanha"} sub={`corrigidos ${prazoLabel(m.prazo)}`} feito={metaDetalhe(m, now, progress.fills, progress.corrections).feito} foraPor={metaDetalhe(m, now, progress.fills, progress.corrections, (id) => baseName(id)).foraPor} alvo={m.alvo} />
+                          ))}
+                        </div>
+                      )}
+                      {val.length > 0 && (
+                        <div className="space-y-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Validação</p>
+                          {val.map((m) => (
+                            <BarraValidacao key={m.id} m={m} now={now} progress={progress} baseName={baseName} />
                           ))}
                         </div>
                       )}

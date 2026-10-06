@@ -19,7 +19,7 @@ export function sanitizeMetas(rawRows: unknown, userId: string): MetaInput[] {
   const clean = rows
     .map((r) => (r ?? {}) as Record<string, unknown>)
     .map((r): MetaInput => {
-      const tipo = r.tipo === "correcao" ? "correcao" : "preenchimento";
+      const tipo = r.tipo === "correcao" ? "correcao" : r.tipo === "validacao" ? "validacao" : "preenchimento";
       const prazo = r.prazo === "mensal" ? "mensal" : r.prazo === "diaria" ? "diaria" : "semanal";
       const alvo = Math.max(0, Math.min(1_000_000, Math.trunc(Number(r.alvo) || 0)));
       if (tipo === "correcao") {
@@ -30,6 +30,6 @@ export function sanitizeMetas(rawRows: unknown, userId: string): MetaInput[] {
     .filter((r) => (r.tipo === "correcao" ? !!r.campanha : !!(r.baseId && r.regiao && r.estado)))
     .slice(0, 500);
 
-  const keyOf = (r: MetaInput) => (r.tipo === "correcao" ? `c|${r.campanha}` : `p|${r.baseId}|${r.regiao}|${r.estado}`);
+  const keyOf = (r: MetaInput) => (r.tipo === "correcao" ? `c|${r.campanha}` : `${r.tipo === "validacao" ? "v" : "p"}|${r.baseId}|${r.regiao}|${r.estado}`);
   return [...new Map(clean.map((r) => [keyOf(r), r] as const)).values()];
 }

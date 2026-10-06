@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   faixaDoPeriodo, faixaAnterior, diasDaFaixa, metaNormalizada, filtrarEventos, filtrarMetas,
-  calcularMeta, serie, linhasPorPessoa, contarTotal, variacao, type Evento, type MetaIn, type Filtros,
+  calcularMeta, serie, linhasPorPessoa, contarTotal, variacao, type Evento, type EventoVal, type MetaIn, type Filtros,
 } from "../src/lib/producao-calc";
 
 const F0: Filtros = { orgao: null, regioes: [], estados: [], pessoas: [], campanhas: [], tipo: "tudo" };
@@ -118,4 +118,20 @@ test("variação percentual", () => {
   assert.equal(variacao(5, 10), -50);
   assert.equal(variacao(3, 0), null);
   assert.equal(variacao(0, 0), 0);
+});
+
+test("meta de validação (Produção por pessoa): conta Sim+Não da pessoa; só Sim filtra; fora = outra planilha", () => {
+  const faixa = faixaDoPeriodo("7d", now);
+  const meta: MetaIn = { id: "mv", userId: "a", tipo: "validacao", baseId: "b1", regiao: "Nordeste", estado: "*", campanha: null, prazo: "semanal", alvo: 10, orgao: "Prefeitura" };
+  const v = (o: Partial<EventoVal>): EventoVal => ({ pessoaId: "a", quando: new Date("2026-09-25T12:00:00Z"), baseId: "b1", orgao: "Prefeitura", regiao: "Nordeste", estado: "AL", valor: "sim", ...o });
+  const vals = [v({}), v({ valor: "nao" }), v({ baseId: "b2" }), v({ pessoaId: "outro" })];
+  const c = calcularMeta(meta, [], faixa, now, "V", undefined, vals);
+  assert.equal(c.feito, 3);
+  assert.equal(c.sim, 2);
+  assert.equal(c.nao, 1);
+  assert.equal(c.fora, 1);
+  assert.equal(calcularMeta(meta, [], faixa, now, "V", undefined, vals, true).feito, 2);
+  // filtro "só preenchimento" não mostra meta de validação
+  assert.equal(filtrarMetas([meta], { ...F0, tipo: "preenchimento" }).length, 0);
+  assert.equal(filtrarMetas([meta], F0).length, 1);
 });

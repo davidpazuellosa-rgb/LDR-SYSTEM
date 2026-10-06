@@ -8,10 +8,11 @@ import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { territoriosCompartilhados, rotuloEstado } from "@/lib/meta-progress";
 import { calcularHorarios } from "@/lib/horarios";
+import { carregarValidacoes } from "@/lib/validacoes-carga";
 import {
   calcularMeta, contarPor, contarTotal, faixaAnterior, faixaDoPeriodo, filtrarEventos, filtrarMetas,
   linhasPorPessoa, parsePreset, serie, variacao,
-  type Evento, type Filtros, type MetaIn, type Preset,
+  type Evento, type EventoVal, type Filtros, type MetaIn, type Preset,
 } from "@/lib/producao-calc";
 
 export type ParamsProducao = {
@@ -24,6 +25,7 @@ export type ParamsProducao = {
   pessoas?: string;
   campanhas?: string;
   tipo?: string;
+  valor?: string; // "sim" = validação conta só os Sim
 };
 
 const lista = (v?: string | null) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
@@ -37,6 +39,7 @@ export function parseFiltros(sp: ParamsProducao) {
     pessoas: lista(sp.pessoas),
     campanhas: lista(sp.campanhas),
     tipo: sp.tipo === "preenchimento" || sp.tipo === "correcao" ? sp.tipo : "tudo",
+    soSim: sp.valor === "sim",
   };
   return { preset, de: sp.de || null, ate: sp.ate || null, filtros };
 }
@@ -51,7 +54,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
   await ensureMetaTable();
   await ensureContactFillTable();
 
-  const [pessoasDb, metasDb, bases, fillRows, corrRows] = await Promise.all([
+  const [pessoasDb, metasDb, bases, fillRows, corrRows, validacoesReg] = await Promise.all([
     prisma.user.findMany({ where: { role: { in: OPERATOR_ROLES } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
     prisma.meta.findMany(),
     prisma.base.findMany({ select: { id: true, name: true } }),
@@ -60,6 +63,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       where: { status: "resolved", resolvedAt: { gte: desde, lt: faixa.ate }, resolvedById: { not: null } },
       select: { resolvedById: true, resolvedAt: true, contact: { select: { baseId: true, regiao: true, estado: true, campanha: true } } },
     }),
+    carregarValidacoes(desde, faixa.ate),
   ]);
 
   const orgaoDaBase = new Map(bases.map((b) => [b.id, tipoOrgao(b.name)]));
@@ -108,9 +112,15 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
     campanha: m.campanha, prazo: m.prazo, alvo: m.alvo, orgao: m.tipo === "correcao" ? "" : orgaoDaBase.get(m.baseId || "") || "Órgão",
   }));
   const rotulo = (m: MetaIn) =>
-    m.tipo === "correcao" ? `Campanha: ${m.campanha || "—"}` : `${m.orgao} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
+    m.tipo === "correcao" ? `Campanha: ${m.campanha || "—"}` : `${m.tipo === "validacao" ? "Validação · " : ""}${m.orgao} · ${m.regiao || "—"} · ${rotuloEstado(m.estado)}`;
   const compartilhados = territoriosCompartilhados(metas);
-  const metasCalc = filtrarMetas(metas, filtros).map((m) => calcularMeta(m, todos, faixa, now, rotulo(m), compartilhados));
+  // Validações (Sim/Não) por pessoa — alimentam só as metas de validação.
+  const validacoes: EventoVal[] = validacoesReg.map((v) => ({
+    pessoaId: v.porId || "", quando: v.concluidoEm, baseId: v.baseId,
+    orgao: orgaoDaBase.get(v.baseId) || "Órgão", regiao: regiaoEfetiva(v.regiao, nomeBase.get(v.baseId) ?? ""),
+    estado: ufSigla(v.estado) || null, valor: v.valor,
+  }));
+  const metasCalc = filtrarMetas(metas, filtros).map((m) => calcularMeta(m, todos, faixa, now, rotulo(m), compartilhados, validacoes, !!filtros.soSim));
 
   const atuais = filtrarEventos(todos, filtros, faixa);
   const previos = filtrarEventos(todos, filtros, anterior);

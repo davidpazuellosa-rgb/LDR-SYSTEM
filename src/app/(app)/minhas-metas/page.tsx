@@ -39,6 +39,7 @@ function Bullet({ a }: { a: Awaited<ReturnType<typeof buildMinhasMetas>>["ativas
         <span className="absolute top-0 h-full w-px bg-slate-400" style={{ left: `${esperadoPct}%` }} title={`Ritmo esperado: ${a.esperado}`} />
       </div>
       <ForaDaMeta itens={a.foraPor} />
+      {a.sim !== undefined && <div className="mt-0.5 text-[10px] text-slate-500">{a.sim} Sim · {a.nao} Não</div>}
     </div>
   );
 }
@@ -71,7 +72,8 @@ export default async function MinhasMetasPage() {
   const userId = u.id || "";
   const { ativas, historico, conquistas } = await buildMinhasMetas(userId);
 
-  const fill = ativas.filter((a) => a.tipo !== "correcao");
+  const fill = ativas.filter((a) => a.tipo !== "correcao" && a.tipo !== "validacao");
+  const val = ativas.filter((a) => a.tipo === "validacao");
   const corr = ativas.filter((a) => a.tipo === "correcao");
   const semMetas = ativas.length === 0 && historico.length === 0;
 
@@ -143,6 +145,21 @@ export default async function MinhasMetasPage() {
                 )}
               </div>
             </section>
+
+            {val.length > 0 && (
+              <section className={CARD}>
+                <h2 className={TITLE}>Validação</h2>
+                <p className={`mb-3 ${SUB}`}>Contatos validados por ligação no período (Sim + Não)</p>
+                <div className="space-y-3">
+                  {val.map((a) => (
+                    <div key={a.id}>
+                      <Bullet a={a} />
+                      <div className="mt-0.5 text-[10px] text-slate-400">{prazoLabel(a.prazo)}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Histórico */}
             <section className={CARD}>

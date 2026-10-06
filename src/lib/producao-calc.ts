@@ -14,6 +14,17 @@ export type Evento = {
   estado: string | null; // sigla (UF)
   campanha: string | null;
 };
+// Validação (Sim/Não) registrada por uma pessoa. Fica à parte dos eventos de produção:
+// a meta de validação conta só estes registros.
+export type EventoVal = {
+  pessoaId: string;
+  quando: Date;
+  baseId: string;
+  orgao: string;
+  regiao: string | null;
+  estado: string | null;
+  valor: "sim" | "nao";
+};
 export type MetaIn = {
   id: string;
   userId: string;
@@ -33,6 +44,7 @@ export type Filtros = {
   pessoas: string[];
   campanhas: string[];
   tipo: "tudo" | TipoEvento;
+  soSim?: boolean; // validação: contar só os Sim (filtro de leitura; padrão = Sim + Não)
 };
 export type Faixa = { de: Date; ate: Date }; // [de, ate)
 
@@ -131,6 +143,7 @@ export function filtrarMetas(metas: MetaIn[], f: Filtros): MetaIn[] {
       return true;
     }
     if (f.tipo === "correcao" || f.campanhas.length) return false;
+    if (m.tipo === "validacao" && f.tipo === "preenchimento") return false;
     if (f.orgao && m.orgao !== f.orgao) return false;
     if (f.regioes.length && !f.regioes.includes(m.regiao || "Sem região")) return false;
     if (f.estados.length && !(m.estado && f.estados.includes(m.estado))) return false;
@@ -147,6 +160,8 @@ export type MetaCalc = {
   prazo: string;
   meta: number;
   feito: number;
+  sim?: number; // validação: quantos Sim
+  nao?: number; // validação: quantos Não
   foraPor: { rotulo: string; n: number }[]; // onde ficou o que está fora do território
   fora: number; // preenchidos pela pessoa fora do território da meta (já somados em `feito`)
   p: number;
@@ -156,33 +171,50 @@ export type MetaCalc = {
 
 // Realizado de uma meta na faixa: correção por quem resolveu; preenchimento por quem
 // completou a linha (tudo que a pessoa preencheu conta; `fora` é a parte fora do território).
-export function feitoDaMeta(m: MetaIn, todos: Evento[], faixa: Faixa, _compartilhados?: Set<string>): { feito: number; fora: number; foraPor: { rotulo: string; n: number }[] } {
+export function feitoDaMeta(
+  m: MetaIn, todos: Evento[], faixa: Faixa, _compartilhados?: Set<string>, validacoes: EventoVal[] = [], soSim = false
+): { feito: number; fora: number; foraPor: { rotulo: string; n: number }[]; sim?: number; nao?: number } {
   if (m.tipo === "correcao") {
     const c = normCampanha(m.campanha);
     const n = todos.filter((e) => e.tipo === "correcao" && e.pessoaId === m.userId && normCampanha(e.campanha) === c && naFaixa(e.quando, faixa)).length;
     return { feito: n, fora: 0, foraPor: [] };
+  }
+  const rotuloFora = (e: { orgao: string; regiao: string | null; estado: string | null }) => `${e.orgao} · ${e.regiao || "Sem região"} · ${e.estado || "sem estado"}`;
+  if (m.tipo === "validacao") {
+    const todas = validacoes.filter((v) => v.pessoaId === m.userId && naFaixa(v.quando, faixa));
+    const sim = todas.filter((v) => v.valor === "sim").length;
+    const contadas = soSim ? todas.filter((v) => v.valor === "sim") : todas;
+    const por = new Map<string, number>();
+    let dentro = 0;
+    for (const v of contadas) {
+      if (territorioConfere(m, { baseId: v.baseId, regiao: v.regiao, estado: v.estado })) { dentro++; continue; }
+      const r = rotuloFora(v);
+      por.set(r, (por.get(r) ?? 0) + 1);
+    }
+    const foraPor = [...por].map(([rotulo, n]) => ({ rotulo, n })).sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo));
+    return { feito: contadas.length, fora: contadas.length - dentro, foraPor, sim, nao: todas.length - sim };
   }
   const minhas = todos.filter((e) => e.tipo === "preenchimento" && e.pessoaId === m.userId && naFaixa(e.quando, faixa));
   const dentro = minhas.filter((e) => territorioConfere(m, { baseId: e.baseId, regiao: e.regiao, estado: e.estado })).length;
   const por = new Map<string, number>();
   for (const e of minhas) {
     if (territorioConfere(m, { baseId: e.baseId, regiao: e.regiao, estado: e.estado })) continue;
-    const r = `${e.orgao} · ${e.regiao || "Sem região"} · ${e.estado || "sem estado"}`;
+    const r = rotuloFora(e);
     por.set(r, (por.get(r) ?? 0) + 1);
   }
   const foraPor = [...por].map(([rotulo, n]) => ({ rotulo, n })).sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo));
   return { feito: minhas.length, fora: minhas.length - dentro, foraPor };
 }
 
-export function calcularMeta(m: MetaIn, todos: Evento[], faixa: Faixa, now: Date, rotulo: string, compartilhados?: Set<string>): MetaCalc {
+export function calcularMeta(m: MetaIn, todos: Evento[], faixa: Faixa, now: Date, rotulo: string, compartilhados?: Set<string>, validacoes: EventoVal[] = [], soSim = false): MetaCalc {
   const meta = metaNormalizada(m.alvo, m.prazo, faixa);
-  const { feito, fora, foraPor } = feitoDaMeta(m, todos, faixa, compartilhados);
+  const { feito, fora, foraPor, sim, nao } = feitoDaMeta(m, todos, faixa, compartilhados, validacoes, soSim);
   const p = meta > 0 ? Math.round((feito / meta) * 100) : feito > 0 ? 100 : 0;
   const total = faixa.ate.getTime() - faixa.de.getTime();
   const frac = faixa.ate <= now ? 1 : Math.min(1, Math.max(0, (now.getTime() - faixa.de.getTime()) / total));
   const esperado = Math.round(meta * frac);
   const status: StatusMeta = p >= 100 ? "ok" : feito >= esperado ? "ok" : feito >= esperado * 0.6 ? "risco" : "atrasado";
-  return { id: m.id, userId: m.userId, tipo: m.tipo, rotulo, prazo: m.prazo, meta, feito, fora, foraPor, p, esperado, status };
+  return { id: m.id, userId: m.userId, tipo: m.tipo, rotulo, prazo: m.prazo, meta, feito, fora, foraPor, sim, nao, p, esperado, status };
 }
 
 // ---- Séries ----

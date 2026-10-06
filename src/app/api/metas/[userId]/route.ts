@@ -6,6 +6,7 @@ import { ufSigla } from "@/lib/uf";
 import { isCampanhaAtiva } from "@/lib/campanhas";
 import { tipoOrgao, regiaoCanonica } from "@/lib/completude";
 import { sanitizeMetas } from "@/lib/metas-input";
+import { validacaoAtiva } from "@/lib/validacao";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
       where: { userId },
       select: { tipo: true, baseId: true, regiao: true, estado: true, campanha: true, prazo: true, alvo: true },
     }),
-    prisma.base.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.base.findMany({ select: { id: true, name: true, headers: true }, orderBy: { name: "asc" } }),
     prisma.contact.findMany({
       where: { deletedAt: null },
       select: { baseId: true, regiao: true, estado: true },
@@ -89,7 +90,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
     new Set(comCampanha.map((c) => (c.campanha || "").trim()).filter((c) => isCampanhaAtiva(c)))
   ).sort();
 
-  return NextResponse.json({ metas, tipos, basesById, campanhas });
+  // Planilhas com a validação ligada: só nelas se pode dar meta de validação (meta da planilha toda).
+  const validadas = bases
+    .filter((b) => validacaoAtiva(b.headers as Record<string, unknown> | null))
+    .map((b) => ({ baseId: b.id, nome: b.name, tipo: tipoOrgao(b.name), regiao: regiaoCanonica(b.name.split(" - ")[1] || "") || "Sem região" }));
+
+  return NextResponse.json({ metas, tipos, basesById, campanhas, validadas });
 }
 
 // Substitui todas as metas do LDR pelas enviadas.

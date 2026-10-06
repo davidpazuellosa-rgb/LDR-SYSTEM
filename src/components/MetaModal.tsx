@@ -9,6 +9,8 @@ type RegiaoOpt = { regiao: string; baseId: string; estados: string[] };
 type TipoOpt = { tipo: string; regioes: RegiaoOpt[] };
 type FillRow = { tipo: string; regiao: string; estado: string; baseId: string; prazo: string; alvo: string };
 type CorrRow = { campanha: string; prazo: string; alvo: string };
+type ValRow = { baseId: string; nome: string; regiao: string; prazo: string; alvo: string };
+type ValidadaOpt = { baseId: string; nome: string; tipo: string; regiao: string };
 
 type MetaIn = {
   tipo?: string;
@@ -36,7 +38,13 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [aba, setAba] = useState<"preenchimento" | "correcao">("preenchimento");
+  const [aba, setAba] = useState<"preenchimento" | "correcao" | "validacao">("preenchimento");
+  // Validação: metas da PLANILHA toda, só nas planilhas com a validação ligada.
+  const [validadas, setValidadas] = useState<ValidadaOpt[]>([]);
+  const [valRows, setValRows] = useState<ValRow[]>([]);
+  const [vBases, setVBases] = useState<string[]>([]);
+  const [vPrazo, setVPrazo] = useState("semanal");
+  const [vAlvo, setVAlvo] = useState("");
   // Montador de metas em lote (preenchimento)
   const [bTipo, setBTipo] = useState("");
   const [bRegioes, setBRegioes] = useState<string[]>([]);
@@ -62,10 +70,23 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
           const byId: Record<string, { name: string; tipo: string }> = data.basesById || {};
           setTipos(data.tipos || []);
           setCampanhas(data.campanhas || []);
+          const vlist: ValidadaOpt[] = data.validadas || [];
+          setValidadas(vlist);
           const metas: MetaIn[] = data.metas || [];
+          setValRows(
+            metas
+              .filter((m) => m.tipo === "validacao")
+              .map((m) => ({
+                baseId: m.baseId || "",
+                nome: byId[m.baseId || ""]?.name || vlist.find((v) => v.baseId === m.baseId)?.nome || "Planilha",
+                regiao: m.regiao || "",
+                prazo: m.prazo === "mensal" ? "mensal" : m.prazo === "diaria" ? "diaria" : "semanal",
+                alvo: String(m.alvo ?? 0),
+              }))
+          );
           setFillRows(
             metas
-              .filter((m) => (m.tipo || "preenchimento") !== "correcao")
+              .filter((m) => (m.tipo || "preenchimento") !== "correcao" && m.tipo !== "validacao")
               .map((m) => ({
                 tipo: byId[m.baseId || ""]?.tipo || "",
                 regiao: m.regiao || "",
@@ -140,6 +161,23 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
     setBAlvo("");
   }
 
+  function adicionarValidacao() {
+    if (vBases.length === 0) {
+      setError("Escolha ao menos uma planilha.");
+      return;
+    }
+    const alvoNum = String(Math.max(0, Math.trunc(Number(vAlvo) || 0)));
+    const existentes = new Set(valRows.map((r) => r.baseId));
+    const novos = validadas
+      .filter((v) => vBases.includes(v.baseId) && !existentes.has(v.baseId))
+      .map((v) => ({ baseId: v.baseId, nome: v.nome, regiao: v.regiao, prazo: vPrazo, alvo: alvoNum }));
+    setError(null);
+    setValRows((prev) => [...prev, ...novos]);
+    toast.success(`${novos.length} meta(s) adicionada(s).`, vBases.length - novos.length ? "As que já existiam foram mantidas." : "Revise e clique em Salvar metas.");
+    setVBases([]);
+    setVAlvo("");
+  }
+
   function adicionarCorrecao() {
     const alvoNum = String(Math.max(0, Math.trunc(Number(cAlvo) || 0)));
     const existentes = new Set(corrRows.map((r) => r.campanha));
@@ -164,6 +202,9 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
         ...fillRows
           .filter((r) => r.baseId && r.regiao && r.estado)
           .map((r) => ({ tipo: "preenchimento", baseId: r.baseId, regiao: r.regiao, estado: r.estado, prazo: r.prazo, alvo: r.alvo })),
+        ...valRows
+          .filter((r) => r.baseId && r.regiao)
+          .map((r) => ({ tipo: "validacao", baseId: r.baseId, regiao: r.regiao, estado: ESTADO_TODOS, prazo: r.prazo, alvo: r.alvo })),
         ...corrRows
           .filter((r) => r.campanha)
           .map((r) => ({ tipo: "correcao", campanha: r.campanha, prazo: r.prazo, alvo: r.alvo })),
@@ -242,7 +283,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
         </div>
 
         <div className="flex gap-1 border-b border-slate-100 px-6 pt-3">
-          {([["preenchimento", "Preenchimento", fillRows.length], ["correcao", "Correção", corrRows.length]] as const).map(([v, t, n]) => (
+          {([["preenchimento", "Preenchimento", fillRows.length], ["correcao", "Correção", corrRows.length], ["validacao", "Validação", valRows.length]] as const).map(([v, t, n]) => (
             <button
               key={v}
               type="button"
@@ -383,6 +424,67 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                           );
                         })}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          ) : aba === "validacao" ? (
+            <>
+              <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <h3 className="text-sm font-semibold text-slate-700">Nova meta de validação</h3>
+                <p className="text-xs text-slate-500">
+                  Conta cada contato que {userName} validar por ligação (Sim ou Não) na planilha. Só aparecem planilhas com a validação ligada.
+                </p>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planilhas</span>
+                    {validadas.length > 0 && (
+                      <button type="button" className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => setVBases(vBases.length === validadas.length ? [] : validadas.map((v) => v.baseId))}>
+                        {vBases.length === validadas.length ? "Limpar" : "Todas"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {validadas.length === 0 && <span className="text-sm text-slate-400">Nenhuma planilha com validação ligada. Ligue em “Validar” na barra da planilha.</span>}
+                    {validadas.map((v) => (
+                      <button key={v.baseId} type="button" className={chip(vBases.includes(v.baseId))} onClick={() => setVBases(toggle(vBases, v.baseId))}>
+                        {v.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <span className={lbl}>Prazo</span>
+                    <PrazoSeg value={vPrazo} onChange={setVPrazo} />
+                  </div>
+                  <label className="block w-36">
+                    <span className={lbl}>Meta (cada)</span>
+                    <input type="number" min={0} value={vAlvo} onChange={(e) => setVAlvo(e.target.value)} placeholder="0" className={numCls} />
+                  </label>
+                  <button type="button" onClick={adicionarValidacao} className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    Adicionar {vBases.length > 0 ? `(${vBases.length})` : ""}
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-2 text-sm font-semibold text-slate-700">Metas de validação</h3>
+                {valRows.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">Nenhuma meta de validação ainda.</p>}
+                <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                  {valRows.map((r) => (
+                    <div key={r.baseId} className="flex items-center gap-3 px-4 py-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{r.nome}</span>
+                      <select value={r.prazo} onChange={(e) => setValRows((prev) => prev.map((x) => (x.baseId === r.baseId ? { ...x, prazo: e.target.value } : x)))} className={`${selCls} !w-32`}>
+                        <option value="diaria">Diária</option>
+                        <option value="semanal">Semanal</option>
+                        <option value="mensal">Mensal</option>
+                      </select>
+                      <input type="number" min={0} value={r.alvo} onChange={(e) => setValRows((prev) => prev.map((x) => (x.baseId === r.baseId ? { ...x, alvo: e.target.value } : x)))} className={`${numCls} !w-28`} />
+                      <button type="button" onClick={() => setValRows((prev) => prev.filter((x) => x.baseId !== r.baseId))} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover">
+                        {trash}
+                      </button>
                     </div>
                   ))}
                 </div>
