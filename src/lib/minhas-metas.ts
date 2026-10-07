@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { tipoOrgao } from "@/lib/completude";
 import { normCampanha } from "@/lib/campanhas";
 import { carregarValidacoes } from "@/lib/validacoes-carga";
-import { metaDetalhe, territorioConfere, foraPorTerritorio, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone, type ValidacaoReg } from "@/lib/meta-progress";
+import { metaDetalhe, territorioConfere, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone, type ValidacaoReg } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { cached } from "@/lib/mini-cache";
@@ -13,7 +13,7 @@ import { cached } from "@/lib/mini-cache";
 export type StatusMeta = "ok" | "risco" | "atrasado";
 
 function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: Date, end: Date, compartilhados?: Set<string>, validacoes: ValidacaoReg[] = []): number {
-  if (m.tipo === "validacao") return validacoes.filter((v) => v.concluidoEm >= start && v.concluidoEm < end && v.porId === m.userId).length;
+  if (m.tipo === "validacao") return validacoes.filter((v) => v.concluidoEm >= start && v.concluidoEm < end && v.porId === m.userId && territorioConfere(m, v)).length;
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
     return corrections.filter((c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && c.resolvedAt < end && normCampanha(c.campanha) === camp).length;
@@ -213,12 +213,11 @@ export async function buildMinhasMetas(userId: string, opts: { marcarVistoAoAbri
     const fim = periodEnd(m.prazo, now);
     const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
     const feito = feitoNoPeriodo(m, fills, corrections, ini, new Date(now.getTime() + 1), compartilhados, validacoes);
-    const det = m.tipo === "validacao" ? metaDetalhe(m, now, fills, corrections, (id) => baseName(id), validacoes) : null;
+    const det = m.tipo === "validacao" ? metaDetalhe(m, now, fills, corrections, validacoes) : null;
     const p = m.alvo > 0 ? Math.min(100, Math.round((feito / m.alvo) * 100)) : feito > 0 ? 100 : 0;
     return {
       id: m.id, tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m, baseName),
       feito, alvo: m.alvo, p, esperado: Math.round(m.alvo * decorrido),
-      foraPor: m.tipo === "correcao" ? [] : m.tipo === "validacao" ? det!.foraPor : foraPorTerritorio(m, fills, ini, new Date(now.getTime() + 1), (id) => baseName(id)),
       sim: det?.sim, nao: det?.nao,
       status: statusDe(feito, m.alvo, decorrido),
     };

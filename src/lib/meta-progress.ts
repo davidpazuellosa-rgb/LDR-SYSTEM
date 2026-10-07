@@ -81,58 +81,36 @@ export function territoriosCompartilhados(metas: { userId: string; tipo: string;
   return new Set([...donos].filter(([, u]) => u.size > 1).map(([k]) => k));
 }
 
-// Preenchimento conta TUDO que a própria pessoa completou no período (qualquer
-// planilha/região/estado) — o território da meta só separa o que está "na meta" do que
-// ficou "fora da meta". Correção continua sendo o que a pessoa resolveu na campanha.
-export type ForaItem = { rotulo: string; n: number };
-
-// Onde ficou o que foi preenchido FORA do território da meta: "planilha · UF" com a
-// quantidade, do maior para o menor.
-export function foraPorTerritorio(
-  m: { userId: string; baseId: string | null; regiao: string | null; estado: string | null },
-  fills: Fill[],
-  start: Date,
-  end: Date | null,
-  nomeBase: (baseId: string) => string = (id) => id
-): ForaItem[] {
-  const por = new Map<string, number>();
-  for (const f of fills) {
-    if (f.porId !== m.userId || f.concluidoEm < start || (end && f.concluidoEm >= end) || territorioConfere(m, f)) continue;
-    const rotulo = `${nomeBase(f.baseId)} · ${ufSigla(f.estado) || "sem estado"}`;
-    por.set(rotulo, (por.get(rotulo) ?? 0) + 1);
-  }
-  return [...por].map(([rotulo, n]) => ({ rotulo, n })).sort((a, b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo));
-}
+// A META conta SÓ o território definido nela (planilha + região + estado, ou "toda a planilha")
+// e só o que a PRÓPRIA pessoa completou/validou. Tudo que ela faz fora do território continua
+// valendo na produção dela (totais, ranking, relatórios) — apenas não entra nesta meta.
+// Correção: o que a pessoa resolveu na campanha da meta.
 
 // Registro de validação (Sim/Não) de um contato, já com o território dele. `concluidoEm` é o
 // momento do registro (mesmo nome do Fill, para reaproveitar as regras de território).
 export type ValidacaoReg = Fill & { valor: "sim" | "nao" };
 
 export function metaDetalhe(
-  m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], nomeBase?: (baseId: string) => string,
+  m: Meta, now: Date, fills: Fill[], corrections: CorrDone[],
   validacoes: ValidacaoReg[] = [], soSim = false
-): { feito: number; naMeta: number; fora: number; foraPor: ForaItem[]; sim?: number; nao?: number } {
+): { feito: number; sim?: number; nao?: number } {
   const start = periodStart(m.prazo, now);
   if (m.tipo === "correcao") {
     const camp = normCampanha(m.campanha);
     const n = corrections.filter(
       (c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && normCampanha(c.campanha) === camp
     ).length;
-    return { feito: n, naMeta: n, fora: 0, foraPor: [] };
+    return { feito: n };
   }
   if (m.tipo === "validacao") {
-    // Validação: tudo que a PESSOA registrou (Sim + Não; "só Sim" é um filtro de leitura).
-    const todas = validacoes.filter((v) => v.concluidoEm >= start && v.porId === m.userId);
+    // Validação: Sim + Não que a PESSOA registrou nas planilhas da meta ("só Sim" é filtro de leitura).
+    const todas = validacoes.filter((v) => v.concluidoEm >= start && v.porId === m.userId && territorioConfere(m, v));
     const sim = todas.filter((v) => v.valor === "sim").length;
-    const contadas = soSim ? todas.filter((v) => v.valor === "sim") : todas;
-    const naMeta = contadas.filter((v) => territorioConfere(m, v)).length;
-    return { feito: contadas.length, naMeta, fora: contadas.length - naMeta, foraPor: foraPorTerritorio(m, contadas, start, null, nomeBase), sim, nao: todas.length - sim };
+    return { feito: soSim ? sim : todas.length, sim, nao: todas.length - sim };
   }
-  const minhas = fills.filter((f) => f.concluidoEm >= start && f.porId === m.userId);
-  const naMeta = minhas.filter((f) => territorioConfere(m, f)).length;
-  return { feito: minhas.length, naMeta, fora: minhas.length - naMeta, foraPor: foraPorTerritorio(m, fills, start, null, nomeBase) };
+  return { feito: fills.filter((f) => f.concluidoEm >= start && f.porId === m.userId && territorioConfere(m, f)).length };
 }
 
 export function metaFeito(m: Meta, now: Date, fills: Fill[], corrections: CorrDone[], _compartilhados?: Set<string>, validacoes: ValidacaoReg[] = []): number {
-  return metaDetalhe(m, now, fills, corrections, undefined, validacoes).feito;
+  return metaDetalhe(m, now, fills, corrections, validacoes).feito;
 }

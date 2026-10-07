@@ -67,14 +67,13 @@ test("filtrar metas: território esconde correção; campanha esconde preenchime
   assert.equal(filtrarMetas([metaP, metaC], { ...F0, pessoas: ["z"] }).length, 0);
 });
 
-test("meta: preenchimento conta tudo que a pessoa completou (fora do território vai em `fora`); correção só de quem resolveu", () => {
+test("meta: preenchimento conta só o território da meta e só o que a própria pessoa completou; correção só de quem resolveu", () => {
   const faixa = faixaDoPeriodo("7d", now);
   const todos = [ev({ pessoaId: "outro" }), ev({}), ev({ estado: "BA" }), ev({ tipo: "correcao", campanha: "X" }), ev({ tipo: "correcao", pessoaId: "outro", campanha: "X" })];
   const p = calcularMeta(metaP, todos, faixa, now, "P");
   assert.equal(p.meta, 10);
-  assert.equal(p.feito, 2); // AL + BA da pessoa "a"; o da pessoa "outro" não conta
-  assert.equal(p.fora, 1); // o de BA
-  assert.equal(p.p, 20);
+  assert.equal(p.feito, 1); // só AL da pessoa "a" (BA é fora do território; "outro" é outra pessoa)
+  assert.equal(p.p, 10);
   const c = calcularMeta(metaC, todos, faixa, now, "C");
   assert.equal(c.feito, 1);
 });
@@ -120,17 +119,16 @@ test("variação percentual", () => {
   assert.equal(variacao(0, 0), 0);
 });
 
-test("meta de validação (Produção por pessoa): conta Sim+Não da pessoa; só Sim filtra; fora = outra planilha", () => {
+test("meta de validação (Produção por pessoa): conta Sim+Não da pessoa só na planilha da meta; só Sim filtra", () => {
   const faixa = faixaDoPeriodo("7d", now);
   const meta: MetaIn = { id: "mv", userId: "a", tipo: "validacao", baseId: "b1", regiao: "Nordeste", estado: "*", campanha: null, prazo: "semanal", alvo: 10, orgao: "Prefeitura" };
   const v = (o: Partial<EventoVal>): EventoVal => ({ pessoaId: "a", quando: new Date("2026-09-25T12:00:00Z"), baseId: "b1", orgao: "Prefeitura", regiao: "Nordeste", estado: "AL", valor: "sim", ...o });
   const vals = [v({}), v({ valor: "nao" }), v({ baseId: "b2" }), v({ pessoaId: "outro" })];
   const c = calcularMeta(meta, [], faixa, now, "V", undefined, vals);
-  assert.equal(c.feito, 3);
-  assert.equal(c.sim, 2);
+  assert.equal(c.feito, 2);
+  assert.equal(c.sim, 1);
   assert.equal(c.nao, 1);
-  assert.equal(c.fora, 1);
-  assert.equal(calcularMeta(meta, [], faixa, now, "V", undefined, vals, true).feito, 2);
+  assert.equal(calcularMeta(meta, [], faixa, now, "V", undefined, vals, true).feito, 1);
   // filtro "só preenchimento" não mostra meta de validação
   assert.equal(filtrarMetas([meta], { ...F0, tipo: "preenchimento" }).length, 0);
   assert.equal(filtrarMetas([meta], F0).length, 1);

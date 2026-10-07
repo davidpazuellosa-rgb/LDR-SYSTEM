@@ -3,12 +3,11 @@ import { isAdmin } from "@/lib/permissions";
 import { buildMinhasMetas } from "@/lib/minhas-metas";
 import { buildRelatorio } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
-import ForaDaMeta from "@/components/ForaDaMeta";
 import MetasEquipe from "@/components/MetasEquipe";
 
 export const dynamic = "force-dynamic";
 
-type MetasEquipeItem = { id: string; rotulo: string; tipo: string; prazo: string; feito: number; alvo: number; p: number; status: "ok" | "risco" | "atrasado"; foraPor?: { rotulo: string; n: number }[] };
+type MetasEquipeItem = { id: string; rotulo: string; tipo: string; prazo: string; feito: number; alvo: number; p: number; status: "ok" | "risco" | "atrasado" };
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -38,7 +37,6 @@ function Bullet({ a }: { a: Awaited<ReturnType<typeof buildMinhasMetas>>["ativas
         <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(2, a.p)}%` }} />
         <span className="absolute top-0 h-full w-px bg-slate-400" style={{ left: `${esperadoPct}%` }} title={`Ritmo esperado: ${a.esperado}`} />
       </div>
-      <ForaDaMeta itens={a.foraPor} />
       {a.sim !== undefined && <div className="mt-0.5 text-[10px] text-slate-500">{a.sim} Sim · {a.nao} Não</div>}
     </div>
   );
@@ -54,7 +52,7 @@ export default async function MinhasMetasPage() {
     const byUser = new Map<string, MetasEquipeItem[]>();
     for (const m of r.metasView) {
       const arr = byUser.get(m.userId) || [];
-      arr.push({ id: m.id, rotulo: m.rotulo, tipo: m.tipo, prazo: m.prazo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status, foraPor: m.foraPor });
+      arr.push({ id: m.id, rotulo: m.rotulo, tipo: m.tipo, prazo: m.prazo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status });
       byUser.set(m.userId, arr);
     }
     const ldrs = r.ldrs.map((x) => ({ id: x.id, nome: x.name || x.email, metas: byUser.get(x.id) || [] }));

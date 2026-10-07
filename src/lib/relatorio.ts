@@ -11,7 +11,6 @@ import { carregarValidacoes } from "@/lib/validacoes-carga";
 import {
   metaFeito,
   metaDetalhe,
-  foraPorTerritorio,
   rotuloEstado,
   territoriosCompartilhados,
   periodStart,
@@ -200,16 +199,14 @@ export async function buildRelatorio(f: RelatorioFiltros) {
 
   const metasView = metasFiltradas
     .map((m) => {
-      const det = metaDetalhe(m, now, fillsTerr, corrections, (id) => baseName.get(id) || id, validacoes);
-      const feito = det.feito;
-      const foraPor = det.foraPor;
+      const feito = metaDetalhe(m, now, fillsTerr, corrections, validacoes).feito;
       const p = pct(feito, m.alvo);
       const ini = periodStart(m.prazo, now);
       const fim = periodEnd(m.prazo, now);
       const decorrido = Math.min(1, Math.max(0, (now.getTime() - ini.getTime()) / (fim.getTime() - ini.getTime())));
       const esperado = Math.round(m.alvo * decorrido);
       const status: StatusMeta = p >= 100 ? "ok" : feito >= esperado ? "ok" : feito >= esperado * 0.6 ? "risco" : "atrasado";
-      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m), feito, foraPor, alvo: m.alvo, p, esperado, status };
+      return { id: m.id, userId: m.userId, nome: nomeDe(m.userId), tipo: m.tipo, prazo: m.prazo, rotulo: rotuloMeta(m), feito, alvo: m.alvo, p, esperado, status };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome) || a.status.localeCompare(b.status));
 

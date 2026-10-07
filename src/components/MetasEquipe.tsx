@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
-import ForaDaMeta from "@/components/ForaDaMeta";
 import FiltrosCard, { Campo } from "@/components/FiltrosCard";
 import MetaModal from "@/components/MetaModal";
 
@@ -16,7 +15,6 @@ type MetaItem = {
   alvo: number;
   p: number;
   status: "ok" | "risco" | "atrasado";
-  foraPor?: { rotulo: string; n: number }[];
 };
 type Ldr = { id: string; nome: string; metas: MetaItem[] };
 type Periodo = { label: string; feito: number; alvo: number; hit: boolean };
@@ -185,7 +183,6 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
                           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                             <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(2, m.p)}%` }} />
                           </div>
-                          <ForaDaMeta itens={m.foraPor} />
                         </div>
                       );
                     })}
