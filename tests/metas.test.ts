@@ -156,3 +156,15 @@ test("meta de validação: conta Sim+Não da própria pessoa SÓ nas planilhas d
   // validações de outra pessoa nunca entram; sem registros = 0
   assert.equal(metaDetalhe({ ...meta, userId: "u9" }, now, [], [], vals).feito, 0);
 });
+
+test("todas as telas de meta usam a MESMA regra (território + pessoa): metaFeito == feito de Minhas Metas", async () => {
+  const { metaFeito } = await import("../src/lib/meta-progress");
+  const now = new Date();
+  const meta = { id: "m", userId: "u1", tipo: "preenchimento", baseId: "b1", regiao: "Centro-Oeste", estado: "*", campanha: null, prazo: "semanal", alvo: 10 } as Meta;
+  const fills = [
+    { concluidoEm: now, baseId: "b1", regiao: "Centro-Oeste", estado: "GO", porId: "u1" },
+    { concluidoEm: now, baseId: "b2", regiao: "Nordeste", estado: "MA", porId: "u1" },
+    { concluidoEm: now, baseId: "b2", regiao: "Nordeste", estado: "MA", porId: "u1" },
+  ];
+  assert.equal(metaFeito(meta, now, fills, []), 1);
+});

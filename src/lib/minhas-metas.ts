@@ -18,7 +18,7 @@ function feitoNoPeriodo(m: Meta, fills: Fill[], corrections: CorrDone[], start: 
     const camp = normCampanha(m.campanha);
     return corrections.filter((c) => c.resolvedById === m.userId && c.resolvedAt && c.resolvedAt >= start && c.resolvedAt < end && normCampanha(c.campanha) === camp).length;
   }
-  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.porId === m.userId).length;
+  return fills.filter((f) => f.concluidoEm >= start && f.concluidoEm < end && f.porId === m.userId && territorioConfere(m, f)).length;
 }
 
 function statusDe(feito: number, alvo: number, decorrido: number): StatusMeta {
