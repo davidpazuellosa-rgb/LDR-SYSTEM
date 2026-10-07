@@ -6,6 +6,8 @@ import { tipoOrgao } from "@/lib/completude";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 import { carregarValidacoes } from "@/lib/validacoes-carga";
+import { creditosSuspeitos } from "@/lib/auditoria";
+import Link from "next/link";
 import { metaDetalhe, type ValidacaoReg, startOfDay, startOfWeek, startOfMonth, territoriosCompartilhados, rotuloEstado, type Meta, type Fill, type CorrDone } from "@/lib/meta-progress";
 import ForaDaMeta from "@/components/ForaDaMeta";
 import PageHeader from "@/components/PageHeader";
@@ -252,7 +254,7 @@ async function AdminMain() {
   await ensureMetaTable();
   const now = new Date();
 
-  const [basesCount, contacts, incorreto, atualizado, ldrs, bases, metas, progress] = await Promise.all([
+  const [basesCount, contacts, incorreto, atualizado, ldrs, bases, metas, progress, suspeitos] = await Promise.all([
     prisma.base.count(),
     prisma.contact.count({ where: { deletedAt: null } }),
     prisma.contact.count({ where: { status: "telefone_incorreto", deletedAt: null } }),
@@ -261,6 +263,7 @@ async function AdminMain() {
     prisma.base.findMany({ select: { id: true, name: true } }),
     prisma.meta.findMany() as Promise<Meta[]>,
     loadProgress(),
+    creditosSuspeitos().catch(() => []),
   ]);
 
   const baseName = (id: string | null) => bases.find((b) => b.id === id)?.name || "Base";
@@ -272,6 +275,19 @@ async function AdminMain() {
 
   return (
     <main className="space-y-8 p-8">
+      {suspeitos.length > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-amber-900">Créditos para revisar</h2>
+              <p className="text-sm text-amber-800">
+                {suspeitos.map((s) => `${s.nome}: ${s.total24h} créditos em 24 h (pico ${s.picoHora}/hora)`).join(" · ")}
+              </p>
+            </div>
+            <Link href={`/creditos?pessoa=${suspeitos[0].id}&periodo=48h`} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100">Revisar créditos</Link>
+          </div>
+        </section>
+      )}
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Bases" value={basesCount} color="text-indigo-600" hint="lotes importados/criados" />
         <StatCard label="Contatos" value={contacts} color="text-slate-800" hint="no total" />

@@ -5,7 +5,7 @@ import { apiPath } from "@/lib/path";
 import ExportColunasButton from "@/components/ExportColunasButton";
 import { EXPORT_COLS } from "@/lib/export-cols";
 
-type Periodo = "semana" | "mes" | "tudo";
+type Periodo = "semana" | "mes";
 
 export default function RelatorioFiltros({
   periodo,
@@ -52,7 +52,6 @@ export default function RelatorioFiltros({
         {([
           ["semana", "Semana"],
           ["mes", "Mês"],
-          ["tudo", "Tudo"],
         ] as const).map(([v, label]) => (
           <button
             key={v}

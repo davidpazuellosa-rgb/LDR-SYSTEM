@@ -26,22 +26,21 @@ import { STATUS_INCORRETO, STATUS_ATUALIZADO } from "@/lib/status";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
 
-export type Periodo = "semana" | "mes" | "tudo";
+// Sem "desde o início": o acumulado mistura meses e esconde distorções. Só semana ou mês.
+export type Periodo = "semana" | "mes";
 export type RelatorioFiltros = { periodo: Periodo; ldrId?: string | null; campanha?: string | null };
 
 export const PERIODO_LABEL: Record<Periodo, string> = {
   semana: "esta semana",
   mes: "este mês",
-  tudo: "desde o início",
 };
 
 export function parsePeriodo(v?: string | null): Periodo {
-  return v === "mes" ? "mes" : v === "tudo" ? "tudo" : "semana";
+  return v === "mes" || v === "tudo" ? "mes" : "semana"; // links antigos de "tudo" caem no mês
 }
 
 function inicioDoPeriodo(periodo: Periodo, now: Date): Date {
   if (periodo === "mes") return startOfMonth(now);
-  if (periodo === "tudo") return new Date(0);
   return startOfWeek(now);
 }
 

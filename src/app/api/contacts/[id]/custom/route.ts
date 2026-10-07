@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guard";
 import { ensureContactCustomTable } from "@/lib/custom-columns";
-import { atualizarConclusao } from "@/lib/contact-fill";
+import { atualizarConclusao, linhaCompleta } from "@/lib/contact-fill";
+import { registrarCelulas } from "@/lib/auditoria";
 import { parseCustomCols } from "@/lib/base-columns";
 import { valorValidoNaLista } from "@/lib/coluna-lista";
 import { isRowVazia } from "@/lib/completude";
@@ -25,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Coluna de lista suspensa: o servidor também recusa valor fora da lista (a tela já
   // recusa, mas a API não pode ser contornada). Vazio = limpar, sempre permitido.
-  const contato = await prisma.contact.findUnique({ where: { id }, select: { base: { select: { headers: true } } } });
+  const contato = await prisma.contact.findUnique({ where: { id }, select: { baseId: true, base: { select: { headers: true } } } });
   const headers = contato?.base.headers as Record<string, unknown> | null;
   const col = parseCustomCols(headers).find((c) => c.key === colKey);
   if (valor && valor.trim() && col?.tipo === "lista" && !valorValidoNaLista(col.opcoes, valor)) {
@@ -57,6 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       anteriorPor = u?.name || u?.email || null;
     }
     const gravado = valorGravado(v);
+    const prevVal = await prisma.contactCustomValue.findUnique({ where: { contactId_colKey: { contactId: id, colKey } }, select: { valor: true } });
     await prisma.$transaction([
       prisma.contactCustomValue.upsert({
         where: { contactId_colKey: { contactId: id, colKey } },
@@ -71,16 +73,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           })
         : prisma.contactValidacao.deleteMany({ where: { contactId: id } }),
     ]);
+    await registrarCelulas(contato?.baseId ?? null, id, meId, [{ campo: colKey, de: prevVal?.valor ?? null, para: gravado }]);
     return NextResponse.json({ ok: true, valor: gravado ?? "", ...(v && anteriorPor ? { anteriorPor } : {}) });
   }
 
   await ensureContactCustomTable();
+  // Estado ANTES da edição: só ganha crédito quem leva a linha de incompleta para completa.
+  const [prev, antesCompleta] = await Promise.all([
+    prisma.contactCustomValue.findUnique({ where: { contactId_colKey: { contactId: id, colKey } }, select: { valor: true } }),
+    meId ? linhaCompleta(id) : Promise.resolve(undefined),
+  ]);
   await prisma.contactCustomValue.upsert({
     where: { contactId_colKey: { contactId: id, colKey } },
     create: { contactId: id, colKey, valor },
     update: { valor },
   });
+  await registrarCelulas(contato?.baseId ?? null, id, meId, [{ campo: colKey, de: prev?.valor ?? null, para: valor }]);
   // Colunas personalizadas contam na conclusão: recalcula o crédito de preenchimento.
-  await atualizarConclusao(id, meId);
+  await atualizarConclusao(id, meId, antesCompleta);
   return NextResponse.json({ ok: true });
 }

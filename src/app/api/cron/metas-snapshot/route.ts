@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { snapshotMetas } from "@/lib/minhas-metas";
+import { limparCelulaLog } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,5 +14,7 @@ export async function GET(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
   const result = await snapshotMetas();
-  return NextResponse.json(result);
+  // Aproveita o cron diário para apagar o histórico de células com mais de 90 dias.
+  const apagados = await limparCelulaLog().catch(() => -1);
+  return NextResponse.json({ ...result, celulaLogApagados: apagados });
 }

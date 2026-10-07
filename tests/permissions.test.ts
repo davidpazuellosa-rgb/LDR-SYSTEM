@@ -12,8 +12,9 @@ test("admin can perform every protected action", () => {
   assert.equal(isAdmin("admin"), true);
 });
 
-test("ldr can import and correct, but cannot manage sensitive areas", () => {
-  assert.equal(can("ldr", "data.import"), true);
+test("ldr can correct, but cannot import or manage sensitive areas", () => {
+  assert.equal(can("ldr", "data.import"), false); // importar planilha é só do admin
+  assert.equal(can("admin", "data.import"), true);
   assert.equal(can("ldr", "corrections.write"), true);
   assert.equal(can("ldr", "hubspot.view"), false);
   assert.equal(can("ldr", "data.export"), false);

@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requirePermission } from "@/lib/guard";
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
 import { REQUIRED_FIELDS } from "@/lib/completude";
-import { atualizarConclusao } from "@/lib/contact-fill";
+import { atualizarConclusao, linhaCompleta } from "@/lib/contact-fill";
+import { registrarCelulas } from "@/lib/auditoria";
 import { ensureBaseEventoTable } from "@/lib/base-eventos";
 
 // Quantas edições de célula o histórico guarda por base (rodízio).
@@ -34,7 +35,20 @@ export async function PATCH(
   const before = await prisma.contact.findUnique({ where: { id } });
   if (!before) return NextResponse.json({ error: "Contato não encontrado" }, { status: 404 });
 
+  // Estado ANTES da edição: só ganha crédito quem leva a linha de incompleta para completa.
+  const touchedRequired = REQUIRED_FIELDS.some((f) => f in data);
+  const antesCompleta = touchedRequired && meId ? await linhaCompleta(id) : undefined;
+
   const contact = await prisma.contact.update({ where: { id }, data });
+
+  // Trilha de auditoria (90 dias): quem mudou o quê, antes e depois.
+  {
+    const beforeRec = before as unknown as Record<string, string | null>;
+    await registrarCelulas(
+      before.baseId, id, meId,
+      changedKeys.map((campo) => ({ campo, de: beforeRec[campo] ?? null, para: (data[campo] as string | null) ?? null }))
+    );
+  }
 
   // Histórico de edição de célula (rodízio: guarda só as últimas N por base).
   if (meId && changedKeys.length > 0) {
@@ -74,9 +88,8 @@ export async function PATCH(
   // Se um campo da régua mudou, atualiza o registro de conclusão (quem completou e
   // quando). Existe um ContactFill só enquanto a linha está completa; o primeiro a
   // completar fica com o crédito (upsert sem sobrescrever).
-  const touchedRequired = REQUIRED_FIELDS.some((f) => f in data);
   if (touchedRequired && meId) {
-    await atualizarConclusao(id, meId);
+    await atualizarConclusao(id, meId, antesCompleta);
   }
 
   return NextResponse.json(contact);

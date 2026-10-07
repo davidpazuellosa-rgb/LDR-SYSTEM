@@ -15,8 +15,8 @@ export const ROLE_LABELS: Record<string, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<string, string> = {
   admin: "Acesso total: usuários, exclusões, exportação e integrações.",
-  ldr: "Pode importar e corrigir telefones. Não exclui, não exporta e não acessa áreas sensíveis.",
-  prevendedor: "Mesmos acessos do LDR: importar e corrigir telefones. Não exclui, não exporta e não acessa áreas sensíveis.",
+  ldr: "Pode preencher planilhas e corrigir telefones. Não importa, não exclui, não exporta e não acessa áreas sensíveis.",
+  prevendedor: "Mesmos acessos do LDR: preencher e corrigir telefones. Não importa, não exclui, não exporta e não acessa áreas sensíveis.",
 };
 
 export type Action =
@@ -28,8 +28,8 @@ export type Action =
   | "hubspot.view"; // ver/integrar HubSpot (área sensível)
 
 // O que o cargo LDR PODE fazer. Tudo o que não está aqui é só admin.
-const LDR_ALLOWED: Action[] = ["data.import", "corrections.write"];
-// Pré-vendedor: só corrige (não importa — não acessa Bases). Escopo limitado aos
+const LDR_ALLOWED: Action[] = ["corrections.write"];
+// Pré-vendedor: só corrige (não importa — não acessa Bases). Importar planilha é só do admin. Escopo limitado aos
 // contatos do proprietário dele (aplicado nas telas de correção/histórico).
 const PREVENDEDOR_ALLOWED: Action[] = ["corrections.write"];
 

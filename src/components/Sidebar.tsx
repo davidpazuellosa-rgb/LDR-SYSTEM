@@ -138,6 +138,7 @@ export default function Sidebar({
     // Relatório próprio do operador (LDR / Pré-vendedor). Admin usa /relatorios.
     ...(admin ? [] : [{ href: "/relatorio", label: "Relatório", icon: "chart", badge: 0 }]),
     // Áreas sensíveis: só admin
+    ...(admin ? [{ href: "/creditos", label: "Revisar créditos", icon: "history", badge: 0 }] : []),
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
     ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: naPaginaSugestoes ? 0 : badges.sugestoes }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },

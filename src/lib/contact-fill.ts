@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isComplete, isCompleteVisivel, customsCompletos, REQUIRED_SELECT } from "@/lib/completude";
 import { parseCustomCols } from "@/lib/custom-columns";
 import { parseHiddenCols } from "@/lib/base-columns";
+import { registrarCredito } from "@/lib/auditoria";
 
 let ensured = false;
 
@@ -28,53 +29,68 @@ export async function ensureContactFillTable() {
   ensured = true;
 }
 
-// Recalcula a conclusão de um contato: completo = 7 campos fixos da régua
-// preenchidos E todas as colunas personalizadas da base preenchidas. Atualiza o
-// ContactFill (quem completou/quando) de acordo. Chamado ao salvar campo fixo ou
-// valor de coluna personalizada.
-export async function atualizarConclusao(contactId: string, meId: string | null) {
+type Cliente = Pick<typeof prisma, "contact" | "contactCustomValue" | "base">;
+
+// A linha está completa AGORA? (7 campos da régua visíveis + colunas personalizadas visíveis,
+// sem contar a coluna Validado.) Mesma regra da tela.
+async function linhaCompletaCom(c: Cliente, contactId: string): Promise<boolean | null> {
+  const [contact, vals] = await Promise.all([
+    c.contact.findUnique({ where: { id: contactId }, select: { baseId: true, ...REQUIRED_SELECT } }),
+    c.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } }),
+  ]);
+  if (!contact) return null;
+  const base = await c.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
+  const headers = base?.headers as Record<string, unknown> | null;
+  // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela (isCompleteVisivel).
+  const ocultas = new Set(parseHiddenCols(headers));
+  const cols = parseCustomCols(headers).filter((col) => !ocultas.has(col.key) && col.sistema !== "validacao");
+  let customOk = true;
+  if (cols.length) {
+    const map = new Map(vals.map((v) => [v.colKey, v.valor]));
+    customOk = cols.every((col) => !!(map.get(col.key) || "").trim());
+  }
+  return isCompleteVisivel(contact as Parameters<typeof isComplete>[0], ocultas) && customOk;
+}
+
+// Estado ANTES de uma edição — as rotas chamam isto antes de gravar e passam o resultado
+// para atualizarConclusao.
+export async function linhaCompleta(contactId: string): Promise<boolean> {
+  return (await linhaCompletaCom(prisma, contactId)) === true;
+}
+
+// Recalcula a conclusão de um contato e atualiza o ContactFill (quem completou/quando).
+//
+// REGRA DO CRÉDITO: só ganha crédito quem COMPLETA a linha — a edição levou a linha de
+// incompleta para completa (quem preencheu a última célula que faltava). Mexer numa linha
+// que JÁ estava completa (ex.: trocar maiúscula/minúscula) nunca dá crédito, mesmo que a
+// linha ainda não tivesse dono (importações e linhas antigas). `antesCompleta` é o estado
+// anterior à edição; sem ele (undefined) o crédito é dado como antes.
+export async function atualizarConclusao(contactId: string, meId: string | null, antesCompleta?: boolean) {
   await ensureContactFillTable();
   // Uma colagem dispara vários salvamentos da MESMA linha ao mesmo tempo (campos fixos +
   // uma requisição por coluna personalizada). Sem serializar, um recálculo que leu o
   // estado antigo ("incompleta") apagava o crédito que outro acabara de dar. O lock por
   // contato faz cada recálculo ler o estado já gravado pelos anteriores.
+  let credito: { dado: boolean } = { dado: false };
   await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contactId}))`;
-
-      const [contact, vals] = await Promise.all([
-        tx.contact.findUnique({ where: { id: contactId }, select: { baseId: true, ...REQUIRED_SELECT } }),
-        tx.contactCustomValue.findMany({ where: { contactId }, select: { colKey: true, valor: true } }),
-      ]);
-      if (!contact) return;
-
-      const base = await tx.base.findUnique({ where: { id: contact.baseId }, select: { headers: true } });
-      const headers = base?.headers as Record<string, unknown> | null;
-      // Coluna oculta/excluída não conta para a conclusão — MESMA regra da tela
-      // (isCompleteVisivel). Antes o servidor exigia as 7 fixas e ninguém era creditado.
-      const ocultas = new Set(parseHiddenCols(headers));
-      const cols = parseCustomCols(headers).filter((c) => !ocultas.has(c.key) && c.sistema !== "validacao");
-
-      let customOk = true;
-      if (cols.length) {
-        const map = new Map(vals.map((v) => [v.colKey, v.valor]));
-        customOk = cols.every((c) => !!(map.get(c.key) || "").trim());
-      }
-
-      const completo = isCompleteVisivel(contact as Parameters<typeof isComplete>[0], ocultas) && customOk;
+      const completo = await linhaCompletaCom(tx as unknown as Cliente, contactId);
+      if (completo === null) return;
 
       if (completo && meId) {
-        await tx.contactFill.upsert({
-          where: { contactId },
-          create: { contactId, preenchidoPorId: meId, concluidoEm: new Date() },
-          update: {},
-        });
+        const jaTem = await tx.contactFill.findUnique({ where: { contactId }, select: { contactId: true } });
+        if (!jaTem && antesCompleta !== true) {
+          await tx.contactFill.create({ data: { contactId, preenchidoPorId: meId, concluidoEm: new Date() } });
+          credito = { dado: true };
+        }
       } else if (!completo) {
         await tx.contactFill.deleteMany({ where: { contactId } });
       }
     },
     { timeout: 10000 }
   );
+  if (credito.dado) await registrarCredito({ contactId, acao: "dado", paraPessoaId: meId, motivo: "completou a linha", porId: meId });
 }
 
 // Reprocessa a conclusão de TODOS os contatos de uma base — usado quando o admin
