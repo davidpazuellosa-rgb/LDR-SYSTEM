@@ -5,6 +5,7 @@ import { isComplete, isCompleteVisivel, customsCompletos, tipoOrgao } from "@/li
 import { parseHiddenCols } from "@/lib/base-columns";
 import { parseCustomCols, ensureContactCustomTable } from "@/lib/custom-columns";
 import { ufSigla } from "@/lib/uf";
+import { isCampanhaAtiva } from "@/lib/campanhas";
 import { OPERATOR_ROLES } from "@/lib/permissions";
 import { carregarValidacoes } from "@/lib/validacoes-carga";
 import {
@@ -86,9 +87,10 @@ export async function buildRelatorio(f: RelatorioFiltros) {
     carregarValidacoes(new Date(Math.min(start.getTime(), startOfWeek(now).getTime(), startOfMonth(now).getTime(), startOfDay(now).getTime()))),
   ]);
 
-  // Lista de campanhas (para o filtro) — distintas e não vazias.
+  // Lista de campanhas (para o filtro): só as que existem de fato (CAMPANHAS_ATIVAS) — as demais
+  // ("Cidade na Mão 2061…", 1 contato cada) são ruído de dados, igual nas outras telas.
   const campanhas = Array.from(
-    new Set(contactsAll.map((c) => (c.campanha || "").trim()).filter(Boolean))
+    new Set(contactsAll.map((c) => (c.campanha || "").trim()).filter((c) => isCampanhaAtiva(c)))
   ).sort();
 
   // Aplica filtro de campanha aos contatos (afeta funil/completude e o join dos fills).
