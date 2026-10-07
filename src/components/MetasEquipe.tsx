@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import ForaDaMeta from "@/components/ForaDaMeta";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
 import MetaModal from "@/components/MetaModal";
 
 type MetaItem = {
@@ -30,7 +31,6 @@ const STATUS = {
 const PRAZO_LABEL: Record<string, string> = { diaria: "Diária", semanal: "Semanal", mensal: "Mensal" };
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
-const selCls = "h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-indigo-400";
 
 // Pior situação entre as metas de um LDR (para o filtro por status e p/ "sem meta").
 function piorStatus(metas: MetaItem[]): "ok" | "risco" | "atrasado" | "sem" {
@@ -82,7 +82,6 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
     });
   }, [ldrs, busca, statusFiltro, tipoFiltro, prazoFiltro]);
 
-  const filtrosAtivos = statusFiltro !== "todos" || tipoFiltro !== "todos" || prazoFiltro !== "todos" || busca.trim() !== "";
 
   return (
     <div className="space-y-4">
@@ -90,47 +89,47 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
         Acompanhe as metas de cada LDR e crie/edite direto por aqui (ou em Usuários → Meta).
       </p>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Busca + botão Filtros (card com os filtros) */}
+      <div className="flex flex-wrap items-start gap-2">
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar LDR…"
-          className="h-8 w-48 rounded-lg border border-slate-200 px-2.5 text-xs outline-none focus:border-indigo-400"
+          className="h-9 w-56 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400"
         />
-        <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className={selCls}>
-          <option value="todos">Toda situação</option>
-          <option value="ok">No ritmo</option>
-          <option value="risco">Em risco</option>
-          <option value="atrasado">Atrasado</option>
-          <option value="sem">Sem meta</option>
-        </select>
-        <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as typeof tipoFiltro)} className={selCls}>
-          <option value="todos">Todo tipo</option>
-          <option value="preenchimento">Preenchimento</option>
-          <option value="correcao">Correção</option>
-          <option value="validacao">Validação</option>
-        </select>
-        <select value={prazoFiltro} onChange={(e) => setPrazoFiltro(e.target.value as typeof prazoFiltro)} className={selCls}>
-          <option value="todos">Todo prazo</option>
-          <option value="diaria">Diária</option>
-          <option value="semanal">Semanal</option>
-          <option value="mensal">Mensal</option>
-        </select>
-        {filtrosAtivos && (
-          <button
-            onClick={() => {
-              setBusca("");
-              setStatusFiltro("todos");
-              setTipoFiltro("todos");
-              setPrazoFiltro("todos");
-            }}
-            className="text-xs text-slate-400 hover:text-slate-700"
+        <div className="min-w-[200px] flex-1">
+          <FiltrosCard
+            ativos={(statusFiltro !== "todos" ? 1 : 0) + (tipoFiltro !== "todos" ? 1 : 0) + (prazoFiltro !== "todos" ? 1 : 0)}
+            onLimpar={() => { setStatusFiltro("todos"); setTipoFiltro("todos"); setPrazoFiltro("todos"); }}
+            direita={<span className="text-xs text-slate-400">{filtrados.length} de {ldrs.length} LDR(s)</span>}
           >
-            Limpar filtros
-          </button>
-        )}
-        <span className="ml-auto text-xs text-slate-400">{filtrados.length} de {ldrs.length} LDR(s)</span>
+            <Campo titulo="Situação">
+              <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400">
+                <option value="todos">Toda situação</option>
+                <option value="ok">No ritmo</option>
+                <option value="risco">Em risco</option>
+                <option value="atrasado">Atrasado</option>
+                <option value="sem">Sem meta</option>
+              </select>
+            </Campo>
+            <Campo titulo="Tipo de meta">
+              <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as typeof tipoFiltro)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400">
+                <option value="todos">Todo tipo</option>
+                <option value="preenchimento">Preenchimento</option>
+                <option value="correcao">Correção</option>
+                <option value="validacao">Validação</option>
+              </select>
+            </Campo>
+            <Campo titulo="Prazo">
+              <select value={prazoFiltro} onChange={(e) => setPrazoFiltro(e.target.value as typeof prazoFiltro)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400">
+                <option value="todos">Todo prazo</option>
+                <option value="diaria">Diária</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+            </Campo>
+          </FiltrosCard>
+        </div>
       </div>
 
       {filtrados.length === 0 ? (

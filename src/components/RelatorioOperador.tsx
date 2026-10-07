@@ -1,5 +1,6 @@
 "use client";
 
+import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
 import { useMemo, useState } from "react";
 import { ufSigla } from "@/lib/uf";
 
@@ -172,39 +173,39 @@ export default function RelatorioOperador({ rows, filaGlobal }: { rows: Relatori
   }, [filtered]);
   const maxCamp = Math.max(1, ...porCampanha.map((c) => c.total));
 
-  const selectCls =
-    "h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-sm text-slate-600 outline-none focus:border-indigo-500";
-
   return (
     <div className="space-y-6">
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
-          {PERIODOS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriodo(p.key)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                periodo === p.key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <select value={campanha} onChange={(e) => setCampanha(e.target.value)} className={selectCls} title="Campanha">
-          <option value="all">Todas as campanhas</option>
-          {campanhas.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <select value={uf} onChange={(e) => setUf(e.target.value)} className={selectCls} title="Estado (UF)">
-          <option value="all">Todos os estados</option>
-          {ufs.map((u) => (
-            <option key={u} value={u}>{u}</option>
-          ))}
-        </select>
-      </div>
+      {/* Filtros: sempre o botão "Filtros" com o card */}
+      <FiltrosCard
+        ativos={(periodo !== "30" ? 1 : 0) + (campanha !== "all" ? 1 : 0) + (uf !== "all" ? 1 : 0)}
+        onLimpar={() => { setPeriodo("30"); setCampanha("all"); setUf("all"); }}
+      >
+        <Campo titulo="Período">
+          <div className={`${SEGMENTADO} flex-wrap`}>
+            {PERIODOS.map((p) => (
+              <button key={p.key} type="button" onClick={() => setPeriodo(p.key)} className={segBtn(periodo === p.key)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </Campo>
+        <Campo titulo="Campanha">
+          <select value={campanha} onChange={(e) => setCampanha(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 outline-none focus:border-indigo-400" title="Campanha">
+            <option value="all">Todas as campanhas</option>
+            {campanhas.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </Campo>
+        <Campo titulo="Estado (UF)">
+          <select value={uf} onChange={(e) => setUf(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 outline-none focus:border-indigo-400" title="Estado (UF)">
+            <option value="all">Todos os estados</option>
+            {ufs.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+        </Campo>
+      </FiltrosCard>
 
       {/* Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

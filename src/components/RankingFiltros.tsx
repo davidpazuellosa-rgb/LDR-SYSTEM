@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
+import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
 // Filtros do Ranking: período, órgão e como contar a validação (Sim + Não | só Sim).
@@ -28,29 +29,31 @@ export default function RankingFiltros({
   }
   const dateCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400";
 
+  const ativos = (orgao ? 1 : 0) + (soSim ? 1 : 0) + (preset !== "7d" ? 1 : 0);
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Dropdown label="Período" multi={false} searchable={false} options={PRESETS.map((p) => ({ value: p, label: PRESET_LABEL[p] }))} value={[preset]} onChange={(v) => ir({ preset: (v[0] as Preset) || "7d" })} />
-      {preset === "personalizado" && (
-        <div className="flex items-center gap-1.5">
-          <input type="date" value={dDe} onChange={(e) => setDDe(e.target.value)} className={dateCls} aria-label="De" />
-          <span className="text-xs text-slate-400">até</span>
-          <input type="date" value={dAte} onChange={(e) => setDAte(e.target.value)} className={dateCls} aria-label="Até" />
-          <button type="button" onClick={() => ir({ de: dDe, ate: dAte })} className="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700">Aplicar</button>
+    <FiltrosCard ativos={ativos} onLimpar={() => router.push("/relatorios/ranking")}>
+      <Campo titulo="Período">
+        <div className="flex flex-wrap items-center gap-2">
+          <Dropdown label="Período" multi={false} searchable={false} options={PRESETS.map((p) => ({ value: p, label: PRESET_LABEL[p] }))} value={[preset]} onChange={(v) => ir({ preset: (v[0] as Preset) || "7d" })} />
+          {preset === "personalizado" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input type="date" value={dDe} onChange={(e) => setDDe(e.target.value)} className={dateCls} aria-label="De" />
+              <span className="text-xs text-slate-400">até</span>
+              <input type="date" value={dAte} onChange={(e) => setDAte(e.target.value)} className={dateCls} aria-label="Até" />
+              <button type="button" onClick={() => ir({ de: dDe, ate: dAte })} className="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700">Aplicar</button>
+            </div>
+          )}
         </div>
-      )}
-      <Dropdown label="Órgão" options={orgaos.map((o) => ({ value: o, label: o }))} value={orgao ? [orgao] : []} onChange={(v) => ir({ orgao: v[0] || null })} />
-      <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5" title="Como contar a validação">
-        <span className="px-2 text-xs text-slate-400">Validação</span>
-        {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
-          <button key={t} type="button" onClick={() => ir({ soSim: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${soSim === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-      {(orgao || soSim || preset !== "7d") && (
-        <button type="button" onClick={() => router.push("/relatorios/ranking")} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</button>
-      )}
-    </div>
+      </Campo>
+      <Campo titulo="Órgão"><Dropdown label="Todos" options={orgaos.map((o) => ({ value: o, label: o }))} value={orgao ? [orgao] : []} onChange={(v) => ir({ orgao: v[0] || null })} /></Campo>
+      <Campo titulo="Como contar a validação">
+        <div className={SEGMENTADO}>
+          {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
+            <button key={t} type="button" onClick={() => ir({ soSim: v })} className={segBtn(soSim === v)}>{t}</button>
+          ))}
+        </div>
+      </Campo>
+    </FiltrosCard>
   );
 }

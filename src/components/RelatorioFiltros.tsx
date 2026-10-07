@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
+import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
 import ExportColunasButton from "@/components/ExportColunasButton";
 import { EXPORT_COLS } from "@/lib/export-cols";
 
@@ -43,50 +44,15 @@ export default function RelatorioFiltros({
   };
 
   const selCls =
-    "h-8 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none hover:bg-slate-50 focus:border-indigo-400";
+    "h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none hover:bg-slate-50 focus:border-indigo-400";
+  const ativos = (periodo !== "semana" ? 1 : 0) + (ldrId ? 1 : 0) + (campanha ? 1 : 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Período — controle segmentado */}
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-        {([
-          ["semana", "Semana"],
-          ["mes", "Mês"],
-        ] as const).map(([v, label]) => (
-          <button
-            key={v}
-            onClick={() => go({ periodo: v })}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-              periodo === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <select className={selCls} value={ldrId ?? ""} onChange={(e) => go({ ldr: e.target.value || null })} title="Filtrar por LDR">
-        <option value="">Todos os LDRs</option>
-        {ldrs.map((l) => (
-          <option key={l.id} value={l.id}>{l.nome}</option>
-        ))}
-      </select>
-
-      <select className={selCls} value={campanha ?? ""} onChange={(e) => go({ campanha: e.target.value || null })} title="Filtrar por campanha">
-        <option value="">Todas as campanhas</option>
-        {campanhas.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-
-      {(ldrId || campanha) && (
-        <button onClick={() => go({ ldr: null, campanha: null })} className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:text-slate-700" title="Limpar filtros">
-          Limpar
-        </button>
-      )}
-
-      {/* Exportar CSV — botões discretos */}
-      <div className="ml-auto flex items-center gap-1.5">
+    <FiltrosCard
+      ativos={ativos}
+      onLimpar={() => router.push("/relatorios")}
+      direita={
+      <>
         {([["producao", "Produção"], ["metas", "Metas"]] as const).map(([tipo, label]) => (
           <ExportColunasButton
             key={tipo}
@@ -99,7 +65,28 @@ export default function RelatorioFiltros({
             {label} CSV
           </ExportColunasButton>
         ))}
-      </div>
-    </div>
+      </>
+      }
+    >
+      <Campo titulo="Período">
+        <div className={SEGMENTADO}>
+          {([["semana", "Semana"], ["mes", "Mês"]] as const).map(([v, label]) => (
+            <button key={v} type="button" onClick={() => go({ periodo: v })} className={segBtn(periodo === v)}>{label}</button>
+          ))}
+        </div>
+      </Campo>
+      <Campo titulo="LDR">
+        <select className={selCls} value={ldrId ?? ""} onChange={(e) => go({ ldr: e.target.value || null })} title="Filtrar por LDR">
+          <option value="">Todos os LDRs</option>
+          {ldrs.map((l) => (<option key={l.id} value={l.id}>{l.nome}</option>))}
+        </select>
+      </Campo>
+      <Campo titulo="Campanha">
+        <select className={selCls} value={campanha ?? ""} onChange={(e) => go({ campanha: e.target.value || null })} title="Filtrar por campanha">
+          <option value="">Todas as campanhas</option>
+          {campanhas.map((c) => (<option key={c} value={c}>{c}</option>))}
+        </select>
+      </Campo>
+    </FiltrosCard>
   );
 }

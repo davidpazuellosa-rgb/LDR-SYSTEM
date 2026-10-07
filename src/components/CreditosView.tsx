@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
 import { useDialog } from "@/components/Dialog";
 import { useToast } from "@/components/Toast";
 import { apiPath } from "@/lib/path";
@@ -100,13 +101,15 @@ export default function CreditosView({
         </section>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Dropdown label="Período" multi={false} searchable={false} options={periodos} value={[periodo]} onChange={(v) => ir({ periodo: v[0] || "hoje" })} />
-        <Dropdown label="Pessoa" options={pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={pessoaSel ? [pessoaSel] : []} onChange={(v) => ir({ pessoa: v[0] || null })} />
-        <Dropdown label="Planilha" options={bases.map((b) => ({ value: b.id, label: b.nome }))} value={baseSel ? [baseSel] : []} onChange={(v) => ir({ base: v[0] || null })} />
-        {(pessoaSel || baseSel || periodo !== "hoje") && <button type="button" onClick={() => router.push("/creditos")} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</button>}
-        <span className="ml-auto text-xs text-slate-400">{sus.length === 0 && pessoaSel ? "Sem alerta para esta pessoa. " : ""}{linhas.length} crédito(s){truncado ? " (mostrando os 500 mais recentes)" : ""}</span>
-      </div>
+      <FiltrosCard
+        ativos={(pessoaSel ? 1 : 0) + (baseSel ? 1 : 0) + (periodo !== "hoje" ? 1 : 0)}
+        onLimpar={() => router.push("/creditos")}
+        direita={<span className="text-xs text-slate-400">{sus.length === 0 && pessoaSel ? "Sem alerta para esta pessoa. " : ""}{linhas.length} crédito(s){truncado ? " (mostrando os 500 mais recentes)" : ""}</span>}
+      >
+        <Campo titulo="Período"><Dropdown label="Período" multi={false} searchable={false} options={periodos} value={[periodo]} onChange={(v) => ir({ periodo: v[0] || "hoje" })} /></Campo>
+        <Campo titulo="Pessoa"><Dropdown label="Todas" options={pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={pessoaSel ? [pessoaSel] : []} onChange={(v) => ir({ pessoa: v[0] || null })} /></Campo>
+        <Campo titulo="Planilha"><Dropdown label="Todas" options={bases.map((b) => ({ value: b.id, label: b.nome }))} value={baseSel ? [baseSel] : []} onChange={(v) => ir({ base: v[0] || null })} /></Campo>
+      </FiltrosCard>
 
       {sel.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
+import FiltrosCard, { Campo, SEGMENTADO } from "@/components/FiltrosCard";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
 type Filtros = { orgao: string | null; regioes: string[]; estados: string[]; pessoas: string[]; campanhas: string[]; tipo: string; soSim?: boolean };
@@ -21,7 +22,6 @@ export default function ProducaoFiltros({
   opcoes: { pessoas: { id: string; nome: string }[]; arvore: Record<string, Record<string, string[]>>; campanhas: string[]; orgaos: string[] };
 }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(false);
   const [dDe, setDDe] = useState(de || "");
   const [dAte, setDAte] = useState(ate || "");
 
@@ -70,85 +70,56 @@ export default function ProducaoFiltros({
   const dateCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400";
 
   const ativos = chips.length + (preset !== "7d" ? 1 : 0);
-  const Campo = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
-    <div>
-      <div className="mb-1 text-xs font-medium text-slate-500">{titulo}</div>
-      {children}
-    </div>
-  );
-  const seg = "inline-flex rounded-lg border border-slate-200 bg-white p-0.5";
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setAberto((v) => !v)}
-          aria-expanded={aberto}
-          className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${aberto || ativos ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5h18M6 12h12M10 19h4" strokeLinecap="round" /></svg>
-          Filtros
-          {ativos > 0 && <span className="rounded-full bg-indigo-600 px-1.5 text-xs text-white">{ativos}</span>}
-        </button>
-        {(chips.length > 0 || preset !== "7d") && (
-          <button type="button" onClick={() => router.push("/relatorios/producao")} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">
-            Limpar tudo
-          </button>
-        )}
-      </div>
-
-      {aberto && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Campo titulo="Período">
-              <div className="flex flex-wrap items-center gap-2">
-                <Dropdown
-                  label="Período"
-                  multi={false}
-                  searchable={false}
-                  options={PRESETS.map((p) => ({ value: p, label: PRESET_LABEL[p] }))}
-                  value={[preset]}
-                  onChange={(v) => ir({ preset: (v[0] as Preset) || "7d" })}
-                />
-                {preset === "personalizado" && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <input type="date" value={dDe} onChange={(e) => setDDe(e.target.value)} className={dateCls} aria-label="De" />
-                    <span className="text-xs text-slate-400">até</span>
-                    <input type="date" value={dAte} onChange={(e) => setDAte(e.target.value)} className={dateCls} aria-label="Até" />
-                    <button type="button" onClick={() => ir({ de: dDe, ate: dAte })} className="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700">
-                      Aplicar
-                    </button>
-                  </div>
-                )}
-              </div>
-            </Campo>
-            <Campo titulo="Órgão"><Dropdown label="Todos" options={opcoes.orgaos.map((o) => ({ value: o, label: o }))} value={filtros.orgao ? [filtros.orgao] : []} onChange={(v) => ir({ orgao: v[0] || null, regioes: [], estados: [] })} /></Campo>
-            <Campo titulo="Região"><Dropdown label="Todas" multi options={regioesOpts.map((r) => ({ value: r, label: r }))} value={filtros.regioes} onChange={(v) => ir({ regioes: v, estados: [] })} /></Campo>
-            <Campo titulo="Estado"><Dropdown label="Todos" multi options={estadosOpts.map((u) => ({ value: u, label: u }))} value={filtros.estados} onChange={(v) => ir({ estados: v })} /></Campo>
-            <Campo titulo="Pessoa"><Dropdown label="Todas" multi options={opcoes.pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={filtros.pessoas} onChange={(v) => ir({ pessoas: v })} /></Campo>
-            <Campo titulo="Campanha"><Dropdown label="Todas" multi options={opcoes.campanhas.map((c) => ({ value: c, label: c }))} value={filtros.campanhas} onChange={(v) => ir({ campanhas: v })} /></Campo>
-            <Campo titulo="Tipo de produção">
-              <div className={seg}>
-                {([["tudo", "Tudo"], ["preenchimento", "Preenchimento"], ["correcao", "Correção"], ["validacao", "Validação"]] as const).map(([v, t]) => (
-                  <button key={v} type="button" onClick={() => ir({ tipo: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${filtros.tipo === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </Campo>
-            <Campo titulo="Como contar a validação">
-              <div className={seg} title="Como contar as metas de validação">
-                {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
-                  <button key={t} type="button" onClick={() => ir({ soSim: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${!!filtros.soSim === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </Campo>
-          </div>
+      <FiltrosCard ativos={ativos} onLimpar={() => router.push("/relatorios/producao")}>
+      <Campo titulo="Período">
+        <div className="flex flex-wrap items-center gap-2">
+          <Dropdown
+            label="Período"
+            multi={false}
+            searchable={false}
+            options={PRESETS.map((p) => ({ value: p, label: PRESET_LABEL[p] }))}
+            value={[preset]}
+            onChange={(v) => ir({ preset: (v[0] as Preset) || "7d" })}
+          />
+          {preset === "personalizado" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input type="date" value={dDe} onChange={(e) => setDDe(e.target.value)} className={dateCls} aria-label="De" />
+              <span className="text-xs text-slate-400">até</span>
+              <input type="date" value={dAte} onChange={(e) => setDAte(e.target.value)} className={dateCls} aria-label="Até" />
+              <button type="button" onClick={() => ir({ de: dDe, ate: dAte })} className="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700">
+                Aplicar
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </Campo>
+      <Campo titulo="Órgão"><Dropdown label="Todos" options={opcoes.orgaos.map((o) => ({ value: o, label: o }))} value={filtros.orgao ? [filtros.orgao] : []} onChange={(v) => ir({ orgao: v[0] || null, regioes: [], estados: [] })} /></Campo>
+      <Campo titulo="Região"><Dropdown label="Todas" multi options={regioesOpts.map((r) => ({ value: r, label: r }))} value={filtros.regioes} onChange={(v) => ir({ regioes: v, estados: [] })} /></Campo>
+      <Campo titulo="Estado"><Dropdown label="Todos" multi options={estadosOpts.map((u) => ({ value: u, label: u }))} value={filtros.estados} onChange={(v) => ir({ estados: v })} /></Campo>
+      <Campo titulo="Pessoa"><Dropdown label="Todas" multi options={opcoes.pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={filtros.pessoas} onChange={(v) => ir({ pessoas: v })} /></Campo>
+      <Campo titulo="Campanha"><Dropdown label="Todas" multi options={opcoes.campanhas.map((c) => ({ value: c, label: c }))} value={filtros.campanhas} onChange={(v) => ir({ campanhas: v })} /></Campo>
+      <Campo titulo="Tipo de produção">
+        <div className={SEGMENTADO}>
+          {([["tudo", "Tudo"], ["preenchimento", "Preenchimento"], ["correcao", "Correção"], ["validacao", "Validação"]] as const).map(([v, t]) => (
+            <button key={v} type="button" onClick={() => ir({ tipo: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${filtros.tipo === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </Campo>
+      <Campo titulo="Como contar a validação">
+        <div className={SEGMENTADO} title="Como contar as metas de validação">
+          {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
+            <button key={t} type="button" onClick={() => ir({ soSim: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${!!filtros.soSim === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </Campo>
+      </FiltrosCard>
 
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
