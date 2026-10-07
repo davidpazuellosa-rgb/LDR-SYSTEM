@@ -25,7 +25,7 @@ export default async function ProducaoPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader title="Relatórios" />
       <main className="mx-auto max-w-[1400px] space-y-5 p-6">
-        <RelatoriosTabs ativa="producao" />
+        <RelatoriosTabs ativa="producao" admin />
         <ProducaoFiltros preset={data.preset} de={data.de} ate={data.ate} filtros={data.filtros} opcoes={data.opcoes} />
         <p className="text-xs text-slate-400">
           Período: {fmt(data.faixa.de)} a {ultimo}. Preenchimento conta o território da meta; correção conta quem resolveu.

@@ -1,54 +1,11 @@
-import Link from "next/link";
 import DataTable from "@/components/DataTable";
-import { PRESET_LABEL, type Preset } from "@/lib/producao-calc";
-import type { buildMeuRelatorio, LinhaRanking } from "@/lib/producao";
+import type { buildMeuRelatorio } from "@/lib/producao";
 
 type Meu = Awaited<ReturnType<typeof buildMeuRelatorio>>;
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
 const SUB = "text-[11px] text-slate-400";
 const nf = (n: number) => n.toLocaleString("pt-BR");
-const PRESETS_LDR: Preset[] = ["hoje", "7d", "30d", "mes", "mes-passado"];
-
-export type Aba = "desempenho" | "horarios" | "ranking" | "correcoes";
-export const ABAS: { v: Aba; label: string }[] = [
-  { v: "desempenho", label: "Meu desempenho" },
-  { v: "horarios", label: "Meus horários" },
-  { v: "ranking", label: "Ranking" },
-  { v: "correcoes", label: "Correções" },
-];
-
-export function AbasLinks({ ativa, periodo }: { ativa: Aba; periodo: Preset }) {
-  return (
-    <div className="flex flex-wrap gap-1 border-b border-slate-200">
-      {ABAS.map((a) => (
-        <Link
-          key={a.v}
-          href={`/relatorio?aba=${a.v}${periodo !== "7d" ? `&periodo=${periodo}` : ""}`}
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition ${ativa === a.v ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}
-        >
-          {a.label}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-export function PeriodoLinks({ aba, periodo }: { aba: Aba; periodo: Preset }) {
-  return (
-    <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5">
-      {PRESETS_LDR.map((p) => (
-        <Link
-          key={p}
-          href={`/relatorio?aba=${aba}${p !== "7d" ? `&periodo=${p}` : ""}`}
-          className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${periodo === p ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
-        >
-          {PRESET_LABEL[p]}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 function Var({ v }: { v: number | null }) {
   if (v === null) return <span className="text-[11px] text-slate-400">novo no período</span>;
@@ -129,25 +86,3 @@ export function MeuDesempenho({ d }: { d: Meu }) {
 }
 
 // Ranking: SÓ posição, nome e total — nada mais dos colegas.
-export function RankingTabela({ linhas, meId }: { linhas: LinhaRanking[]; meId: string }) {
-  const max = Math.max(1, ...linhas.map((l) => l.total));
-  const eu = linhas.find((l) => l.id === meId);
-  return (
-    <section className={CARD}>
-      <h2 className={TITLE}>Ranking da equipe</h2>
-      <p className={`mb-3 ${SUB}`}>Total produzido no período (preenchidas + corrigidas){eu ? ` · você está em ${eu.posicao}º` : ""}</p>
-      {linhas.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">Sem dados.</p> : (
-        <div className="divide-y divide-slate-50">
-          {linhas.map((l) => (
-            <div key={l.id} className={`flex items-center gap-3 px-2 py-2 ${l.id === meId ? "rounded-lg bg-indigo-50/70" : ""}`}>
-              <span className="w-7 text-sm font-semibold tabular-nums text-slate-400">{l.posicao}º</span>
-              <span className={`w-44 truncate text-sm ${l.id === meId ? "font-semibold text-indigo-700" : "text-slate-700"}`}>{l.nome}{l.id === meId ? " (você)" : ""}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${l.id === meId ? "bg-indigo-600" : "bg-indigo-300"}`} style={{ width: `${Math.max(2, (l.total / max) * 100)}%` }} /></div>
-              <span className="w-14 text-right text-sm font-semibold tabular-nums text-slate-800">{nf(l.total)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}

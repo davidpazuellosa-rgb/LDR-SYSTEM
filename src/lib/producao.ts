@@ -229,6 +229,8 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       pctMetas: somaMeta > 0 ? Math.round((somaFeito / somaMeta) * 100) : null,
     },
     linhas, dias, porEstado, porCampanha, detalhe, metasCalc, horarios, horariosRanking, horariosPorPessoa,
+    // Produção do período anterior por pessoa (para comparar no ranking).
+    anteriorPorPessoa: Object.fromEntries(contarPor(previos, (e) => e.pessoaId)) as Record<string, { preenchimento: number; correcao: number; total: number }>,
     operadorIds: pessoasDb.map((u) => u.id),
     opcoes: { pessoas, arvore, campanhas: campanhasOpcoes, orgaos: Object.keys(arvore).sort() },
     nomeBase: Object.fromEntries(nomeBase),
@@ -251,17 +253,4 @@ export async function buildMeuRelatorio(meId: string, sp: ParamsProducao) {
     eu: eu ? { producao: eu.producao, meta: eu.meta, feitoMeta: eu.feitoMeta, p: eu.p, temMeta: eu.temMeta } : null,
     horarios: d.horariosPorPessoa[meId] ?? d.horarios,
   };
-}
-
-export type LinhaRanking = { posicao: number; id: string; nome: string; total: number };
-
-// Ranking de operadores (LDR / pré-vendedor): só posição, nome e total produzido.
-export async function buildRanking(sp: ParamsProducao): Promise<LinhaRanking[]> {
-  const d = await buildProducao({ periodo: sp.periodo, de: sp.de, ate: sp.ate });
-  const ops = new Set(d.operadorIds);
-  return d.linhas
-    .filter((l) => ops.has(l.id))
-    .map((l) => ({ id: l.id, nome: l.nome, total: l.producao.total }))
-    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome))
-    .map((l, i) => ({ posicao: i + 1, ...l }));
 }

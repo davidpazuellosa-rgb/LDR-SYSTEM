@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isAdmin } from "@/lib/permissions";
+import { currentRole } from "@/lib/current-role";
+import { buildMeuRelatorio } from "@/lib/producao";
+import { parsePreset } from "@/lib/producao-calc";
+import PeriodoLinks from "@/components/PeriodoLinks";
+import { MeuDesempenho } from "@/components/MeuRelatorio";
 import { buildRelatorio, parsePeriodo, PERIODO_LABEL } from "@/lib/relatorio";
 import PageHeader from "@/components/PageHeader";
 import RelatorioFiltros from "@/components/RelatorioFiltros";
@@ -41,10 +46,26 @@ export default async function RelatoriosPage({
   searchParams: Promise<{ periodo?: string; ldr?: string; campanha?: string; situacao?: string }>;
 }) {
   const session = await auth();
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (!isAdmin(role)) redirect("/dashboard");
-
+  if (!session?.user) redirect("/login");
+  const role = await currentRole(session);
   const sp = await searchParams;
+
+  // LDR / Pré-vendedor: "Visão geral" é o desempenho DELE (a pessoa vem sempre da sessão).
+  if (!isAdmin(role)) {
+    const meId = (session.user as { id?: string }).id || "";
+    const periodoLdr = parsePreset(sp.periodo === "personalizado" ? undefined : sp.periodo);
+    const meu = await buildMeuRelatorio(meId, { periodo: periodoLdr });
+    return (
+      <>
+        <PageHeader title="Relatórios" />
+        <main className="mx-auto max-w-[1400px] space-y-5 p-6">
+          <RelatoriosTabs ativa="geral" admin={false} />
+          <PeriodoLinks base="/relatorios" periodo={periodoLdr} />
+          <MeuDesempenho d={meu} />
+        </main>
+      </>
+    );
+  }
   const periodo = parsePeriodo(sp.periodo);
   const situacao = (["ok", "risco", "atrasado"] as const).find((x) => x === sp.situacao) ?? null;
   const r = await buildRelatorio({ periodo, ldrId: sp.ldr || null, campanha: sp.campanha || null });
@@ -53,7 +74,7 @@ export default async function RelatoriosPage({
     <>
       <PageHeader title="Relatórios" />
       <main className="mx-auto max-w-[1400px] space-y-5 p-6">
-        <RelatoriosTabs ativa="geral" />
+        <RelatoriosTabs ativa="geral" admin />
         <RelatorioFiltros
           periodo={periodo}
           ldrId={r.ldrId}

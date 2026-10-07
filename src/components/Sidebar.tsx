@@ -128,15 +128,12 @@ export default function Sidebar({
     // Agenda: visível para todos os acessos (admin, ldr, prevendedor).
     { href: "/agenda", label: "Agenda", icon: "calendar", badge: 0 },
     { href: "/minhas-metas", label: admin ? "Metas da Equipe" : "Minhas Metas", icon: "target", badge: 0, dot: metaDot || (metaNova ? "bg-indigo-400" : ""), pulse: metaNova },
-    ...(admin ? [{ href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 }] : []),
-    // Ranking da equipe: visível para todos os cargos.
-    { href: "/ranking", label: "Ranking", icon: "chart", badge: 0 },
+    // Relatórios: o mesmo item para todos os cargos (o admin vê a equipe; LDR só o dele + ranking).
+    { href: "/relatorios", label: "Relatórios", icon: "chart", badge: 0 },
     // Pré-vendedor não vê Bases de Dados.
     ...(prevendedor ? [] : [{ href: "/bases", label: "Bases de Dados", icon: "database", badge: 0 }]),
     { href: "/correcoes", label: "Correção de Contatos", icon: "phone", badge: 0 },
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
-    // Relatório próprio do operador (LDR / Pré-vendedor). Admin usa /relatorios.
-    ...(admin ? [] : [{ href: "/relatorio", label: "Relatório", icon: "chart", badge: 0 }]),
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/creditos", label: "Revisar créditos", icon: "history", badge: 0 }] : []),
     ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),

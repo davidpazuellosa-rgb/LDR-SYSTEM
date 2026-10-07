@@ -5,29 +5,27 @@ import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
-// Filtros do Ranking: período, órgão e como contar a validação (Sim + Não | só Sim).
-export default function RankingFiltros({
-  preset, de, ate, orgao, soSim, orgaos,
-}: { preset: Preset; de: string | null; ate: string | null; orgao: string | null; soSim: boolean; orgaos: string[] }) {
+// Filtro simples das abas do admin: período + (opcional) "Ver de quem". `base` = rota da aba.
+export default function RelatoriosFiltroSimples({
+  base, preset, de, ate, pessoa, pessoas,
+}: { base: string; preset: Preset; de: string | null; ate: string | null; pessoa: string | null; pessoas?: { id: string; nome: string }[] }) {
   const router = useRouter();
   const [dDe, setDDe] = useState(de || "");
   const [dAte, setDAte] = useState(ate || "");
 
-  function ir(patch: Partial<{ preset: Preset; de: string; ate: string; orgao: string | null; soSim: boolean }>) {
-    const n = { preset, de: dDe, ate: dAte, orgao, soSim, ...patch };
+  function ir(patch: Partial<{ preset: Preset; de: string; ate: string; pessoa: string | null }>) {
+    const n = { preset, de: dDe, ate: dAte, pessoa, ...patch };
     const p = new URLSearchParams();
     if (n.preset !== "7d") p.set("periodo", n.preset);
     if (n.preset === "personalizado") {
       if (n.de) p.set("de", n.de);
       if (n.ate) p.set("ate", n.ate);
     }
-    if (n.orgao) p.set("orgao", n.orgao);
-    if (n.soSim) p.set("valor", "sim");
+    if (n.pessoa) p.set("pessoa", n.pessoa);
     const qs = p.toString();
-    router.push(qs ? `/relatorios/ranking?${qs}` : "/relatorios/ranking");
+    router.push(qs ? `${base}?${qs}` : base);
   }
   const dateCls = "h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400";
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Dropdown label="Período" multi={false} searchable={false} options={PRESETS.map((p) => ({ value: p, label: PRESET_LABEL[p] }))} value={[preset]} onChange={(v) => ir({ preset: (v[0] as Preset) || "7d" })} />
@@ -39,18 +37,10 @@ export default function RankingFiltros({
           <button type="button" onClick={() => ir({ de: dDe, ate: dAte })} className="h-9 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700">Aplicar</button>
         </div>
       )}
-      <Dropdown label="Órgão" options={orgaos.map((o) => ({ value: o, label: o }))} value={orgao ? [orgao] : []} onChange={(v) => ir({ orgao: v[0] || null })} />
-      <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5" title="Como contar a validação">
-        <span className="px-2 text-xs text-slate-400">Validação</span>
-        {([[false, "Sim + Não"], [true, "Só Sim"]] as const).map(([v, t]) => (
-          <button key={t} type="button" onClick={() => ir({ soSim: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${soSim === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-      {(orgao || soSim || preset !== "7d") && (
-        <button type="button" onClick={() => router.push("/relatorios/ranking")} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</button>
+      {pessoas && (
+        <Dropdown label="Ver de quem" options={pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={pessoa ? [pessoa] : []} onChange={(v) => ir({ pessoa: v[0] || null })} />
       )}
+      {(pessoa || preset !== "7d") && <button type="button" onClick={() => router.push(base)} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</button>}
     </div>
   );
 }

@@ -35,3 +35,34 @@ test("ranquear: ordena por métrica, empate por nome, numera", () => {
   assert.deepEqual(ranquear(l, "preenchidas").map((x) => x.nome), ["Ana", "Bia", "Caio"]);
   assert.deepEqual(ranquear(l, "atividades").map((x) => x.nome), ["Bia", "Ana", "Caio"]); // 33 x 17 x 0
 });
+
+test("variação contra o período anterior; sem anterior = null", async () => {
+  const { variacaoPct } = await import("../src/lib/ranking-calc");
+  assert.equal(variacaoPct(120, 100), 20);
+  assert.equal(variacaoPct(50, 100), -50);
+  assert.equal(variacaoPct(10, 0), null);
+  assert.equal(variacaoPct(10, undefined), null);
+});
+
+test("privacidade: quem não é admin não recebe Sim/Não/taxa dos colegas, só o próprio", async () => {
+  const { ocultarDetalhe } = await import("../src/lib/ranking-calc");
+  const l = montarLinhas(pessoas, prod, vals);
+  const vistoPorAna = ocultarDetalhe(l, "a", false);
+  const ana = vistoPorAna.find((x) => x.id === "a")!;
+  const bia = vistoPorAna.find((x) => x.id === "b")!;
+  assert.equal(ana.sim, 4);
+  assert.equal(ana.taxa, 80);
+  assert.equal(bia.sim, 0);
+  assert.equal(bia.nao, 0);
+  assert.equal(bia.taxa, null);
+  assert.equal(bia.oculto, true);
+  assert.equal(bia.validadas, 30); // o total continua (é o que o ranking ordena)
+  assert.equal(ocultarDetalhe(l, "a", true).find((x) => x.id === "b")!.sim, 20); // admin vê tudo
+});
+
+test("ranking por % da meta: ordena por pctMeta e ignora quem não tem meta", async () => {
+  const { ranquear } = await import("../src/lib/ranking-calc");
+  const l = montarLinhas(pessoas, prod, vals).map((x) => ({ ...x, pctMeta: x.id === "a" ? 80 : x.id === "b" ? 120 : null }));
+  const r = ranquear(l.filter((x) => x.pctMeta !== null), "pctMeta");
+  assert.deepEqual(r.map((x) => [x.nome, x.valor]), [["Bia", 120], ["Ana", 80]]);
+});

@@ -1,5 +1,5 @@
 import HorariosView from "@/components/HorariosView";
-import { ranquear, type LinhaRank, type Metrica } from "@/lib/ranking-calc";
+import { ranquear, variacaoPct, type LinhaRank, type Metrica } from "@/lib/ranking-calc";
 import type { Rankings } from "@/lib/ranking";
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
@@ -14,13 +14,19 @@ function Posicao({ n, ativo }: { n: number; ativo: boolean }) {
   );
 }
 
+function Var({ v }: { v: number | null }) {
+  if (v === null) return null;
+  return <span className={`ml-1.5 text-[11px] font-medium ${v >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{v >= 0 ? "↑" : "↓"}{Math.abs(v)}%</span>;
+}
+
 function Quadro({
-  titulo, sub, linhas, metrica, meId, detalhe,
+  titulo, sub, linhas, metrica, meId, detalhe, sufixo = "",
 }: {
   titulo: string; sub: string; linhas: LinhaRank[]; metrica: Metrica; meId: string;
-  detalhe: (l: LinhaRank) => React.ReactNode;
+  detalhe: (l: LinhaRank) => React.ReactNode; sufixo?: string;
 }) {
-  const r = ranquear(linhas, metrica);
+  // Ranking por % da meta: só entra quem tem meta no período.
+  const r = ranquear(metrica === "pctMeta" ? linhas.filter((l) => l.pctMeta !== null && l.pctMeta !== undefined) : linhas, metrica).map((l, i) => ({ ...l, posicao: i + 1 }));
   const max = Math.max(1, ...r.map((l) => l.valor));
   const eu = r.find((l) => l.id === meId);
   return (
@@ -36,7 +42,7 @@ function Quadro({
                 <div className="flex items-center gap-2">
                   <Posicao n={l.posicao} ativo={l.valor > 0} />
                   <span className={`min-w-0 flex-1 truncate text-sm ${eh ? "font-semibold text-indigo-700" : "text-slate-700"}`}>{l.nome}{eh ? " (você)" : ""}</span>
-                  <span className="text-sm font-semibold tabular-nums text-slate-800">{nf(l.valor)}</span>
+                  <span className="text-sm font-semibold tabular-nums text-slate-800">{nf(l.valor)}{sufixo}{metrica !== "pctMeta" && <Var v={variacaoPct(l.valor, l.ant?.[metrica])} />}</span>
                 </div>
                 <div className="ml-8 mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className={`h-full rounded-full ${eh ? "bg-indigo-600" : "bg-indigo-300"}`} style={{ width: `${l.valor > 0 ? Math.max(2, (l.valor / max) * 100) : 0}%` }} />
@@ -55,7 +61,7 @@ export default function RankingView({ data, meId }: { data: Rankings; meId: stri
   const { linhas, soSim } = data;
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         <Quadro
           titulo="Atividades" sub={`Preenchidas + corrigidas + validadas${soSim ? " (só Sim)" : ""}`} linhas={linhas} metrica="atividades" meId={meId}
           detalhe={(l) => `${nf(l.preenchidas)} preench. · ${nf(l.corrigidas)} corrig. · ${nf(l.validadas)} valid.`}
@@ -66,7 +72,11 @@ export default function RankingView({ data, meId }: { data: Rankings; meId: stri
         />
         <Quadro
           titulo="Validação" sub={soSim ? "Contatos validados com Sim" : "Contatos validados por ligação (Sim + Não)"} linhas={linhas} metrica="validadas" meId={meId}
-          detalhe={(l) => (l.taxa === null ? "Nenhuma validação" : `${nf(l.sim)} Sim · ${nf(l.nao)} Não · acerto ${l.taxa}%`)}
+          detalhe={(l) => (l.oculto ? `${nf(l.validadas)} validações` : l.taxa === null ? "Nenhuma validação" : `${nf(l.sim)} Sim · ${nf(l.nao)} Não · acerto ${l.taxa}%`)}
+        />
+        <Quadro
+          titulo="% da meta" sub="Quem mais bateu a própria meta no período (quem não tem meta fica de fora)" linhas={linhas} metrica="pctMeta" meId={meId} sufixo="%"
+          detalhe={(l) => (l.pctMeta !== null && l.pctMeta !== undefined && l.pctMeta >= 100 ? "Meta batida" : "Em andamento")}
         />
       </div>
 

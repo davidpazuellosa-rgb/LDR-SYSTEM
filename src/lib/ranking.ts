@@ -5,7 +5,8 @@ import { tipoOrgao } from "@/lib/completude";
 import { calcularHorarios } from "@/lib/horarios";
 import { carregarValidacoes } from "@/lib/validacoes-carga";
 import { buildProducao } from "@/lib/producao";
-import { montarLinhas, type LinhaRank } from "@/lib/ranking-calc";
+import { montarLinhas, ocultarDetalhe, type LinhaRank } from "@/lib/ranking-calc";
+import { faixaAnterior } from "@/lib/producao-calc";
 
 export type ParamsRanking = { periodo?: string; de?: string; ate?: string; orgao?: string; valor?: string };
 
@@ -36,12 +37,29 @@ export async function buildRankings(sp: ParamsRanking, viewer: { id: string; adm
     for (const u of us) nomes.set(u.id, u.name || u.email);
   }
   const visiveis = [...nomes.keys()].filter((id) => viewer.admin || operadores.has(id) || id === viewer.id);
-  const linhas: LinhaRank[] = montarLinhas(
+  const todas: LinhaRank[] = montarLinhas(
     visiveis.map((id) => ({ id, nome: nomes.get(id) || "—" })),
     produziu,
     vals.filter((v) => v.porId && visiveis.includes(v.porId)).map((v) => ({ pessoaId: v.porId!, valor: v.valor })),
     soSim
   );
+
+  // Período anterior (mesmo tamanho): variação de cada pessoa.
+  const ant = faixaAnterior({ de, ate });
+  const valsAnt = (await carregarValidacoes(ant.de, ant.ate)).filter((v) => (!sp.orgao || orgaoDaBase.get(v.baseId) === sp.orgao) && v.porId && visiveis.includes(v.porId));
+  const prodAnt = new Map<string, { preenchidas: number; corrigidas: number }>(
+    Object.entries(d.anteriorPorPessoa).map(([id, c]) => [id, { preenchidas: c.preenchimento, corrigidas: c.correcao }])
+  );
+  const anteriores = new Map(
+    montarLinhas(visiveis.map((id) => ({ id, nome: "" })), prodAnt, valsAnt.map((v) => ({ pessoaId: v.porId!, valor: v.valor })), soSim).map((l) => [l.id, l])
+  );
+  const metaDe = new Map(d.linhas.map((l) => [l.id, l]));
+  const comExtras = todas.map((l) => {
+    const a = anteriores.get(l.id);
+    const m = metaDe.get(l.id);
+    return { ...l, ant: a ? { atividades: a.atividades, preenchidas: a.preenchidas, validadas: a.validadas } : undefined, pctMeta: m?.temMeta ? m.p : null };
+  });
+  const linhas = ocultarDetalhe(comExtras, viewer.id, viewer.admin);
 
   const quandos = (apenas?: string) => vals.filter((v) => (!apenas || v.porId === apenas) && (!soSim || v.valor === "sim")).map((v) => v.concluidoEm);
   const equipe = { sim: vals.filter((v) => v.valor === "sim").length, nao: vals.filter((v) => v.valor === "nao").length };

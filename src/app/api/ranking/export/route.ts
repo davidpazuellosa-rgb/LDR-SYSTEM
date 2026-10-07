@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
   const rows: (string | number)[][] = [["Posição", "Pessoa", "Atividades", "Preenchidas", "Corrigidas", "Validadas", "Sim", "Não", "Taxa de acerto"]];
   ranquear(d.linhas, "atividades").forEach((l) =>
-    rows.push([l.posicao, l.nome, l.atividades, l.preenchidas, l.corrigidas, l.validadas, l.sim, l.nao, l.taxa === null ? "" : `${l.taxa}%`])
+    rows.push([l.posicao, l.nome, l.atividades, l.preenchidas, l.corrigidas, l.validadas, l.oculto ? "" : l.sim, l.oculto ? "" : l.nao, l.taxa === null ? "" : `${l.taxa}%`])
   );
   const ini = d.faixa.de.slice(0, 10);
   const fim = new Date(new Date(d.faixa.ate).getTime() - 1).toISOString().slice(0, 10);
