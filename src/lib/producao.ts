@@ -38,7 +38,7 @@ export function parseFiltros(sp: ParamsProducao) {
     estados: lista(sp.estados),
     pessoas: lista(sp.pessoas),
     campanhas: lista(sp.campanhas),
-    tipo: sp.tipo === "preenchimento" || sp.tipo === "correcao" ? sp.tipo : "tudo",
+    tipo: sp.tipo === "preenchimento" || sp.tipo === "correcao" || sp.tipo === "validacao" ? sp.tipo : "tudo",
     soSim: sp.valor === "sim",
   };
   return { preset, de: sp.de || null, ate: sp.ate || null, filtros };
@@ -93,6 +93,15 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       estado: ufSigla(r.contact.estado) || null, campanha: r.contact.campanha,
     });
   }
+  // Validações (Sim/Não) entram como um terceiro tipo de produção. "Só Sim" é o filtro de leitura.
+  for (const v of validacoesReg) {
+    if (!v.porId || (filtros.soSim && v.valor !== "sim")) continue;
+    todos.push({
+      tipo: "validacao", pessoaId: v.porId, quando: v.concluidoEm, baseId: v.baseId,
+      orgao: orgaoDaBase.get(v.baseId) || "Órgão", regiao: regiaoEfetiva(v.regiao, nomeBase.get(v.baseId) ?? ""),
+      estado: ufSigla(v.estado) || null, campanha: null,
+    });
+  }
 
   // Além dos operadores (LDR/pré-vendedor), entra quem produziu no período mesmo sendo
   // de outro cargo (ex.: admin que preencheu linhas) — senão a soma por pessoa não fecha
@@ -141,8 +150,8 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
   // Detalhe por pessoa (painel lateral): dia, estado, campanha e metas.
   const detalhe: Record<string, {
     dias: ReturnType<typeof serie>;
-    estados: { uf: string; preenchimento: number; correcao: number; total: number }[];
-    campanhas: { campanha: string; preenchimento: number; correcao: number; total: number }[];
+    estados: { uf: string; preenchimento: number; correcao: number; validacao: number; total: number }[];
+    campanhas: { campanha: string; preenchimento: number; correcao: number; validacao: number; total: number }[];
   }> = {};
   for (const p of pessoasVisiveis) {
     const ev = atuais.filter((e) => e.pessoaId === p.id);
@@ -225,6 +234,7 @@ export async function buildProducao(sp: ParamsProducao, opts: { grupos?: boolean
       varTotal: variacao(total.total, totalPrev.total),
       varPreench: variacao(total.preenchimento, totalPrev.preenchimento),
       varCorr: variacao(total.correcao, totalPrev.correcao),
+      varValid: variacao(total.validacao, totalPrev.validacao),
       metasBatidas, totalMetas: metasCalc.length,
       pctMetas: somaMeta > 0 ? Math.round((somaFeito / somaMeta) * 100) : null,
     },

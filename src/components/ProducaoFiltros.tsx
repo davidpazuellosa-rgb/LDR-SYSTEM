@@ -62,7 +62,7 @@ export default function ProducaoFiltros({
   filtros.estados.forEach((u) => chips.push({ rotulo: u, remover: () => ir({ estados: filtros.estados.filter((x) => x !== u) }) }));
   filtros.pessoas.forEach((id) => chips.push({ rotulo: opcoes.pessoas.find((p) => p.id === id)?.nome || id, remover: () => ir({ pessoas: filtros.pessoas.filter((x) => x !== id) }) }));
   filtros.campanhas.forEach((c) => chips.push({ rotulo: c, remover: () => ir({ campanhas: filtros.campanhas.filter((x) => x !== c) }) }));
-  if (filtros.tipo !== "tudo") chips.push({ rotulo: filtros.tipo === "correcao" ? "Só correção" : "Só preenchimento", remover: () => ir({ tipo: "tudo" }) });
+  if (filtros.tipo !== "tudo") chips.push({ rotulo: filtros.tipo === "correcao" ? "Só correção" : filtros.tipo === "validacao" ? "Só validação" : "Só preenchimento", remover: () => ir({ tipo: "tudo" }) });
 
   if (filtros.soSim) chips.push({ rotulo: "Validação: só Sim", remover: () => ir({ soSim: false }) });
 
@@ -95,7 +95,7 @@ export default function ProducaoFiltros({
         <Dropdown label="Pessoa" multi options={opcoes.pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={filtros.pessoas} onChange={(v) => ir({ pessoas: v })} />
         <Dropdown label="Campanha" multi options={opcoes.campanhas.map((c) => ({ value: c, label: c }))} value={filtros.campanhas} onChange={(v) => ir({ campanhas: v })} />
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-          {([["tudo", "Tudo"], ["preenchimento", "Preenchimento"], ["correcao", "Correção"]] as const).map(([v, t]) => (
+          {([["tudo", "Tudo"], ["preenchimento", "Preenchimento"], ["correcao", "Correção"], ["validacao", "Validação"]] as const).map(([v, t]) => (
             <button key={v} type="button" onClick={() => ir({ tipo: v })} className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition ${filtros.tipo === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}>
               {t}
             </button>

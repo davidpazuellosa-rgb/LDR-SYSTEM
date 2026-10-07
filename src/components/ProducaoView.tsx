@@ -14,6 +14,7 @@ const TITLE = "text-[13px] font-semibold text-slate-700";
 const SUB = "text-[11px] text-slate-400";
 const COR_P = "#6366f1"; // preenchimento
 const COR_C = "#10b981"; // correção
+const COR_V = "#f59e0b"; // validação
 const nf = (n: number) => n.toLocaleString("pt-BR");
 
 const STATUS = {
@@ -37,6 +38,7 @@ function Legenda() {
     <div className="flex gap-3 text-[10px] text-slate-400">
       <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full" style={{ background: COR_P }} /> Preenchimento</span>
       <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full" style={{ background: COR_C }} /> Correção</span>
+      <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full" style={{ background: COR_V }} /> Validação</span>
     </div>
   );
 }
@@ -44,7 +46,7 @@ function Legenda() {
 // Barras verticais empilhadas por dia/semana, com tooltip ao passar o mouse.
 function GraficoDias({ dias }: { dias: Producao["dias"] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...dias.map((d) => d.preenchimento + d.correcao));
+  const max = Math.max(1, ...dias.map((d) => d.preenchimento + d.correcao + d.validacao));
   const passo = Math.ceil(dias.length / 8);
   const H = 130;
   return (
@@ -53,16 +55,18 @@ function GraficoDias({ dias }: { dias: Producao["dias"] }) {
         {dias.map((d, i) => {
           const hp = (d.preenchimento / max) * (H - 8);
           const hc = (d.correcao / max) * (H - 8);
+          const hv = (d.validacao / max) * (H - 8);
           return (
             <div key={d.chave} className="relative flex h-full flex-1 flex-col justify-end" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               {hover === i && (
                 <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11px] text-white shadow-lg">
-                  {d.label}: {nf(d.preenchimento + d.correcao)} <span className="text-slate-300">({d.preenchimento}p · {d.correcao}c)</span>
+                  {d.label}: {nf(d.preenchimento + d.correcao + d.validacao)} <span className="text-slate-300">({d.preenchimento}p · {d.correcao}c · {d.validacao}v)</span>
                 </div>
               )}
-              <div className="w-full rounded-t-[3px]" style={{ height: hc, background: COR_C }} />
-              <div className="w-full" style={{ height: hp, background: COR_P, borderRadius: hc ? 0 : "3px 3px 0 0" }} />
-              {d.preenchimento + d.correcao === 0 && <div className="h-[2px] w-full rounded bg-slate-200" />}
+              <div className="w-full rounded-t-[3px]" style={{ height: hv, background: COR_V }} />
+              <div className="w-full" style={{ height: hc, background: COR_C, borderRadius: hv ? 0 : "3px 3px 0 0" }} />
+              <div className="w-full" style={{ height: hp, background: COR_P, borderRadius: hc || hv ? 0 : "3px 3px 0 0" }} />
+              {d.preenchimento + d.correcao + d.validacao === 0 && <div className="h-[2px] w-full rounded bg-slate-200" />}
             </div>
           );
         })}
@@ -78,16 +82,17 @@ function GraficoDias({ dias }: { dias: Producao["dias"] }) {
   );
 }
 
-function BarraEmpilhada({ p, c, max }: { p: number; c: number; max: number }) {
+function BarraEmpilhada({ p, c, v = 0, max }: { p: number; c: number; v?: number; max: number }) {
   return (
     <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
       <div className="h-full" style={{ width: `${(p / max) * 100}%`, background: COR_P }} />
       <div className="h-full" style={{ width: `${(c / max) * 100}%`, background: COR_C }} />
+      <div className="h-full" style={{ width: `${(v / max) * 100}%`, background: COR_V }} />
     </div>
   );
 }
 
-type Ordem = "producao" | "nome" | "meta" | "feito" | "p" | "preenchimento" | "correcao";
+type Ordem = "producao" | "nome" | "meta" | "feito" | "p" | "preenchimento" | "correcao" | "validacao";
 
 export default function ProducaoView({ data, query }: { data: Producao; query: string }) {
   const [busca, setBusca] = useState("");
@@ -109,6 +114,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
       : ordem === "p" ? (l.temMeta ? l.p : -1)
       : ordem === "preenchimento" ? l.producao.preenchimento
       : ordem === "correcao" ? l.producao.correcao
+      : ordem === "validacao" ? l.producao.validacao
       : l.producao.total;
     return data.linhas
       .filter((l) => !n || l.nome.toLowerCase().includes(n))
@@ -142,7 +148,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
   return (
     <div className="space-y-5">
       {/* KPIs */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <div className={CARD}>
           <div className="text-2xl font-semibold tabular-nums text-slate-900">{nf(k.total.total)}</div>
           <div className="mt-0.5 text-xs text-slate-500">Total produzido</div>
@@ -157,6 +163,11 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
           <div className="text-2xl font-semibold tabular-nums" style={{ color: COR_C }}>{nf(k.total.correcao)}</div>
           <div className="mt-0.5 text-xs text-slate-500">Corrigidas</div>
           <div className="mt-1"><Var v={k.varCorr} /></div>
+        </div>
+        <div className={CARD}>
+          <div className="text-2xl font-semibold tabular-nums" style={{ color: COR_V }}>{nf(k.total.validacao)}</div>
+          <div className="mt-0.5 text-xs text-slate-500">Validadas</div>
+          <div className="mt-1"><Var v={k.varValid} /></div>
         </div>
         <div className={CARD}>
           <div className="text-2xl font-semibold tabular-nums text-slate-900">{k.metasBatidas}<span className="text-base font-normal text-slate-400"> / {k.totalMetas}</span></div>
@@ -198,9 +209,9 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                 <button key={l.id} type="button" onClick={() => setAberto(l.id)} className="block w-full rounded-md text-left hover:bg-slate-50">
                   <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
                     <span className="min-w-0 truncate text-slate-600">{l.nome}</span>
-                    <span className="shrink-0 tabular-nums text-slate-400"><span className="font-semibold text-slate-700">{nf(l.producao.total)}</span> ({l.producao.preenchimento}p · {l.producao.correcao}c)</span>
+                    <span className="shrink-0 tabular-nums text-slate-400"><span className="font-semibold text-slate-700">{nf(l.producao.total)}</span> ({l.producao.preenchimento}p · {l.producao.correcao}c · {l.producao.validacao}v)</span>
                   </div>
-                  <BarraEmpilhada p={l.producao.preenchimento} c={l.producao.correcao} max={maxPessoa} />
+                  <BarraEmpilhada p={l.producao.preenchimento} c={l.producao.correcao} v={l.producao.validacao} max={maxPessoa} />
                 </button>
               ))}
             </div>
@@ -253,7 +264,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
               {data.porEstado.slice(0, 5).map((e) => (
                 <div key={e.uf} className="flex items-center gap-3">
                   <span className="w-7 text-xs font-semibold text-slate-600">{e.uf}</span>
-                  <div className="flex-1"><BarraEmpilhada p={e.preenchimento} c={e.correcao} max={maxEstado} /></div>
+                  <div className="flex-1"><BarraEmpilhada p={e.preenchimento} c={e.correcao} v={e.validacao} max={maxEstado} /></div>
                   <span className="w-12 text-right text-xs tabular-nums text-slate-500">{nf(e.total)}</span>
                 </div>
               ))}
@@ -269,10 +280,11 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                       { key: "uf", label: "UF", kind: "text" },
                       { key: "preenchimento", label: "Preench.", kind: "num" },
                       { key: "correcao", label: "Corrig.", kind: "num" },
+                      { key: "validacao", label: "Valid.", kind: "num" },
                       { key: "total", label: "Total", kind: "num" },
                     ]}
                     rows={data.porEstado.map((e) => ({ ...e }))}
-                    total={{ uf: "Total", preenchimento: data.porEstado.reduce((a, e) => a + e.preenchimento, 0), correcao: data.porEstado.reduce((a, e) => a + e.correcao, 0), total: data.porEstado.reduce((a, e) => a + e.total, 0) }}
+                    total={{ uf: "Total", preenchimento: data.porEstado.reduce((a, e) => a + e.preenchimento, 0), correcao: data.porEstado.reduce((a, e) => a + e.correcao, 0), validacao: data.porEstado.reduce((a, e) => a + e.validacao, 0), total: data.porEstado.reduce((a, e) => a + e.total, 0) }}
                   />
                 </div>
               )}
@@ -289,7 +301,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
             {data.porCampanha.map((c) => (
               <div key={c.campanha} className="flex items-center gap-3">
                 <span className="w-40 truncate text-xs text-slate-600" title={c.campanha}>{c.campanha}</span>
-                <div className="flex-1"><BarraEmpilhada p={c.preenchimento} c={c.correcao} max={maxCamp} /></div>
+                <div className="flex-1"><BarraEmpilhada p={c.preenchimento} c={c.correcao} v={c.validacao} max={maxCamp} /></div>
                 <span className="w-12 text-right text-xs tabular-nums text-slate-500">{nf(c.total)}</span>
               </div>
             ))}
@@ -323,6 +335,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                 <Th o="p" right>% da meta</Th>
                 <Th o="preenchimento" right>Preench.</Th>
                 <Th o="correcao" right>Corrig.</Th>
+                <Th o="validacao" right>Valid.</Th>
                 <Th o="producao" right>Total</Th>
                 <th className="px-3 py-2 text-left font-medium">Situação</th>
               </tr>
@@ -336,11 +349,12 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{l.temMeta ? `${l.p}%` : "—"}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_P }}>{nf(l.producao.preenchimento)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_C }}>{nf(l.producao.correcao)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_V }}>{nf(l.producao.validacao)}</td>
                   <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">{nf(l.producao.total)}</td>
                   <td className="px-3 py-2.5">{l.status ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS[l.status].chip}`}>{STATUS[l.status].label}</span> : <span className="text-xs text-slate-300">sem meta</span>}</td>
                 </tr>
               ))}
-              {linhas.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-400">Nenhuma pessoa encontrada.</td></tr>}
+              {linhas.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-sm text-slate-400">Nenhuma pessoa encontrada.</td></tr>}
             </tbody>
             <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-800">
               <tr>
@@ -350,6 +364,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                 <td className="px-3 py-2.5 text-right tabular-nums">{totalMeta > 0 ? `${Math.round((totalFeitoMeta / totalMeta) * 100)}%` : "—"}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_P }}>{nf(k.total.preenchimento)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_C }}>{nf(k.total.correcao)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: COR_V }}>{nf(k.total.validacao)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{nf(k.total.total)}</td>
                 <td />
               </tr>
@@ -375,12 +390,12 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
               <tbody>
                 {[...data.linhas].sort((a, b) => b.producao.total - a.producao.total).map((l) => {
                   const dias = data.detalhe[l.id]?.dias ?? [];
-                  const pico = Math.max(1, ...dias.map((x) => x.preenchimento + x.correcao));
+                  const pico = Math.max(1, ...dias.map((x) => x.preenchimento + x.correcao + x.validacao));
                   return (
                     <tr key={l.id}>
                       <td className="max-w-[10rem] truncate pr-2 text-left text-xs text-slate-600">{l.nome}</td>
                       {dias.map((x) => {
-                        const v = x.preenchimento + x.correcao;
+                        const v = x.preenchimento + x.correcao + x.validacao;
                         return <td key={x.chave} title={`${l.nome} · ${x.label}: ${v}`} className="h-5 rounded-[3px]" style={{ backgroundColor: v ? `rgba(99,102,241,${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "#f1f5f9" }} />;
                       })}
                       <td className="pl-2 text-right text-xs font-semibold tabular-nums text-slate-700">{nf(l.producao.total)}</td>
@@ -441,7 +456,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                 <span className="grid h-10 w-10 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{pessoaAberta.nome.charAt(0).toUpperCase()}</span>
                 <div>
                   <h3 className="font-semibold text-slate-800">{pessoaAberta.nome}</h3>
-                  <p className="text-xs text-slate-400">{nf(pessoaAberta.producao.total)} no período · {pessoaAberta.producao.preenchimento}p · {pessoaAberta.producao.correcao}c</p>
+                  <p className="text-xs text-slate-400">{nf(pessoaAberta.producao.total)} no período · {pessoaAberta.producao.preenchimento}p · {pessoaAberta.producao.correcao}c · {pessoaAberta.producao.validacao}v</p>
                 </div>
               </div>
               <button onClick={() => setAberto(null)} aria-label="Fechar" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
@@ -486,7 +501,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                     {det.estados.map((e) => (
                       <div key={e.uf} className="flex items-center gap-3">
                         <span className="w-7 text-xs font-semibold text-slate-600">{e.uf}</span>
-                        <div className="flex-1"><BarraEmpilhada p={e.preenchimento} c={e.correcao} max={det.estados[0].total} /></div>
+                        <div className="flex-1"><BarraEmpilhada p={e.preenchimento} c={e.correcao} v={e.validacao} max={det.estados[0].total} /></div>
                         <span className="w-10 text-right text-xs tabular-nums text-slate-500">{nf(e.total)}</span>
                       </div>
                     ))}
@@ -500,7 +515,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                     {det.campanhas.map((c) => (
                       <div key={c.campanha} className="flex items-center gap-3">
                         <span className="w-32 truncate text-xs text-slate-600" title={c.campanha}>{c.campanha}</span>
-                        <div className="flex-1"><BarraEmpilhada p={c.preenchimento} c={c.correcao} max={det.campanhas[0].total} /></div>
+                        <div className="flex-1"><BarraEmpilhada p={c.preenchimento} c={c.correcao} v={c.validacao} max={det.campanhas[0].total} /></div>
                         <span className="w-10 text-right text-xs tabular-nums text-slate-500">{nf(c.total)}</span>
                       </div>
                     ))}

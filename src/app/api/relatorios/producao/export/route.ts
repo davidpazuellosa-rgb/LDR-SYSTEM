@@ -24,15 +24,15 @@ export async function GET(req: Request) {
   let rows: (string | number)[][];
   if (detalhe) {
     rows = [["Pessoa", "Dia", "Tipo", "Orgao", "Regiao", "Estado", "Campanha", "Quantidade"]];
-    for (const g of d.grupos) rows.push([g.pessoa, g.dia, g.tipo === "correcao" ? "Correcao" : "Preenchimento", g.orgao, g.regiao, g.estado, g.campanha, g.qtd]);
+    for (const g of d.grupos) rows.push([g.pessoa, g.dia, g.tipo === "correcao" ? "Correcao" : g.tipo === "validacao" ? "Validacao" : "Preenchimento", g.orgao, g.regiao, g.estado, g.campanha, g.qtd]);
   } else {
-    rows = [["Pessoa", "Meta no periodo", "Feito (meta)", "% da meta", "Preenchidas", "Corrigidas", "Total produzido", "Situacao"]];
+    rows = [["Pessoa", "Meta no periodo", "Feito (meta)", "% da meta", "Preenchidas", "Corrigidas", "Validadas", "Total produzido", "Situacao"]];
     for (const l of d.linhas) {
-      rows.push([l.nome, l.temMeta ? l.meta : "", l.temMeta ? l.feitoMeta : "", l.temMeta ? `${l.p}%` : "", l.producao.preenchimento, l.producao.correcao, l.producao.total, l.status ? STATUS[l.status] : "Sem meta"]);
+      rows.push([l.nome, l.temMeta ? l.meta : "", l.temMeta ? l.feitoMeta : "", l.temMeta ? `${l.p}%` : "", l.producao.preenchimento, l.producao.correcao, l.producao.validacao, l.producao.total, l.status ? STATUS[l.status] : "Sem meta"]);
     }
     const meta = d.linhas.reduce((a, l) => a + l.meta, 0);
     const feito = d.linhas.reduce((a, l) => a + l.feitoMeta, 0);
-    rows.push(["TOTAL DA EQUIPE", meta, feito, meta > 0 ? `${Math.round((feito / meta) * 100)}%` : "", d.kpis.total.preenchimento, d.kpis.total.correcao, d.kpis.total.total, ""]);
+    rows.push(["TOTAL DA EQUIPE", meta, feito, meta > 0 ? `${Math.round((feito / meta) * 100)}%` : "", d.kpis.total.preenchimento, d.kpis.total.correcao, d.kpis.total.validacao, d.kpis.total.total, ""]);
   }
 
   const ini = d.faixa.de.slice(0, 10);

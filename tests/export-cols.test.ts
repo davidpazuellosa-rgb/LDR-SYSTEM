@@ -15,7 +15,7 @@ test("índices inválidos/fora do alcance são ignorados; lista vazia = tudo", (
   assert.deepEqual(filtrarColunas(rows, ""), rows);
 });
 test("rótulos do popup têm o mesmo tamanho dos cabeçalhos das rotas", () => {
-  assert.equal(EXPORT_COLS.pessoas.length, 8);
+  assert.equal(EXPORT_COLS.pessoas.length, 9);
   assert.equal(EXPORT_COLS.detalhe.length, 8);
   assert.equal(EXPORT_COLS.metas.length, 7);
   assert.equal(EXPORT_COLS.producao.length, 5);

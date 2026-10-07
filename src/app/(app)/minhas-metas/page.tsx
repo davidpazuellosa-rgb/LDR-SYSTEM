@@ -8,7 +8,7 @@ import MetasEquipe from "@/components/MetasEquipe";
 
 export const dynamic = "force-dynamic";
 
-type MetasEquipeItem = { id: string; rotulo: string; tipo: string; feito: number; alvo: number; p: number; status: "ok" | "risco" | "atrasado"; foraPor?: { rotulo: string; n: number }[] };
+type MetasEquipeItem = { id: string; rotulo: string; tipo: string; prazo: string; feito: number; alvo: number; p: number; status: "ok" | "risco" | "atrasado"; foraPor?: { rotulo: string; n: number }[] };
 
 const CARD = "rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm";
 const TITLE = "text-[13px] font-semibold text-slate-700";
@@ -54,7 +54,7 @@ export default async function MinhasMetasPage() {
     const byUser = new Map<string, MetasEquipeItem[]>();
     for (const m of r.metasView) {
       const arr = byUser.get(m.userId) || [];
-      arr.push({ id: m.id, rotulo: m.rotulo, tipo: m.tipo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status, foraPor: m.foraPor });
+      arr.push({ id: m.id, rotulo: m.rotulo, tipo: m.tipo, prazo: m.prazo, feito: m.feito, alvo: m.alvo, p: m.p, status: m.status, foraPor: m.foraPor });
       byUser.set(m.userId, arr);
     }
     const ldrs = r.ldrs.map((x) => ({ id: x.id, nome: x.name || x.email, metas: byUser.get(x.id) || [] }));

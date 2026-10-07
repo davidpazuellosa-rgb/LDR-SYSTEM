@@ -18,14 +18,15 @@ function Var({ v }: { v: number | null }) {
 
 export function MeuDesempenho({ d }: { d: Meu }) {
   const k = d.kpis;
-  const max = Math.max(1, ...d.dias.map((x) => x.preenchimento + x.correcao));
+  const max = Math.max(1, ...d.dias.map((x) => x.preenchimento + x.correcao + x.validacao));
   const passo = Math.ceil(d.dias.length / 8);
   return (
     <div className="space-y-5">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className={CARD}><div className="text-2xl font-semibold tabular-nums text-slate-900">{nf(k.total.total)}</div><div className="mt-0.5 text-xs text-slate-500">Total produzido</div><div className="mt-1"><Var v={k.varTotal} /></div></div>
         <div className={CARD}><div className="text-2xl font-semibold tabular-nums text-indigo-500">{nf(k.total.preenchimento)}</div><div className="mt-0.5 text-xs text-slate-500">Preenchidas</div><div className="mt-1"><Var v={k.varPreench} /></div></div>
         <div className={CARD}><div className="text-2xl font-semibold tabular-nums text-emerald-500">{nf(k.total.correcao)}</div><div className="mt-0.5 text-xs text-slate-500">Corrigidas</div><div className="mt-1"><Var v={k.varCorr} /></div></div>
+        <div className={CARD}><div className="text-2xl font-semibold tabular-nums text-amber-500">{nf(k.total.validacao)}</div><div className="mt-0.5 text-xs text-slate-500">Validadas</div><div className="mt-1"><Var v={k.varValid} /></div></div>
         <div className={CARD}>
           <div className="text-2xl font-semibold tabular-nums text-slate-900">{k.pctMetas === null ? "—" : `${k.pctMetas}%`}</div>
           <div className="mt-0.5 text-xs text-slate-500">das minhas metas · {k.metasBatidas}/{k.totalMetas} batidas</div>
@@ -40,10 +41,11 @@ export function MeuDesempenho({ d }: { d: Meu }) {
           <>
             <div className="flex h-32 items-end gap-[3px]">
               {d.dias.map((x) => (
-                <div key={x.chave} className="flex h-full flex-1 flex-col justify-end" title={`${x.label}: ${x.preenchimento + x.correcao} (${x.preenchimento}p · ${x.correcao}c)`}>
-                  <div className="w-full rounded-t-[3px] bg-emerald-500" style={{ height: `${(x.correcao / max) * 92}%` }} />
-                  <div className="w-full bg-indigo-500" style={{ height: `${(x.preenchimento / max) * 92}%`, borderRadius: x.correcao ? 0 : "3px 3px 0 0" }} />
-                  {x.preenchimento + x.correcao === 0 && <div className="h-[2px] w-full rounded bg-slate-200" />}
+                <div key={x.chave} className="flex h-full flex-1 flex-col justify-end" title={`${x.label}: ${x.preenchimento + x.correcao + x.validacao} (${x.preenchimento}p · ${x.correcao}c · ${x.validacao}v)`}>
+                  <div className="w-full rounded-t-[3px] bg-amber-500" style={{ height: `${(x.validacao / max) * 92}%` }} />
+                  <div className="w-full bg-emerald-500" style={{ height: `${(x.correcao / max) * 92}%`, borderRadius: x.validacao ? 0 : "3px 3px 0 0" }} />
+                  <div className="w-full bg-indigo-500" style={{ height: `${(x.preenchimento / max) * 92}%`, borderRadius: x.correcao || x.validacao ? 0 : "3px 3px 0 0" }} />
+                  {x.preenchimento + x.correcao + x.validacao === 0 && <div className="h-[2px] w-full rounded bg-slate-200" />}
                 </div>
               ))}
             </div>

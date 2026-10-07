@@ -135,3 +135,15 @@ test("meta de validação (Produção por pessoa): conta Sim+Não da pessoa; só
   assert.equal(filtrarMetas([meta], { ...F0, tipo: "preenchimento" }).length, 0);
   assert.equal(filtrarMetas([meta], F0).length, 1);
 });
+
+test("validação é um terceiro tipo: entra na contagem, no total, na série e no filtro de tipo", () => {
+  const faixa = faixaDoPeriodo("7d", now);
+  const evs = [ev({}), ev({ tipo: "correcao", campanha: "X" }), ev({ tipo: "validacao" }), ev({ tipo: "validacao", pessoaId: "b" })];
+  const t = contarTotal(evs);
+  assert.deepEqual(t, { preenchimento: 1, correcao: 1, validacao: 2, total: 4 });
+  assert.equal(serie(evs, faixa)[6].validacao, 2);
+  assert.equal(filtrarEventos(evs, { ...F0, tipo: "validacao" }, faixa).length, 2);
+  // filtro "só validação" esconde metas que não são de validação
+  const metaV: MetaIn = { ...metaP, id: "mv", tipo: "validacao", estado: "*" };
+  assert.deepEqual(filtrarMetas([metaP, metaC, metaV], { ...F0, tipo: "validacao" }).map((m) => m.id), ["mv"]);
+});

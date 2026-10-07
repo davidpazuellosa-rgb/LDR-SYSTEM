@@ -31,10 +31,14 @@ export async function POST(req: Request) {
   const atuais = await prisma.contactFill.findMany({ where: { contactId: { in: ids } }, select: { contactId: true, preenchidoPorId: true } });
   if (atuais.length === 0) return NextResponse.json({ ok: true, alterados: 0 });
 
+  const alvo = atuais.map((a) => a.contactId);
   if (acao === "remover") {
-    await prisma.contactFill.deleteMany({ where: { contactId: { in: atuais.map((a) => a.contactId) } } });
+    await prisma.contactFill.deleteMany({ where: { contactId: { in: alvo } } });
+    // Remover é soltar a linha: o próximo a completá-la ganha o crédito (não volta ao dono antigo).
+    await prisma.$executeRaw`DELETE FROM "CreditoOriginal" WHERE "contactId" = ANY(${alvo})`;
   } else {
-    await prisma.contactFill.updateMany({ where: { contactId: { in: atuais.map((a) => a.contactId) } }, data: { preenchidoPorId: paraId! } });
+    await prisma.contactFill.updateMany({ where: { contactId: { in: alvo } }, data: { preenchidoPorId: paraId! } });
+    await prisma.$executeRaw`UPDATE "CreditoOriginal" SET "pessoaId" = ${paraId} WHERE "contactId" = ANY(${alvo})`;
   }
   // Um registro por linha (a trilha precisa dizer exatamente o que mudou).
   await Promise.all(

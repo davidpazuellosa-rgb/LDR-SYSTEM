@@ -3,7 +3,7 @@
 import { normCampanha } from "@/lib/campanhas";
 import { chaveTerritorio, territorioConfere } from "@/lib/meta-progress";
 
-export type TipoEvento = "preenchimento" | "correcao";
+export type TipoEvento = "preenchimento" | "correcao" | "validacao";
 export type Evento = {
   tipo: TipoEvento;
   pessoaId: string;
@@ -138,12 +138,13 @@ export function filtrarMetas(metas: MetaIn[], f: Filtros): MetaIn[] {
   return metas.filter((m) => {
     if (f.pessoas.length && !f.pessoas.includes(m.userId)) return false;
     if (m.tipo === "correcao") {
-      if (f.tipo === "preenchimento" || territorial) return false;
+      if (f.tipo === "preenchimento" || f.tipo === "validacao" || territorial) return false;
       if (f.campanhas.length && !f.campanhas.some((c) => normCampanha(c) === normCampanha(m.campanha))) return false;
       return true;
     }
     if (f.tipo === "correcao" || f.campanhas.length) return false;
     if (m.tipo === "validacao" && f.tipo === "preenchimento") return false;
+    if (f.tipo === "validacao" && m.tipo !== "validacao") return false;
     if (f.orgao && m.orgao !== f.orgao) return false;
     if (f.regioes.length && !f.regioes.includes(m.regiao || "Sem região")) return false;
     if (f.estados.length && !(m.estado && f.estados.includes(m.estado))) return false;
@@ -218,7 +219,7 @@ export function calcularMeta(m: MetaIn, todos: Evento[], faixa: Faixa, now: Date
 }
 
 // ---- Séries ----
-export type Ponto = { chave: string; label: string; preenchimento: number; correcao: number };
+export type Ponto = { chave: string; label: string; preenchimento: number; correcao: number; validacao: number };
 
 // Baldes por dia (até 62 dias) ou por semana (segunda a domingo) acima disso.
 export function serie(eventos: Evento[], faixa: Faixa): Ponto[] {
@@ -241,6 +242,7 @@ export function serie(eventos: Evento[], faixa: Faixa): Ponto[] {
       label: `${loc.getUTCDate()}/${loc.getUTCMonth() + 1}`,
       preenchimento: 0,
       correcao: 0,
+      validacao: 0,
     };
     baldes.push(p);
     idx.set(b.toISOString(), p);
@@ -252,8 +254,8 @@ export function serie(eventos: Evento[], faixa: Faixa): Ponto[] {
   return baldes;
 }
 
-export type Contagem = { preenchimento: number; correcao: number; total: number };
-const zero = (): Contagem => ({ preenchimento: 0, correcao: 0, total: 0 });
+export type Contagem = { preenchimento: number; correcao: number; validacao: number; total: number };
+const zero = (): Contagem => ({ preenchimento: 0, correcao: 0, validacao: 0, total: 0 });
 const soma = (c: Contagem, tipo: TipoEvento) => {
   c[tipo] += 1;
   c.total += 1;

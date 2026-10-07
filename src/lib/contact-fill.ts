@@ -21,6 +21,17 @@ export async function ensureContactFillTable() {
   );
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactFill_preenchidoPorId_idx" ON "ContactFill" ("preenchidoPorId");`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ContactFill_concluidoEm_idx" ON "ContactFill" ("concluidoEm");`);
+  // Dono ORIGINAL do crédito: quando a linha deixa de estar completa (alguém apaga uma célula) o
+  // crédito sai do ContactFill, mas o primeiro a completar continua sendo dono — se a linha voltar
+  // a ficar completa, ele recupera (mesmo que outra pessoa tenha digitado a célula de novo).
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "CreditoOriginal" (
+      "contactId" TEXT NOT NULL,
+      "pessoaId" TEXT NOT NULL,
+      "concluidoEm" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "CreditoOriginal_pkey" PRIMARY KEY ("contactId")
+    );`
+  );
   // Índice composto pra acelerar a query mais comum (contatos de uma base, não
   // excluídos) — hoje o Postgres só tinha índices separados em baseId e deletedAt.
   await prisma.$executeRawUnsafe(
@@ -71,25 +82,39 @@ export async function atualizarConclusao(contactId: string, meId: string | null,
   // uma requisição por coluna personalizada). Sem serializar, um recálculo que leu o
   // estado antigo ("incompleta") apagava o crédito que outro acabara de dar. O lock por
   // contato faz cada recálculo ler o estado já gravado pelos anteriores.
-  let credito: { dado: boolean } = { dado: false };
+  let credito: { dado: boolean; restaurado?: string } = { dado: false };
   await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contactId}))`;
       const completo = await linhaCompletaCom(tx as unknown as Cliente, contactId);
       if (completo === null) return;
 
-      if (completo && meId) {
+      if (completo) {
         const jaTem = await tx.contactFill.findUnique({ where: { contactId }, select: { contactId: true } });
-        if (!jaTem && antesCompleta !== true) {
-          await tx.contactFill.create({ data: { contactId, preenchidoPorId: meId, concluidoEm: new Date() } });
-          credito = { dado: true };
+        if (!jaTem) {
+          // O primeiro a completar continua dono: se a linha já tinha dono (e perdeu o crédito só
+          // porque uma célula foi apagada), ele recupera — quem redigitou não "rouba" a linha.
+          const orig = await tx.$queryRaw<{ pessoaId: string; concluidoEm: Date }[]>`SELECT "pessoaId","concluidoEm" FROM "CreditoOriginal" WHERE "contactId" = ${contactId}`;
+          if (orig[0]) {
+            await tx.contactFill.create({ data: { contactId, preenchidoPorId: orig[0].pessoaId, concluidoEm: orig[0].concluidoEm } });
+            await tx.$executeRaw`DELETE FROM "CreditoOriginal" WHERE "contactId" = ${contactId}`;
+            credito = { dado: false, restaurado: orig[0].pessoaId };
+          } else if (meId && antesCompleta !== true) {
+            await tx.contactFill.create({ data: { contactId, preenchidoPorId: meId, concluidoEm: new Date() } });
+            credito = { dado: true };
+          }
         }
-      } else if (!completo) {
-        await tx.contactFill.deleteMany({ where: { contactId } });
+      } else {
+        const ex = await tx.contactFill.findUnique({ where: { contactId }, select: { preenchidoPorId: true, concluidoEm: true } });
+        if (ex) {
+          await tx.$executeRaw`INSERT INTO "CreditoOriginal" ("contactId","pessoaId","concluidoEm") VALUES (${contactId}, ${ex.preenchidoPorId}, ${ex.concluidoEm}) ON CONFLICT ("contactId") DO UPDATE SET "pessoaId" = EXCLUDED."pessoaId", "concluidoEm" = EXCLUDED."concluidoEm"`;
+          await tx.contactFill.deleteMany({ where: { contactId } });
+        }
       }
     },
     { timeout: 10000 }
   );
+  if (credito.restaurado) await registrarCredito({ contactId, acao: "dado", paraPessoaId: credito.restaurado, motivo: "linha voltou a ficar completa: crédito de volta ao primeiro a completar", porId: meId });
   if (credito.dado) await registrarCredito({ contactId, acao: "dado", paraPessoaId: meId, motivo: "completou a linha", porId: meId });
 }
 
@@ -132,7 +157,15 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
   }
 
   await ensureContactFillTable();
-  if (incompletos.length) await prisma.contactFill.deleteMany({ where: { contactId: { in: incompletos } } });
+  if (incompletos.length) {
+    // Guarda o dono original antes de tirar o crédito; ao voltar a ficar completa, ele recupera.
+    await prisma.$executeRaw`INSERT INTO "CreditoOriginal" ("contactId","pessoaId","concluidoEm") SELECT "contactId","preenchidoPorId","concluidoEm" FROM "ContactFill" WHERE "contactId" = ANY(${incompletos}) ON CONFLICT ("contactId") DO UPDATE SET "pessoaId" = EXCLUDED."pessoaId", "concluidoEm" = EXCLUDED."concluidoEm"`;
+    await prisma.contactFill.deleteMany({ where: { contactId: { in: incompletos } } });
+  }
+  if (completos.length) {
+    await prisma.$executeRaw`INSERT INTO "ContactFill" ("contactId","preenchidoPorId","concluidoEm") SELECT "contactId","pessoaId","concluidoEm" FROM "CreditoOriginal" WHERE "contactId" = ANY(${completos}) ON CONFLICT ("contactId") DO NOTHING`;
+    await prisma.$executeRaw`DELETE FROM "CreditoOriginal" WHERE "contactId" = ANY(${completos}) AND EXISTS (SELECT 1 FROM "ContactFill" f WHERE f."contactId" = "CreditoOriginal"."contactId")`;
+  }
   if (meId && completos.length) {
     await prisma.contactFill.createMany({
       data: completos.map((contactId) => ({ contactId, preenchidoPorId: meId, concluidoEm: new Date() })),
