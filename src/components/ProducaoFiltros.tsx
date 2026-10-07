@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
-import FiltrosCard, { Campo, SEGMENTADO } from "@/components/FiltrosCard";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
+import { SEGMENTADO } from "@/lib/ui-filtros";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
 type Filtros = { orgao: string | null; regioes: string[]; estados: string[]; pessoas: string[]; campanhas: string[]; tipo: string; soSim?: boolean };

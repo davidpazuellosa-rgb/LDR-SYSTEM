@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Dropdown from "@/components/Dropdown";
-import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
+import { SEGMENTADO, segBtn } from "@/lib/ui-filtros";
 import { PRESETS, PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
 // Filtros do Ranking: período, órgão e como contar a validação (Sim + Não | só Sim).

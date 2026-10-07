@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
-import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
+import { SEGMENTADO, segBtn } from "@/lib/ui-filtros";
 import ExportColunasButton from "@/components/ExportColunasButton";
 import { EXPORT_COLS } from "@/lib/export-cols";
 

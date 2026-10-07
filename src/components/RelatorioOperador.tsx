@@ -1,6 +1,7 @@
 "use client";
 
-import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
+import { SEGMENTADO, segBtn } from "@/lib/ui-filtros";
 import { useMemo, useState } from "react";
 import { ufSigla } from "@/lib/uf";
 

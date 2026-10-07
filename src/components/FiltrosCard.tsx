@@ -15,9 +15,6 @@ export function Campo({ titulo, children }: { titulo: string; children: React.Re
   );
 }
 
-export const SEGMENTADO = "inline-flex rounded-lg border border-slate-200 bg-white p-0.5";
-export const segBtn = (on: boolean) =>
-  `rounded-md px-2.5 py-1.5 text-sm font-medium transition ${on ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`;
 
 export default function FiltrosCard({
   ativos, onLimpar, limparHref, direita, children,

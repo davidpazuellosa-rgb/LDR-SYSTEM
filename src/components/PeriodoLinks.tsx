@@ -1,5 +1,6 @@
 import Link from "next/link";
-import FiltrosCard, { Campo, SEGMENTADO, segBtn } from "@/components/FiltrosCard";
+import FiltrosCard, { Campo } from "@/components/FiltrosCard";
+import { SEGMENTADO, segBtn } from "@/lib/ui-filtros";
 import { PRESET_LABEL, type Preset } from "@/lib/producao-calc";
 
 const PRESETS: Preset[] = ["hoje", "7d", "30d", "mes", "mes-passado"];
