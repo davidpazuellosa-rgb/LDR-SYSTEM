@@ -16,6 +16,22 @@ export function Campo({ titulo, children }: { titulo: string; children: React.Re
 }
 
 
+// Botão "Filtros": do mesmo tamanho e estilo dos outros botões das telas (Lixeira, Novo órgão…).
+export function BotaoFiltros({ aberto, ativos, onClick }: { aberto: boolean; ativos: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={aberto}
+      className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${aberto || ativos ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+    >
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5h18M6 12h12M10 19h4" strokeLinecap="round" /></svg>
+      Filtros
+      {ativos > 0 && <span className="rounded-full bg-indigo-600 px-1.5 text-xs text-white">{ativos}</span>}
+    </button>
+  );
+}
+
 export default function FiltrosCard({
   ativos, onLimpar, limparHref, direita, children,
 }: {
@@ -29,16 +45,7 @@ export default function FiltrosCard({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setAberto((v) => !v)}
-          aria-expanded={aberto}
-          className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${aberto || ativos ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5h18M6 12h12M10 19h4" strokeLinecap="round" /></svg>
-          Filtros
-          {ativos > 0 && <span className="rounded-full bg-indigo-600 px-1.5 text-xs text-white">{ativos}</span>}
-        </button>
+        <BotaoFiltros aberto={aberto} ativos={ativos} onClick={() => setAberto((v) => !v)} />
         {ativos > 0 && onLimpar && (
           <button type="button" onClick={onLimpar} className="h-9 rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</button>
         )}

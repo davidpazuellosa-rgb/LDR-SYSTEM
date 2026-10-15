@@ -172,22 +172,23 @@ export default async function BasesPage({
       <>
         <PageHeader title="Bases de Dados" />
         <div className="space-y-5 p-8">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-slate-500">
-              {lista.length} {lista.length === 1 ? "tipo de órgão" : "tipos de órgão"} · {bases.length}{" "}
-              {bases.length === 1 ? "planilha" : "planilhas"}
-            </p>
-            <div className="flex items-center gap-2">
-              {podeApagar && (
-                <Link href="/bases/lixeira" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                  Lixeira{naLixeira > 0 ? ` (${naLixeira})` : ""}
-                </Link>
-              )}
-              <NovoOrgaoButton />
-            </div>
-          </div>
-
           <BasesBusca
+            resumo={
+              <>
+                {lista.length} {lista.length === 1 ? "tipo de órgão" : "tipos de órgão"} · {bases.length}{" "}
+                {bases.length === 1 ? "planilha" : "planilhas"}
+              </>
+            }
+            acoes={
+              <>
+                {podeApagar && (
+                  <Link href="/bases/lixeira" className="flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                    Lixeira{naLixeira > 0 ? ` (${naLixeira})` : ""}
+                  </Link>
+                )}
+                <NovoOrgaoButton />
+              </>
+            }
             nenhum={
               <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
                 Nenhuma base ainda. Clique em <strong>+ Nova base</strong> para começar.
