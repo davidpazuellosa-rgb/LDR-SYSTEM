@@ -4,18 +4,38 @@ import { isHubspotConfigured } from "@/lib/hubspot";
 import PageHeader from "@/components/PageHeader";
 import HubspotTestButton from "@/components/HubspotTestButton";
 import BackupPanel from "@/components/BackupPanel";
+import PrdView from "@/components/PrdView";
+import { secoesPrd } from "@/lib/prd";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function ConfiguracoesPage() {
+export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
+  const sp = await searchParams;
+  const aba = sp.aba === "ldr-hub" ? "ldr-hub" : "geral";
   const session = await auth();
   const admin = isAdmin((session?.user as { role?: string } | undefined)?.role);
   const hubspotConfigured = isHubspotConfigured();
+
+  // Aba "LDR Hub": a documentação do sistema. As partes internas (arquitetura, riscos, roadmap…)
+  // só são geradas no servidor para administradores.
+  const doc = aba === "ldr-hub" ? secoesPrd(admin) : null;
+  const tab = (on: boolean) =>
+    `-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition ${on ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"}`;
 
   return (
     <>
       <PageHeader title="Configurações" />
       <div className="space-y-6 p-8">
+        <div className="flex gap-1 border-b border-slate-200">
+          <Link href="/configuracoes" className={tab(aba === "geral")}>Geral</Link>
+          <Link href="/configuracoes?aba=ldr-hub" className={tab(aba === "ldr-hub")}>LDR Hub</Link>
+        </div>
+
+        {doc ? (
+          <PrdView titulo={doc.titulo} intro={doc.intro} secoes={doc.secoes} />
+        ) : (
+        <>
         <div className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold text-slate-800">Sua conta</h2>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -36,8 +56,8 @@ export default async function ConfiguracoesPage() {
             </div>
           </dl>
           <p className="mt-6 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
-            Para trocar a senha ou criar novos usuários da equipe, fale com o
-            administrador do sistema.
+            Para trocar a senha, use <strong>“Esqueci minha senha”</strong> na tela de login. Para criar
+            novos usuários da equipe, fale com o administrador do sistema.
           </p>
         </div>
 
@@ -81,6 +101,8 @@ export default async function ConfiguracoesPage() {
             SASI LDR Hub · v1.0.0 — central de saneamento das bases comerciais da SASI.
           </p>
         </div>
+        </>
+        )}
       </div>
     </>
   );
