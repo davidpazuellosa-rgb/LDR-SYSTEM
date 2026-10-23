@@ -42,7 +42,7 @@ function PlanilhaBadge({ has }: { has: boolean }) {
   );
 }
 
-export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: RegiaoCard[] }) {
+export default function RegioesGrid({ orgao, cards, voltar }: { orgao: string; cards: RegiaoCard[]; voltar?: React.ReactNode }) {
   const router = useRouter();
   const toast = useToast();
   const [creating, setCreating] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <span />
+        <div>{voltar}</div>
         <div className="flex items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
           <button
