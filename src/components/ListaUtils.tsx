@@ -8,17 +8,17 @@ import { useEffect, useState } from "react";
 export type Visao = "cards" | "lista";
 const CHAVE_VISAO = "basesVisao";
 
-export function useVisao(): [Visao, (v: Visao) => void] {
+export function useVisao(chave: string = CHAVE_VISAO): [Visao, (v: Visao) => void] {
   const [visao, setVisao] = useState<Visao>("cards");
   useEffect(() => {
     try {
-      const v = localStorage.getItem(CHAVE_VISAO);
+      const v = localStorage.getItem(chave);
       if (v === "cards" || v === "lista") setVisao(v);
     } catch { /* sem armazenamento: segue em cards */ }
   }, []);
   function escolher(v: Visao) {
     setVisao(v);
-    try { localStorage.setItem(CHAVE_VISAO, v); } catch { /* ignora */ }
+    try { localStorage.setItem(chave, v); } catch { /* ignora */ }
   }
   return [visao, escolher];
 }

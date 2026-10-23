@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import FiltrosCard, { Campo } from "@/components/FiltrosCard";
 import MetaModal from "@/components/MetaModal";
+import { useVisao, VisaoToggle, ThSort, proximaOrd, type Ord } from "@/components/ListaUtils";
 
 type MetaItem = {
   id: string;
@@ -37,8 +38,85 @@ function piorStatus(metas: MetaItem[]): "ok" | "risco" | "atrasado" | "sem" {
   return metas.reduce<"ok" | "risco" | "atrasado">((pior, m) => (ordem[m.status] > ordem[pior] ? m.status : pior), "ok");
 }
 
+
+function MetasDoLdr({ u }: { u: Ldr }) {
+  return (
+    <>
+      {u.metas.length === 0 ? (
+        <p className="py-3 text-center text-xs text-slate-400">Sem metas definidas.</p>
+      ) : (
+        <div className="space-y-3">
+          {u.metas.map((m) => {
+            const s = STATUS[m.status];
+            return (
+              <div key={m.id}>
+                <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-slate-600">
+                    {m.rotulo}
+                    <span className="ml-1.5 text-[10px] text-slate-400">({PRAZO_LABEL[m.prazo] || m.prazo})</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums text-slate-400">{m.feito}/{m.alvo} · {m.p}%</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${s.chip}`}>{s.label}</span>
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(2, m.p)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function HistoricoDoLdr({ hist }: { hist: HistoricoItem[] | "carregando" | "erro" | undefined }) {
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-3">
+        {hist === "carregando" || hist === undefined ? (
+          <p className="py-2 text-center text-xs text-slate-400">Carregando histórico…</p>
+        ) : hist === "erro" ? (
+          <p className="py-2 text-center text-xs text-rose-500">Não foi possível carregar o histórico.</p>
+        ) : hist.length === 0 ? (
+          <p className="py-2 text-center text-xs text-slate-400">Sem histórico ainda (sem metas ou período muito recente).</p>
+        ) : (
+          <div className="space-y-3">
+            {hist.map((h) => (
+              <div key={h.id}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-slate-600">{h.rotulo}</span>
+                  {h.streak > 0 && <span className="shrink-0 text-[10px] text-amber-600">🔥 {h.streak} seguidas</span>}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {h.periodos.map((p, i) => (
+                    <div
+                      key={i}
+                      title={`${p.label}: ${p.feito}/${p.alvo}`}
+                      className={`flex min-w-[48px] flex-col items-center rounded-md border px-1.5 py-1 ${
+                        p.hit ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <span className="text-[9px] text-slate-400">{p.label}</span>
+                      <span className={`text-[11px] font-semibold tabular-nums ${p.hit ? "text-emerald-700" : "text-slate-500"}`}>
+                        {p.feito}/{p.alvo}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
 export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
   const router = useRouter();
+  const [visao, escolherVisao] = useVisao("metasVisao");
+  const [ord, setOrd] = useState<Ord>(null);
   const [metaUser, setMetaUser] = useState<{ id: string; name: string } | null>(null);
 
   // Filtros — só nesta tela (não precisa de servidor: os dados já vieram todos).
@@ -80,6 +158,18 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
     });
   }, [ldrs, busca, statusFiltro, tipoFiltro, prazoFiltro]);
 
+  const media = (u: Ldr) => (u.metas.length ? u.metas.reduce((t, m) => t + m.p, 0) / u.metas.length : -1);
+  const RANK = { sem: 0, ok: 1, risco: 2, atrasado: 3 } as const;
+  const linhas = useMemo(() => {
+    if (!ord) return filtrados;
+    const val = (u: Ldr): string | number =>
+      ord.k === "nome" ? u.nome.toLowerCase() : ord.k === "metas" ? u.metas.length : ord.k === "pct" ? media(u) : RANK[piorStatus(u.metas)];
+    return [...filtrados].sort((a, b) => {
+      const x = val(a), y = val(b);
+      return (typeof x === "string" ? x.localeCompare(y as string, "pt-BR") : x - (y as number)) * ord.dir;
+    });
+  }, [filtrados, ord]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   return (
     <div className="space-y-4">
@@ -95,6 +185,7 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
           placeholder="Buscar LDR…"
           className="h-9 w-56 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400"
         />
+        <VisaoToggle visao={visao} onChange={escolherVisao} />
         <div className="min-w-[200px] flex-1">
           <FiltrosCard
             ativos={(statusFiltro !== "todos" ? 1 : 0) + (tipoFiltro !== "todos" ? 1 : 0) + (prazoFiltro !== "todos" ? 1 : 0)}
@@ -134,9 +225,68 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
         <div className={`${CARD} py-10 text-center text-sm text-slate-400`}>
           {ldrs.length === 0 ? "Nenhum LDR cadastrado ainda." : "Nenhum LDR bate com os filtros."}
         </div>
+      ) : visao === "lista" ? (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">LDR</ThSort>
+                <ThSort k="metas" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Metas</ThSort>
+                <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Progresso médio</ThSort>
+                <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
+                <th className="w-36 px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {linhas.map((u) => {
+                const aberto = abertos.has(u.id);
+                const pior = piorStatus(u.metas);
+                const pct = Math.max(0, Math.round(media(u)));
+                const st = pior === "sem" ? null : STATUS[pior];
+                return (
+                  <Fragment key={u.id}>
+                    <tr onClick={() => toggleHistorico(u.id)} className="cursor-pointer hover:bg-slate-50/70">
+                      <td className="px-5 py-3 font-semibold text-slate-800">{u.nome}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{u.metas.length}</td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {u.metas.length ? (
+                          <div className="flex items-center gap-3">
+                            <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
+                              <div className={`h-full rounded-full ${st ? st.bar : ""}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                            </div>
+                            <span className="w-10 text-right font-semibold tabular-nums text-slate-700">{pct}%</span>
+                          </div>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {st ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${st.chip}`}>{st.label}</span> : <span className="text-xs text-slate-400">Sem meta</span>}
+                      </td>
+                      <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setMetaUser({ id: u.id, name: u.nome })}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:border-indigo-300 hover:bg-indigo-50"
+                        >
+                          {u.metas.length ? "Editar metas" : "Definir metas"}
+                        </button>
+                      </td>
+                    </tr>
+                    {aberto && (
+                      <tr>
+                        <td colSpan={5} className="bg-slate-50/50 px-5 py-4">
+                          <MetasDoLdr u={u} />
+                          <HistoricoDoLdr hist={historicos[u.id]} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {filtrados.map((u) => {
+          {linhas.map((u) => {
             const hist = historicos[u.id];
             const aberto = abertos.has(u.id);
             return (
@@ -162,72 +312,10 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
                   </div>
                 </div>
 
-                {u.metas.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-slate-400">Sem metas definidas.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {u.metas.map((m) => {
-                      const s = STATUS[m.status];
-                      return (
-                        <div key={m.id}>
-                          <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-                            <span className="min-w-0 truncate text-slate-600">
-                              {m.rotulo}
-                              <span className="ml-1.5 text-[10px] text-slate-400">({PRAZO_LABEL[m.prazo] || m.prazo})</span>
-                            </span>
-                            <span className="flex shrink-0 items-center gap-2">
-                              <span className="tabular-nums text-slate-400">{m.feito}/{m.alvo} · {m.p}%</span>
-                              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${s.chip}`}>{s.label}</span>
-                            </span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(2, m.p)}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <MetasDoLdr u={u} />
 
                 {/* Histórico expandido — reaproveita o mesmo formato de "Minhas Metas" */}
-                {aberto && (
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    {hist === "carregando" || hist === undefined ? (
-                      <p className="py-2 text-center text-xs text-slate-400">Carregando histórico…</p>
-                    ) : hist === "erro" ? (
-                      <p className="py-2 text-center text-xs text-rose-500">Não foi possível carregar o histórico.</p>
-                    ) : hist.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-slate-400">Sem histórico ainda (sem metas ou período muito recente).</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {hist.map((h) => (
-                          <div key={h.id}>
-                            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
-                              <span className="min-w-0 truncate text-slate-600">{h.rotulo}</span>
-                              {h.streak > 0 && <span className="shrink-0 text-[10px] text-amber-600">🔥 {h.streak} seguidas</span>}
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {h.periodos.map((p, i) => (
-                                <div
-                                  key={i}
-                                  title={`${p.label}: ${p.feito}/${p.alvo}`}
-                                  className={`flex min-w-[48px] flex-col items-center rounded-md border px-1.5 py-1 ${
-                                    p.hit ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"
-                                  }`}
-                                >
-                                  <span className="text-[9px] text-slate-400">{p.label}</span>
-                                  <span className={`text-[11px] font-semibold tabular-nums ${p.hit ? "text-emerald-700" : "text-slate-500"}`}>
-                                    {p.feito}/{p.alvo}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {aberto && <HistoricoDoLdr hist={hist} />}
               </div>
             );
           })}

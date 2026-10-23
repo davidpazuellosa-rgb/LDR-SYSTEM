@@ -1,4 +1,4 @@
-/* ARQUIVO GERADO por scripts/gerar-tema-escuro.mjs — não edite à mão. Tema escuro: 144 regras. */
+/* ARQUIVO GERADO por scripts/gerar-tema-escuro.mjs — não edite à mão. Tema escuro: 145 regras. */
 .dark .accent-indigo-600{accent-color:#a5b4fc}
 .dark .bg-amber-100{background-color:rgba(245,158,11,0.18)}
 .dark .bg-amber-300{background-color:rgba(245,158,11,0.36)}
@@ -26,6 +26,7 @@
 .dark .bg-slate-200\/70{background-color:rgba(42,49,99,0.7)}
 .dark .bg-slate-300{background-color:#3a4280}
 .dark .bg-slate-50{background-color:#1a1f48}
+.dark .bg-slate-50\/50{background-color:rgba(26,31,72,0.5)}
 .dark .bg-slate-50\/60{background-color:rgba(26,31,72,0.6)}
 .dark .bg-slate-50\/70{background-color:rgba(26,31,72,0.7)}
 .dark .bg-violet-100{background-color:rgba(139,92,246,0.18)}
