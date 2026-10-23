@@ -325,6 +325,8 @@ const [menu, setMenu] = useState<
   | null
 >(null);
 const [pasteSpecialOpen, setPasteSpecialOpen] = useState(false);
+const [visaoOpen, setVisaoOpen] = useState(false);
+const [visaoPos, setVisaoPos] = useState({ x: 0, y: 0 });
 const [alignOpen, setAlignOpen] = useState(false);
 const [alignPos, setAlignPos] = useState({ x: 0, y: 0 });
 const [searchOpen, setSearchOpen] = useState(false);
@@ -3164,48 +3166,93 @@ async function saveCell(id: string, key: string, value: string) {
           </button>
         )}
 
-        {/* Cores automáticas: amarelo (faltam 1–2) e verde (linha completa) */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={coresAuto}
-          onClick={() => changeCores(!coresAuto)}
-          title={coresAuto ? "Cores automáticas ligadas (amarelo: faltam 1–2 células · verde: linha completa) — clique para desligar" : "Cores automáticas desligadas — clique para ligar"}
-          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition ${coresAuto ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-        >
-          <span className="flex -space-x-1">
-            <span className={`h-3 w-3 rounded-full border border-white ${coresAuto ? "bg-amber-300" : "bg-slate-300"}`} />
-            <span className={`h-3 w-3 rounded-full border border-white ${coresAuto ? "bg-green-400" : "bg-slate-200"}`} />
-          </span>
-          Cores
-        </button>
+        {/* Exibição: um só botão com painel (Cores automáticas, Densidade das linhas e Zoom) */}
+        <Tooltip label="Exibição: cores, densidade e zoom">
+          <button
+            type="button"
+            aria-label="Exibição"
+            aria-expanded={visaoOpen}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setVisaoPos({ x: r.left, y: r.bottom + 6 });
+              setVisaoOpen((v) => !v);
+            }}
+            className={`flex h-9 shrink-0 items-center gap-1 rounded-md px-2 text-slate-700 transition hover:bg-slate-100 ${visaoOpen ? "bg-slate-100" : ""}`}
+          >
+            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 7h9M17 7h3M4 17h3M11 17h9" strokeLinecap="round" />
+              <circle cx="15" cy="7" r="2" />
+              <circle cx="9" cy="17" r="2" />
+            </svg>
+            <span className="hidden text-sm font-medium xl:inline">Exibição</span>
+            <svg className="h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        </Tooltip>
+        {visaoOpen && (
+          <>
+            <div className="fixed inset-0 z-[70]" onMouseDown={() => setVisaoOpen(false)} />
+            <div
+              className="fixed z-[71] w-72 space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+              style={{ left: Math.max(8, Math.min(visaoPos.x, window.innerWidth - 300)), top: visaoPos.y }}
+            >
+              {/* Cores automáticas */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-slate-800">Cores automáticas</div>
+                  <p className="mt-0.5 text-xs leading-snug text-slate-500">
+                    <span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-300 align-middle" />faltam 1–2 células ·{" "}
+                    <span className="mr-1 inline-block h-2 w-2 rounded-full bg-green-400 align-middle" />linha completa
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={coresAuto}
+                  aria-label="Cores automáticas"
+                  onClick={() => changeCores(!coresAuto)}
+                  className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${coresAuto ? "bg-indigo-600" : "bg-slate-300"}`}
+                >
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${coresAuto ? "left-[18px]" : "left-0.5"}`} />
+                </button>
+              </div>
 
-        {/* Densidade (zoom das linhas) */}
-        <select
-          value={density}
-          onChange={(e) => changeDensity(e.target.value as "compacta" | "normal" | "ampla")}
-          title="Densidade das linhas"
-          className="h-9 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-600 outline-none hover:bg-slate-50"
-        >
-          <option value="compacta">Compacta</option>
-          <option value="normal">Normal</option>
-          <option value="ampla">Ampla</option>
-        </select>
+              {/* Densidade das linhas */}
+              <div>
+                <div className="mb-1.5 text-sm font-medium text-slate-800">Densidade das linhas</div>
+                <div className="inline-flex w-full rounded-lg border border-slate-200 bg-white p-0.5">
+                  {([["compacta", "Compacta"], ["normal", "Normal"], ["ampla", "Ampla"]] as const).map(([v, t]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => changeDensity(v)}
+                      className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition ${density === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        {/* Zoom da planilha */}
-        <select
-          value={zoom}
-          onChange={(e) => changeZoom(Number(e.target.value))}
-          title="Zoom da planilha"
-          className="h-9 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-600 outline-none hover:bg-slate-50"
-        >
-          <option value={0.5}>Zoom 50%</option>
-          <option value={0.6}>Zoom 60%</option>
-          <option value={0.7}>Zoom 70%</option>
-          <option value={0.85}>Zoom 85%</option>
-          <option value={1}>Zoom 100%</option>
-          <option value={1.2}>Zoom 120%</option>
-        </select>
+              {/* Zoom */}
+              <div>
+                <div className="mb-1.5 text-sm font-medium text-slate-800">Zoom da planilha</div>
+                <select
+                  value={zoom}
+                  onChange={(e) => changeZoom(Number(e.target.value))}
+                  aria-label="Zoom da planilha"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400"
+                >
+                  <option value={0.5}>50%</option>
+                  <option value={0.6}>60%</option>
+                  <option value={0.7}>70% (padrão)</option>
+                  <option value={0.85}>85%</option>
+                  <option value={1}>100%</option>
+                  <option value={1.2}>120%</option>
+                </select>
+              </div>
+            </div>
+          </>
+        )}
 
         <ToolDivider />
 
