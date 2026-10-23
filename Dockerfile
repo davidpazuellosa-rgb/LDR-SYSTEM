@@ -18,7 +18,7 @@ RUN npm ci
 # 2) Copia o código e gera o cliente Prisma + build de produção
 COPY . .
 # output:"standalone" NAO copia .next/static nem public: sem isto a pagina abre sem CSS/JS
-RUN npx prisma generate && npm run build \
+RUN export BUILD_ID="$(date +%s)" && npx prisma generate && npm run build \
  && cp -r .next/static .next/standalone/.next/static \
  && cp -r public .next/standalone/public
 

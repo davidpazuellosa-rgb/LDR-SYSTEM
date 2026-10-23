@@ -53,7 +53,7 @@ export default function AtualizacaoBanner() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="shrink-0 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-[#4338ca] transition hover:bg-[#eef2ff]"
+          className="shrink-0 rounded-lg bg-[#ffffff] px-3.5 py-2 text-sm font-semibold text-[#4338ca] transition hover:bg-[#eef2ff]"
         >
           Recarregar
         </button>
