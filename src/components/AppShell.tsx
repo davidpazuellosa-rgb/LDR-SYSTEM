@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/Toast";
 import { DialogProvider } from "@/components/Dialog";
 import SystemAssistant from "@/components/SystemAssistant";
 import SuggestionButton from "@/components/SuggestionButton";
+import AtualizacaoBanner from "@/components/AtualizacaoBanner";
 
 export default function AppShell({
   user,
@@ -44,6 +45,7 @@ export default function AppShell({
         </div>
         <SystemAssistant />
         <SuggestionButton />
+        <AtualizacaoBanner />
       </div>
       </DialogProvider>
       </ToastProvider>

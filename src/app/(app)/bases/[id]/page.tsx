@@ -119,7 +119,14 @@ export default async function BaseDetailPage({
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={regiao ? `${base.name} · ${regiao}` : base.name} />
+      <PageHeader
+        title={base.name}
+        trail={[
+          { label: "Bases de Dados", href: "/bases" },
+          { label: tipoOrgao(base.name), href: `/bases?tipo=${encodeURIComponent(tipoOrgao(base.name))}` },
+          ...(regiao ? [{ label: regiao }] : []),
+        ]}
+      />
       <div className="flex min-h-0 flex-1 flex-col px-8 pb-3 pt-2">
         <ContactsTable
           baseId={base.id}

@@ -1,6 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/components/ThemeToggle";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/(app)/logout-action";
 import { useTitle, type SavedStatus } from "@/components/TitleContext";
@@ -66,7 +67,7 @@ export default function Topbar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
-  const { title, saved } = useTitle();
+  const { title, trail, saved } = useTitle();
   const pageTitle = title || fallbackTitle(pathname);
 
   return (
@@ -84,11 +85,20 @@ export default function Topbar({
           </svg>
         </button>
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="font-semibold text-indigo-600">Console</span>
-            <span className="text-slate-300">›</span>
-            <span className="truncate text-slate-500">{pageTitle}</span>
-          </div>
+          {trail.length > 0 && (
+            <nav aria-label="Você está em" className="flex items-center gap-1.5 text-sm">
+              {trail.map((t, i) => (
+                <span key={i} className="flex min-w-0 items-center gap-1.5">
+                  {i > 0 && <span className="text-slate-300">›</span>}
+                  {t.href ? (
+                    <Link href={t.href} className="truncate font-medium text-indigo-600 hover:underline">{t.label}</Link>
+                  ) : (
+                    <span className="truncate text-slate-500">{t.label}</span>
+                  )}
+                </span>
+              ))}
+            </nav>
+          )}
           <div className="flex items-baseline gap-3">
             <h1 className="truncate text-2xl font-bold text-slate-900">{pageTitle}</h1>
             {saved && <SavedBadge saved={saved} />}
