@@ -119,7 +119,6 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
             <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
               <tr>
                 <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Região</ThSort>
-                <ThSort k="planilha" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Planilha</ThSort>
                 <ThSort k="contatos" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Contatos</ThSort>
                 <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
                 <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
@@ -136,7 +135,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                 const totV = v ? v.sim + v.nao + v.aValidar : 0;
                 const href = c.baseId ? `/bases/${c.baseId}?regiao=${encodeURIComponent(c.regiao)}` : null;
                 return (
-                  <tr key={c.regiao} className="hover:bg-slate-50/70">
+                  <tr key={c.regiao} onClick={href ? () => router.push(href) : undefined} className={`hover:bg-slate-50/70 ${href ? "cursor-pointer" : ""}`}>
                     <td className="px-5 py-3">
                       {href ? (
                         <Link href={href} className="font-semibold text-slate-800 hover:text-indigo-600">{c.titulo || c.regiao}</Link>
@@ -145,7 +144,6 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                       )}
                       <div className="text-xs text-slate-400">{orgao}</div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3"><PlanilhaBadge has={c.hasPlanilha} /></td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-600">{c.total.toLocaleString("pt-BR")}</td>
                     <td className="whitespace-nowrap px-3 py-3">
                       {c.total > 0 ? (
@@ -170,18 +168,13 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                       ) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-3 py-3 text-right">
-                      {href ? (
-                        <Link href={href} className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:gap-1.5">
-                          Abrir planilha
-                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </Link>
-                      ) : (
+                      {!href && (
                         <button onClick={() => criarRegiao(c.regiao)} disabled={creating === c.regiao} className="text-sm font-medium text-indigo-600 hover:underline disabled:opacity-60">
                           {creating === c.regiao ? "Criando..." : "Criar planilha"}
                         </button>
                       )}
                     </td>
-                    <td className="relative px-1 py-3">
+                    <td className="relative px-1 py-3" onClick={(e) => e.stopPropagation()}>
                       {c.baseId && <CardMenu kind="base" nome={c.regiao} baseId={c.baseId} titulo={c.titulo} contatos={c.total} />}
                     </td>
                   </tr>
@@ -235,8 +228,8 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                   <strong className="font-semibold text-slate-800">{c.total.toLocaleString("pt-BR")}</strong>{" "}
                   {c.total === 1 ? "contato" : "contatos"}
                 </span>
-                <span className="flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2">
-                  {c.baseId ? "Abrir planilha" : creating === c.regiao ? "Criando..." : "Criar planilha"}
+                <span className={`flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2 ${c.baseId ? "hidden" : ""}`}>
+                  {creating === c.regiao ? "Criando..." : "Criar planilha"}
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useVisao, VisaoToggle, ThSort, proximaOrd, type Ord } from "@/components/ListaUtils";
 import Dropdown from "@/components/Dropdown";
 import { BotaoFiltros } from "@/components/FiltrosCard";
@@ -42,6 +43,7 @@ const ORDENS = [
 // Barra de busca + botão "Filtros" que abre um card com filtros em dropdown.
 // Filtra no cliente (poucos cards) — os cards em si vêm prontos do servidor.
 export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: BaseItem[]; nenhum: ReactNode; resumo: ReactNode; acoes?: ReactNode }) {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState(false);
   const [sit, setSit] = useState<string[]>([]);
@@ -152,7 +154,6 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                   <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
                   <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
                   <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
-                  <th className="w-40 px-3 py-3" />
                   <th className="w-14 px-1 py-3" />
                 </tr>
               </thead>
@@ -161,7 +162,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                   const feitos = i.val ? i.val.sim + i.val.nao : 0;
                   const totVal = i.val ? i.val.sim + i.val.nao + i.val.aValidar : 0;
                   return (
-                    <tr key={i.key} className="group hover:bg-slate-50/70">
+                    <tr key={i.key} onClick={() => router.push(i.href)} className="group cursor-pointer hover:bg-slate-50/70">
                       <td className="px-5 py-3">
                         <Link href={i.href} className="font-semibold text-slate-800 hover:text-indigo-600">{i.nome}</Link>
                       </td>
@@ -187,13 +188,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-3 py-3 text-right">
-                        <Link href={i.href} className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:gap-1.5">
-                          Ver regiões
-                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </Link>
-                      </td>
-                      <td className="relative px-1 py-3">{i.menu}</td>
+                      <td className="relative px-1 py-3" onClick={(e) => e.stopPropagation()}>{i.menu}</td>
                     </tr>
                   );
                 })}

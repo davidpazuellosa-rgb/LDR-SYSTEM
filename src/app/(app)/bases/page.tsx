@@ -249,12 +249,6 @@ export default async function BasesPage({
                         <strong className="font-semibold text-slate-800">{e.total.toLocaleString("pt-BR")}</strong>{" "}
                         {e.total === 1 ? "contato" : "contatos"}
                       </span>
-                      <span className="flex items-center gap-1 text-sm font-medium text-indigo-600 transition-all group-hover:gap-2">
-                        Ver regiões
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
                     </div>
                   </Link>
                   </div>
