@@ -108,17 +108,6 @@ export default function Topbar({
 
       {/* Direita: idioma, tema, usuário, sair */}
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <button className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100">
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
-          </svg>
-          <span className="hidden sm:inline">Português (BR)</span>
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
         <ThemeToggle />
 
         <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
