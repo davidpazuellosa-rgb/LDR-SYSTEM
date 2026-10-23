@@ -99,9 +99,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          {cards.length} {cards.length === 1 ? "região" : "regiões"}
-        </p>
+        <span />
         <div className="flex items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
           <button

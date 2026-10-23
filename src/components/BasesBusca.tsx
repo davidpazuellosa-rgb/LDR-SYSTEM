@@ -100,7 +100,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
     <div className="space-y-4">
       {/* Uma linha só, no mesmo nível dos outros botões: resumo à esquerda; busca, Filtros e ações à direita */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">{resumo}</p>
+        <span>{resumo}</span>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -149,8 +149,6 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
               <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
                 <tr>
                   <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Órgão</ThSort>
-                  <ThSort k="planilhas" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Planilhas</ThSort>
-                  <ThSort k="contatos" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Contatos</ThSort>
                   <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
                   <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
                   <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
@@ -166,8 +164,6 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                       <td className="px-5 py-3">
                         <Link href={i.href} className="font-semibold text-slate-800 hover:text-indigo-600">{i.nome}</Link>
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.planilhas)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.total)}</td>
                       <td className="whitespace-nowrap px-3 py-3">
                         {i.total > 0 ? (
                           <div className="flex items-center gap-3">

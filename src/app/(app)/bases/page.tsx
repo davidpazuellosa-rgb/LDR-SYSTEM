@@ -173,12 +173,7 @@ export default async function BasesPage({
         <PageHeader title="Bases de Dados" />
         <div className="space-y-5 p-8">
           <BasesBusca
-            resumo={
-              <>
-                {lista.length} {lista.length === 1 ? "tipo de órgão" : "tipos de órgão"} · {bases.length}{" "}
-                {bases.length === 1 ? "planilha" : "planilhas"}
-              </>
-            }
+            resumo={null}
             acoes={
               <>
                 {podeApagar && (
