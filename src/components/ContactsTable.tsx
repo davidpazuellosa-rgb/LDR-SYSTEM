@@ -3663,6 +3663,7 @@ async function saveCell(id: string, key: string, value: string) {
                     <td
                       key={col.key}
                       data-cell={`${rowIndex}:${colIndex}`}
+                      data-pintada={f.bg ? "" : undefined}
                       rowSpan={span?.rowSpan}
                       colSpan={span?.colSpan}
                       className={`relative px-1 ${padY} ${span ? "align-top" : ""} ${
@@ -3674,10 +3675,13 @@ async function saveCell(id: string, key: string, value: string) {
                       } ${frozen && colIndex === 0 ? "sticky z-10" : ""}`}
                       style={{
                         ...(frozen && colIndex === 0 ? { left: 48 } : {}),
-                        ...(frozen && colIndex === 0 && !selectedCell && !f.bg ? { backgroundColor: "#ffffff" } : {}),
+                        ...(frozen && colIndex === 0 && !selectedCell && !f.bg ? { backgroundColor: "var(--card)" } : {}),
                         // Cor automática (verde/amarelo): perde para seleção e para cor aplicada à mão.
                         ...(coresAuto && !selectedCell && !f.bg && corDaCelula(estadoPorLinha[rowIndex], col.key)
-                          ? { backgroundColor: corDaCelula(estadoPorLinha[rowIndex], col.key)! }
+                          ? {
+                              backgroundColor: corDaCelula(estadoPorLinha[rowIndex], col.key)!,
+                              color: estadoPorLinha[rowIndex]?.tipo === "completa" ? "var(--cel-ok-txt)" : "var(--cel-falta-txt)",
+                            }
                           : {}),
                         ...(f.bg && !selectedCell ? { backgroundColor: f.bg } : {}),
                         ...clipStyle,

@@ -36,7 +36,7 @@ export default function AppShell({
       <DialogProvider>
       {/* Shell preso à viewport: a sidebar e o topo NUNCA rolam;
           apenas a área central (<main>) tem rolagem própria. */}
-      <div className="fixed inset-0 flex overflow-hidden bg-slate-100">
+      <div className="fixed inset-0 flex overflow-hidden bg-page">
         <Sidebar collapsed={collapsed} badges={badges} role={role} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Topbar user={user} onToggle={() => setCollapsed((v) => !v)} />

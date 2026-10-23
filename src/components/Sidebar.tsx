@@ -151,7 +151,7 @@ export default function Sidebar({
       <div className="flex h-16 items-center gap-2 px-5">
         <SasiLogo height={26} className="text-white" />
         {!collapsed && (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-300">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#a5b4fc]">
             LDR Hub
           </span>
         )}
@@ -170,7 +170,7 @@ export default function Sidebar({
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active
                   ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  : "text-[#cbd5e1] hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
               } ${collapsed ? "justify-center" : ""}`}
             >
               <span className="relative">
@@ -196,10 +196,10 @@ export default function Sidebar({
       </nav>
 
       {/* Suporte + rodapé */}
-      <div className="border-t border-white/10 px-3 py-4">
+      <div className="border-t border-[rgba(255,255,255,0.1)] px-3 py-4">
         <a
           href="mailto:suporte@sasi.com?subject=Suporte%20LDR%20Hub"
-          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
+          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#cbd5e1] transition hover:bg-[rgba(255,255,255,0.05)] hover:text-white ${
             collapsed ? "justify-center" : ""
           }`}
           title="Suporte SASI"
@@ -212,7 +212,7 @@ export default function Sidebar({
           {!collapsed && "Suporte SASI"}
         </a>
         {!collapsed && (
-          <div className="mt-4 px-3 text-[11px] leading-relaxed text-slate-500">
+          <div className="mt-4 px-3 text-[11px] leading-relaxed text-[#64748b]">
             SASI LDR Hub · v1.0.0
             <br />© 2026 SASI LTDA
           </div>

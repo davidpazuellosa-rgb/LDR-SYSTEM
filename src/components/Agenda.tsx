@@ -472,7 +472,7 @@ export default function Agenda() {
   const ownOcultos = hiddenOwners.size ? ` · ${hiddenOwners.size} oculto${hiddenOwners.size === 1 ? "" : "s"}` : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f4f5f8]">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--agenda-bg)]">
       <PageTitle title="Agenda" />
 
       {/* Barra de ferramentas */}

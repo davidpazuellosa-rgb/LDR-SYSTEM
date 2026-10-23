@@ -33,8 +33,8 @@ export function estadoDaLinha(exigidas: string[], valorDe: (chave: string) => st
   return { tipo: "normal", faltam };
 }
 
-export const COR_COMPLETA = "#dcfce7"; // verde suave
-export const COR_FALTA = "#fde68a"; // amarelo (mesma família do indicador "a preencher")
+export const COR_COMPLETA = "var(--cel-ok)"; // verde suave (variável: muda no tema escuro)
+export const COR_FALTA = "var(--cel-falta)"; // amarelo (mesma família do indicador "a preencher")
 
 // Fundo automático de uma célula (ou null = sem cor).
 export function corDaCelula(estado: EstadoLinha | undefined, chave: string): string | null {

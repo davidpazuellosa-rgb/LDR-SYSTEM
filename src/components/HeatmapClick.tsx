@@ -37,7 +37,7 @@ export default function HeatmapClick({
             <span className="w-8 shrink-0 text-[10px] font-medium text-slate-400">{DIAS[d]}</span>
             {linha.map((v, hora) => {
               const ativo = sel?.d === d && sel.h === hora;
-              const cor = v ? `rgba(99,102,241,${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "#f1f5f9";
+              const cor = v ? `rgba(var(--heat),${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "var(--heat0)";
               const cls = `aspect-square flex-1 rounded-[2px] ${ativo ? "ring-2 ring-slate-800" : ""}`;
               const title = `${DIAS[d]} ${String(hora).padStart(2, "0")}h — ${v}`;
               return ranking ? (

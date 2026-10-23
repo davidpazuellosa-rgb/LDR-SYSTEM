@@ -1,5 +1,6 @@
 "use client";
 
+import ThemeToggle from "@/components/ThemeToggle";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/(app)/logout-action";
 import { useTitle, type SavedStatus } from "@/components/TitleContext";
@@ -108,16 +109,7 @@ export default function Topbar({
           </svg>
         </button>
 
-        <button
-          aria-label="Tema"
-          title="Tema"
-          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2m0 16v2M4 12H2m20 0h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19" strokeLinecap="round" />
-          </svg>
-        </button>
+        <ThemeToggle />
 
         <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
 

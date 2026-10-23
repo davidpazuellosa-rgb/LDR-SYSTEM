@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./tema-escuro.generated.css";
 
 export const metadata: Metadata = {
   title: "SASI LDR Hub",
@@ -12,8 +13,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-100 text-slate-800">
+    <html lang="pt-BR" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema salvo ANTES de pintar a tela (evita o "flash" de tela clara no escuro). */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("tema")==="escuro")document.documentElement.classList.add("dark")}catch(e){}` }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-page text-slate-800">
         {children}
       </body>
     </html>

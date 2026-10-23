@@ -394,7 +394,7 @@ export default function ProducaoView({ data, query }: { data: Producao; query: s
                       <td className="max-w-[10rem] truncate pr-2 text-left text-xs text-slate-600">{l.nome}</td>
                       {dias.map((x) => {
                         const v = x.preenchimento + x.correcao + x.validacao;
-                        return <td key={x.chave} title={`${l.nome} · ${x.label}: ${v}`} className="h-5 rounded-[3px]" style={{ backgroundColor: v ? `rgba(99,102,241,${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "#f1f5f9" }} />;
+                        return <td key={x.chave} title={`${l.nome} · ${x.label}: ${v}`} className="h-5 rounded-[3px]" style={{ backgroundColor: v ? `rgba(var(--heat),${(0.15 + 0.85 * (v / pico)).toFixed(3)})` : "var(--heat0)" }} />;
                       })}
                       <td className="pl-2 text-right text-xs font-semibold tabular-nums text-slate-700">{nf(l.producao.total)}</td>
                     </tr>

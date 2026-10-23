@@ -12,11 +12,40 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* O sistema só tem tema claro. Sem isto, quem usa o Windows/Chrome em modo escuro
-   ficava com letras brancas (herdadas do body) sobre fundo branco. */
+/* Tema claro (padrão) e escuro (classe .dark no <html>, ligada pelo botão do ícone na barra
+   superior). As classes de cor do Tailwind têm a versão escura em tema-escuro.generated.css
+   (gerado por scripts/gerar-tema-escuro.mjs); aqui ficam as variáveis das cores escritas à mão. */
 :root {
   color-scheme: light;
+  --page: #f1f5f9;
+  --page-50: #f8fafc;
+  --card: #ffffff;
+  --agenda-bg: #f4f5f8;
+  --cel-ok: #dcfce7; --cel-ok-txt: #14532d;       /* planilha: linha completa */
+  --cel-falta: #fde68a; --cel-falta-txt: #78350f;  /* planilha: falta preencher */
+  --heat0: #f1f5f9; --heat: 99, 102, 241;          /* mapa de calor */
+  --donut-fundo: #e2e8f0; --donut-txt: #94a3b8; --donut-forte: #1e293b;
 }
+.dark {
+  color-scheme: dark;
+  --background: #0f1330;
+  --foreground: #e6e9f5;
+  --page: #0f1330;
+  --page-50: #0f1330;
+  --card: #171c42;
+  --agenda-bg: #0f1330;
+  --cel-ok: #123b2c; --cel-ok-txt: #bbf7d0;
+  --cel-falta: #4a3a0a; --cel-falta-txt: #fde68a;
+  --heat0: #1a1f48; --heat: 129, 140, 248;
+  --donut-fundo: #2a3163; --donut-txt: #8089b5; --donut-forte: #e6e9f5;
+}
+.bg-page { background-color: var(--page); }
+.bg-page-50 { background-color: var(--page-50); }
+/* Célula com cor aplicada à mão (pastel): no escuro o texto fica escuro para continuar legível. */
+.dark td[data-pintada], .dark td[data-pintada] .text-slate-700, .dark td[data-pintada] .text-slate-800, .dark td[data-pintada] .text-slate-600 { color: #1e293b; }
+/* Barras de rolagem no escuro */
+.dark ::-webkit-scrollbar-thumb { background: #3a4280; border-radius: 8px; }
+.dark ::-webkit-scrollbar-track { background: transparent; }
 
 body {
   background: var(--background);
@@ -77,3 +106,16 @@ body {
 .prd-doc th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; }
 .prd-doc th, .prd-doc td { border: 1px solid #e2e8f0; padding: 6px 10px; vertical-align: top; }
 .prd-doc tbody tr:nth-child(even) td { background: #fcfcfd; }
+
+/* Documentação (Configurações → LDR Hub) no tema escuro */
+.dark .prd-doc { color: #cfd4ea; }
+.dark .prd-doc h2, .dark .prd-doc h3 { color: #e6e9f5; }
+.dark .prd-doc h4 { color: #cfd4ea; }
+.dark .prd-doc strong { color: #ffffff; }
+.dark .prd-doc a { color: #a5b4fc; }
+.dark .prd-doc code { background: #222850; color: #a5b4fc; }
+.dark .prd-doc blockquote { background: rgba(99, 102, 241, 0.14); border-left-color: #6366f1; color: #cfd4ea; }
+.dark .prd-doc hr { border-top-color: #2a3163; }
+.dark .prd-doc th { background: #1a1f48; color: #9aa3c7; }
+.dark .prd-doc th, .dark .prd-doc td { border-color: #2a3163; }
+.dark .prd-doc tbody tr:nth-child(even) td { background: #141939; }

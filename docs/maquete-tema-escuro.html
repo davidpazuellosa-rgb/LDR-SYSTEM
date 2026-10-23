@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquete — Tema escuro do SASI LDR Hub</title>
+<style>
+  :root {
+    /* ===== CLARO (como é hoje) ===== */
+    --bg:#f1f5f9; --card:#ffffff; --elev:#ffffff; --borda:#e2e8f0; --linha:#f1f5f9;
+    --txt:#1e293b; --txt2:#64748b; --txt3:#94a3b8; --hover:#f8fafc; --acc:#4f46e5; --acc-bg:#eef2ff; --acc-txt:#4338ca;
+    --sombra:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.08);
+    --sidebar:#191d45;
+    --ok-bg:#ecfdf5; --ok-txt:#047857; --ok-bd:#a7f3d0; --ok-bar:#10b981;
+    --lj-bg:#fff7ed; --lj-txt:#c2410c; --lj-bd:#fed7aa; --lj-bar:#f97316;
+    --am-bg:#fffbeb; --am-txt:#b45309; --am-bd:#fde68a; --am-bar:#fbbf24;
+    --rd-bg:#fef2f2; --rd-txt:#b91c1c; --rd-bd:#fecaca; --rd-bar:#ef4444;
+    --cel-ok:#dcfce7; --cel-ok-txt:#14532d; --cel-falta:#fde68a; --cel-falta-txt:#78350f;
+    --head-planilha:#065f46; --zebra:#fafbfc; --input:#ffffff;
+    --c-p:#6366f1; --c-c:#10b981; --c-v:#f59e0b;
+    --heat0:#f1f5f9; --heat:99,102,241;
+    --scrim:rgba(15,23,42,.45);
+  }
+  [data-tema="escuro"] {
+    /* ===== ESCURO — azul-marinho (proposta) ===== */
+    --bg:#0f1330; --card:#171c42; --elev:#1e2452; --borda:#2a3163; --linha:#222850;
+    --txt:#e6e9f5; --txt2:#9aa3c7; --txt3:#8089b5; --hover:#1c2250; --acc:#5457ec; --acc-bg:rgba(99,102,241,.18); --acc-txt:#a5b4fc;
+    --sombra:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+    --ok-bg:rgba(16,185,129,.14); --ok-txt:#6ee7b7; --ok-bd:rgba(16,185,129,.35); --ok-bar:#10b981;
+    --lj-bg:rgba(249,115,22,.14); --lj-txt:#fdba74; --lj-bd:rgba(249,115,22,.35); --lj-bar:#f97316;
+    --am-bg:rgba(245,158,11,.14); --am-txt:#fcd34d; --am-bd:rgba(245,158,11,.35); --am-bar:#fbbf24;
+    --rd-bg:rgba(239,68,68,.14); --rd-txt:#fca5a5; --rd-bd:rgba(239,68,68,.35); --rd-bar:#ef4444;
+    --cel-ok:#123b2c; --cel-ok-txt:#bbf7d0; --cel-falta:#4a3a0a; --cel-falta-txt:#fde68a;
+    --head-planilha:#064e3b; --zebra:#141939; --input:#121740;
+    --c-p:#818cf8; --c-c:#34d399; --c-v:#fbbf24;
+    --heat0:#1a1f48; --heat:129,140,248;
+    --scrim:rgba(5,7,20,.65);
+  }
+  /* Ajuste de tom do escuro (3 intensidades de azul-marinho) */
+  [data-tema="escuro"][data-tom="suave"]    { --bg:#151a3d; --card:#1d2350; --elev:#262d63; --borda:#343c78; --linha:#2b3270; --hover:#232a5c; --zebra:#1a2049; --input:#181d46; --heat0:#232a5c; --txt3:#8a93bd; }
+  [data-tema="escuro"][data-tom="profundo"] { --bg:#0a0d24; --card:#11153a; --elev:#181d4a; --borda:#232a5c; --linha:#1b2150; --hover:#161b45; --zebra:#0e1232; --input:#0d1134; --heat0:#141943; }
+
+  * { box-sizing:border-box; }
+  html,body { margin:0; }
+  body { font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:var(--txt); font-size:14px; transition:background .2s,color .2s; }
+  button { font:inherit; cursor:pointer; }
+  .app { display:flex; min-height:100vh; }
+  /* sidebar (já é escura hoje; não muda) */
+  .side { width:230px; flex:none; background:var(--sidebar); color:#fff; padding:14px 10px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; }
+  .logo { font-weight:800; letter-spacing:.5px; font-size:20px; padding:6px 10px 16px; }
+  .logo small { display:block; font-size:9px; font-weight:400; opacity:.6; letter-spacing:0; }
+  .nav a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:12px; color:#c9cdea; text-decoration:none; margin-bottom:2px; font-size:14px; }
+  .nav a.on { background:#4f46e5; color:#fff; }
+  .nav a i { width:16px; height:16px; border:1.8px solid currentColor; border-radius:4px; opacity:.8; }
+  .main { flex:1; min-width:0; }
+  /* topbar */
+  .top { height:60px; background:var(--card); border-bottom:1px solid var(--borda); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:5; }
+  .crumb { color:var(--txt2); font-size:13px; } .crumb b { color:var(--acc-txt); font-weight:600; }
+  .top-r { display:flex; align-items:center; gap:14px; color:var(--txt2); }
+  .avatar { width:34px; height:34px; border-radius:50%; background:#4f46e5; color:#fff; display:grid; place-items:center; font-weight:700; font-size:13px; }
+  .seg { display:inline-flex; background:var(--card); border:1px solid var(--borda); border-radius:10px; padding:2px; }
+  .seg button { border:0; background:transparent; color:var(--txt2); padding:6px 11px; border-radius:8px; font-size:13px; font-weight:600; }
+  .seg button.on { background:var(--acc); color:#fff; }
+  .page { padding:22px 28px 90px; max-width:1180px; }
+  h1 { font-size:22px; margin:0 0 4px; } .sub { color:var(--txt2); margin:0 0 18px; }
+  h2 { font-size:15px; margin:0 0 12px; color:var(--txt); }
+  .sec { margin-top:30px; }
+  .sec > .tit { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .sec > .tit h2 { font-size:17px; margin:0; } .sec > .tit span { color:var(--txt2); font-size:12px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:16px; padding:18px; box-shadow:var(--sombra); }
+  .grid { display:grid; gap:14px; } .g4 { grid-template-columns:repeat(4,1fr); } .g3 { grid-template-columns:repeat(3,1fr); } .g2 { grid-template-columns:repeat(2,1fr); }
+  @media (max-width:1000px){ .g4,.g3{grid-template-columns:repeat(2,1fr);} .side{display:none;} } @media (max-width:640px){ .g4,.g3,.g2{grid-template-columns:1fr;} }
+  .stat .n { font-size:30px; font-weight:700; } .stat .l { color:var(--txt); margin-top:2px; } .stat .h { color:var(--txt3); font-size:12px; }
+  .chip { display:inline-block; white-space:nowrap; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:600; border:1px solid; }
+  .c-ok{background:var(--ok-bg);color:var(--ok-txt);border-color:var(--ok-bd);} .c-lj{background:var(--lj-bg);color:var(--lj-txt);border-color:var(--lj-bd);}
+  .c-am{background:var(--am-bg);color:var(--am-txt);border-color:var(--am-bd);} .c-rd{background:var(--rd-bg);color:var(--rd-txt);border-color:var(--rd-bd);}
+  .c-ac{background:var(--acc-bg);color:var(--acc-txt);border-color:transparent;}
+  .bar { height:9px; background:var(--linha); border-radius:99px; overflow:hidden; } .bar > i { display:block; height:100%; border-radius:99px; }
+  .meta { margin-bottom:14px; } .meta .t { display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; color:var(--txt); } .meta .t span:last-child { color:var(--txt2); }
+  .btn { height:36px; padding:0 14px; border-radius:9px; border:1px solid var(--borda); background:var(--card); color:var(--txt2); font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:7px; }
+  .btn:hover { background:var(--hover); } .btn.pri { background:var(--acc); border-color:var(--acc); color:#fff; } .btn.on { background:var(--acc-bg); color:var(--acc-txt); border-color:transparent; }
+  .busca { height:36px; width:190px; border-radius:9px; border:1px solid var(--borda); background:var(--input); color:var(--txt); padding:0 12px; font-size:13px; } .busca::placeholder { color:var(--txt3); }
+  .linha-acoes { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; } .linha-acoes > div { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; } th { text-align:left; font-weight:600; color:var(--txt2); background:var(--hover); padding:10px 12px; border-bottom:1px solid var(--borda); font-size:12px; }
+  td { padding:11px 12px; border-bottom:1px solid var(--linha); color:var(--txt); } tr:hover td { background:var(--hover); } td.n, th.n { text-align:right; }
+  .tw { overflow-x:auto; border:1px solid var(--borda); border-radius:14px; background:var(--card); box-shadow:var(--sombra); }
+  .pill { color:var(--acc-txt); font-weight:600; text-decoration:none; }
+  .filtros { background:var(--card); border:1px solid var(--borda); border-radius:16px; padding:14px; box-shadow:var(--sombra); display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:10px 0 14px; max-width:720px; margin-left:auto; }
+  .filtros label { display:block; font-size:12px; color:var(--txt2); margin-bottom:4px; font-weight:600; }
+  .sel { width:100%; height:36px; border:1px solid var(--borda); background:var(--input); color:var(--txt); border-radius:9px; padding:0 10px; display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+  /* planilha */
+  .planilha { border:1px solid var(--borda); border-radius:12px; overflow:hidden; background:var(--card); }
+  .planilha table { font-size:12px; } .planilha th { background:var(--head-planilha); color:#fff; border-color:rgba(255,255,255,.12); text-transform:uppercase; font-size:11px; }
+  .planilha td { border:1px solid var(--borda); padding:7px 8px; background:var(--card); } .planilha tr:nth-child(even) td { background:var(--zebra); }
+  .planilha td.rn { background:#047857; color:#fff; text-align:center; width:34px; }
+  .planilha td.ok { background:var(--cel-ok); color:var(--cel-ok-txt); } .planilha td.falta { background:var(--cel-falta); color:var(--cel-falta-txt); font-weight:700; }
+  .planilha td.sel { outline:3px solid var(--acc); outline-offset:-3px; background:var(--acc-bg); }
+  .planilha td.pintada { background:#fde2e4; color:#7f1d1d; } /* cor aplicada à mão: texto escuro garantido */
+  .legenda { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--txt2); } .legenda i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-2px; border:1px solid var(--borda); }
+  /* gráficos */
+  .dias { display:flex; align-items:flex-end; gap:5px; height:120px; } .dias > div { flex:1; display:flex; flex-direction:column; justify-content:flex-end; } .dias i { display:block; width:100%; }
+  .heat { display:grid; grid-template-columns:repeat(12,1fr); gap:3px; } .heat i { aspect-ratio:1.6; border-radius:3px; }
+  /* janelas / avisos */
+  .modal { background:var(--elev); border:1px solid var(--borda); border-radius:16px; padding:20px; box-shadow:0 20px 50px rgba(0,0,0,.35); max-width:420px; }
+  .modal h3 { margin:0 0 6px; font-size:17px; } .modal p { color:var(--txt2); margin:0 0 14px; font-size:13px; line-height:1.5; }
+  .modal input { width:100%; height:38px; border:1px solid var(--borda); background:var(--input); color:var(--txt); border-radius:9px; padding:0 12px; margin-bottom:14px; }
+  .toast { display:flex; gap:10px; align-items:flex-start; background:var(--elev); border:1px solid var(--borda); border-left:4px solid var(--ok-bar); border-radius:12px; padding:12px 14px; box-shadow:var(--sombra); max-width:360px; margin-bottom:10px; } .toast.er { border-left-color:var(--rd-bar); }
+  .toast b { display:block; } .toast span { color:var(--txt2); font-size:12px; }
+  /* assistente e sugestão */
+  .painel { background:var(--elev); border:1px solid var(--borda); border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,.35); overflow:hidden; max-width:380px; }
+  .painel .cab { background:linear-gradient(90deg,#4f46e5,#7c3aed); color:#fff; padding:12px 14px; font-weight:700; }
+  .painel .corpo { padding:14px; display:flex; flex-direction:column; gap:9px; }
+  .bol { padding:9px 12px; border-radius:14px; max-width:85%; font-size:13px; line-height:1.45; } .bol.eu { align-self:flex-end; background:var(--acc); color:#fff; border-bottom-right-radius:4px; } .bol.ia { background:var(--acc-bg); color:var(--txt); border-bottom-left-radius:4px; }
+  .painel textarea,.painel .in { width:100%; border:1px solid var(--borda); background:var(--input); color:var(--txt); border-radius:10px; padding:10px; font:inherit; font-size:13px; min-height:64px; resize:none; }
+  .fab { width:54px; height:54px; border-radius:50%; background:#4f46e5; color:#fff; display:grid; place-items:center; box-shadow:0 8px 22px rgba(79,70,229,.45); border:0; font-size:22px; }
+  .fabs { position:fixed; right:22px; bottom:22px; display:flex; flex-direction:column; gap:12px; z-index:20; }
+  /* paleta */
+  .sw { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+  .sw div { border:1px solid var(--borda); border-radius:12px; overflow:hidden; background:var(--card); } .sw .cor { height:54px; } .sw .inf { padding:8px 10px; font-size:12px; } .sw b { display:block; font-size:12px; color:var(--txt); } .sw span { color:var(--txt2); font-family:ui-monospace,Menlo,monospace; }
+  .contraste td { font-size:12px; } .nota { font-size:12px; padding:2px 8px; border-radius:6px; font-weight:700; } .ok { background:var(--ok-bg); color:var(--ok-txt); } .no { background:var(--rd-bg); color:var(--rd-txt); }
+  .aviso { background:var(--am-bg); color:var(--am-txt); border:1px solid var(--am-bd); border-radius:12px; padding:10px 14px; font-size:13px; margin-bottom:18px; }
+</style>
+</head>
+<body data-tema="escuro">
+<div class="app">
+  <aside class="side">
+    <div class="logo">SASI<small>Console</small></div>
+    <nav class="nav">
+      <a class="on"><i></i>Visão geral</a><a><i></i>Agenda</a><a><i></i>Metas da Equipe</a><a><i></i>Relatórios</a><a><i></i>Bases de Dados</a>
+      <a><i></i>Correção de Contatos</a><a><i></i>Histórico de Correções</a><a><i></i>Configurações</a>
+    </nav>
+    <div style="margin-top:auto;font-size:11px;opacity:.6;padding:8px 10px">A barra lateral já é escura: <b>não muda</b>.</div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div class="crumb">Console › <b>Maquete do tema escuro</b></div>
+      <div class="top-r">
+        <span style="font-size:13px">Português (BR)</span>
+        <div class="seg" id="segTema" title="Tema">
+          <button data-t="claro">☀ Claro</button><button data-t="escuro" class="on">☾ Escuro</button><button data-t="auto">◐ Automático</button>
+        </div>
+        <div class="avatar">SC</div>
+      </div>
+    </header>
+
+    <div class="page">
+      <h1>Como vai ficar o tema escuro</h1>
+      <p class="sub">Maquete navegável. Use o alternador no topo (Claro / Escuro / Automático) e o ajuste de tom abaixo para comparar. Nada disto está no sistema ainda.</p>
+
+      <div class="card" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
+        <div><b>Ajuste de tom do escuro</b><div style="color:var(--txt2);font-size:12px">Três intensidades do mesmo azul-marinho. A proposta é a do meio.</div></div>
+        <div class="seg" id="segTom"><button data-m="suave">Marinho suave (mais claro)</button><button data-m="" class="on">Marinho (proposta)</button><button data-m="profundo">Marinho profundo (mais escuro)</button></div>
+      </div>
+
+      <!-- 1. Visão geral -->
+      <div class="sec"><div class="tit"><h2>1 · Visão geral</h2><span>cartões, metas e rótulos</span></div>
+        <div class="grid g4">
+          <div class="card stat"><div class="n" style="color:var(--acc-txt)">12</div><div class="l">Corrigidos hoje</div><div class="h">telefones que você corrigiu</div></div>
+          <div class="card stat"><div class="n">64</div><div class="l">Esta semana</div><div class="h">desde segunda-feira</div></div>
+          <div class="card stat"><div class="n">231</div><div class="l">Este mês</div><div class="h">no mês atual</div></div>
+          <div class="card stat"><div class="n" style="color:var(--ok-txt)">1.480</div><div class="l">Total</div><div class="h">desde o início</div></div>
+        </div>
+        <div class="grid g2" style="margin-top:14px">
+          <div class="card"><h2>Minhas metas de preenchimento</h2>
+            <div class="meta"><div class="t"><span>Secretaria de Saúde · Nordeste · MA</span><span>38 / 50 (76%)</span></div><div class="bar"><i style="width:76%;background:var(--lj-bar)"></i></div></div>
+            <div class="meta"><div class="t"><span>Prefeitura · Sudeste · Toda a planilha</span><span>20 / 20 (100%)</span></div><div class="bar"><i style="width:100%;background:var(--ok-bar)"></i></div></div>
+            <div class="meta"><div class="t"><span>Consórcios · Sul · Toda a planilha</span><span>3 / 40 (8%)</span></div><div class="bar"><i style="width:8%;background:var(--rd-bar)"></i></div></div>
+          </div>
+          <div class="card"><h2>Situação das metas</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><span class="chip c-ok">No ritmo</span><span class="chip c-am">Em risco</span><span class="chip c-rd">Atrasado</span><span class="chip c-lj">Quase lá</span><span class="chip c-ac">Nova</span></div>
+            <div class="dias" id="dias"></div>
+            <div class="legenda"><span><i style="background:var(--c-p)"></i>Preenchimento</span><span><i style="background:var(--c-c)"></i>Correção</span><span><i style="background:var(--c-v)"></i>Validação</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Bases de Dados -->
+      <div class="sec"><div class="tit"><h2>2 · Bases de Dados</h2><span>busca, Filtros e lista</span></div>
+        <div class="linha-acoes"><span style="color:var(--txt2)">10 tipos de órgão · 59 planilhas</span>
+          <div><input class="busca" placeholder="Buscar órgão…"><button class="btn on" id="bF">☰ Filtros <span class="chip" style="background:var(--acc);color:#fff;border:0;padding:0 7px">1</span></button><span class="seg"><button>▦ Cards</button><button class="on">☰ Lista</button></span><button class="btn">Lixeira (17)</button><button class="btn pri">Novo órgão</button></div></div>
+        <div class="filtros" id="fc"><div><label>Situação</label><div class="sel">Em andamento <span>▾</span></div></div><div><label>Contatos</label><div class="sel">Todos <span>▾</span></div></div><div><label>Ordenar por</label><div class="sel">Maior progresso <span>▾</span></div></div></div>
+        <div class="tw"><table><thead><tr><th>Órgão</th><th class="n">Planilhas</th><th class="n">Contatos</th><th>Preenchimento</th><th>Situação</th><th>Validados</th><th></th></tr></thead><tbody>
+          <tr><td><b>Prefeitura</b></td><td class="n">6</td><td class="n">5.420</td><td><div style="display:flex;align-items:center;gap:10px;white-space:nowrap"><div class="bar" style="width:120px"><i style="width:83%;background:var(--lj-bar)"></i></div><b style="color:var(--lj-txt)">83%</b></div></td><td><span class="chip c-lj">Quase lá</span></td><td style="color:var(--txt3)">—</td><td><a class="pill">Ver regiões →</a></td></tr>
+          <tr><td><b>Secretaria de Educação</b></td><td class="n">2</td><td class="n">554</td><td><div style="display:flex;align-items:center;gap:10px;white-space:nowrap"><div class="bar" style="width:120px"><i style="width:2%;background:var(--rd-bar)"></i></div><b style="color:var(--rd-txt)">0%</b></div></td><td><span class="chip c-rd">Não iniciado</span></td><td style="color:var(--txt3)">—</td><td><a class="pill">Ver regiões →</a></td></tr>
+          <tr><td><b>Consórcios</b></td><td class="n">11</td><td class="n">192</td><td><div style="display:flex;align-items:center;gap:10px;white-space:nowrap"><div class="bar" style="width:120px"><i style="width:49%;background:var(--am-bar)"></i></div><b style="color:var(--am-txt)">49%</b></div></td><td><span class="chip c-am">Em andamento</span></td><td style="white-space:nowrap">30% · <span style="color:var(--ok-txt)">9 Sim</span> · <span style="color:var(--rd-txt)">5 Não</span></td><td><a class="pill">Ver regiões →</a></td></tr>
+          <tr><td><b>Defensoria Pública Estadual</b></td><td class="n">5</td><td class="n">25</td><td><div style="display:flex;align-items:center;gap:10px;white-space:nowrap"><div class="bar" style="width:120px"><i style="width:100%;background:var(--ok-bar)"></i></div><b style="color:var(--ok-txt)">100%</b></div></td><td><span class="chip c-ok">Concluído</span></td><td style="white-space:nowrap">100% · <span style="color:var(--ok-txt)">9 Sim</span> · <span style="color:var(--rd-txt)">5 Não</span></td><td><a class="pill">Ver regiões →</a></td></tr>
+        </tbody></table></div>
+      </div>
+
+      <!-- 3. Planilha -->
+      <div class="sec"><div class="tit"><h2>3 · Planilha (mínimo seguro no primeiro lote)</h2><span>verde = linha completa · amarelo = faltam 1–2 células</span></div>
+        <div class="planilha"><table><thead><tr><th></th><th>Cidade</th><th>Estado</th><th>Telefone</th><th>E-mail institucional</th><th>Prefeito</th><th>Site</th><th>Validado</th></tr></thead><tbody>
+          <tr><td class="rn">1</td><td class="ok">Água Fria de Goiás</td><td class="ok">GO</td><td class="ok">(62) 3464-1100</td><td class="ok">gabinete@aguafria.go.gov.br</td><td class="ok">Virgínia Santos</td><td class="ok">aguafria.go.gov.br</td><td class="ok"><span class="chip c-ok">Sim</span></td></tr>
+          <tr><td class="rn">2</td><td>Aparecida de Goiânia</td><td>GO</td><td>(62) 3238-7000</td><td>gabinete@aparecida.go.gov.br</td><td>Leandro Vilela</td><td class="falta">&nbsp;</td><td></td></tr>
+          <tr><td class="rn">3</td><td>Barro Alto</td><td>GO</td><td class="falta">&nbsp;</td><td>gabinete@barroalto.go.gov.br</td><td class="falta">&nbsp;</td><td>barroalto.go.gov.br</td><td></td></tr>
+          <tr><td class="rn">4</td><td>Buriti de Goiás</td><td>GO</td><td class="sel">(62) 3369-1200</td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="rn">5</td><td class="pintada">Cachoeira Dourada</td><td>GO</td><td>(64) 3434-7600</td><td>gabinete@cachoeira.go.gov.br</td><td>Rodrigo Rodrigues</td><td>cachoeira.go.gov.br</td><td><span class="chip c-rd">Não</span></td></tr>
+        </tbody></table></div>
+        <div class="legenda"><span><i style="background:var(--cel-ok)"></i>linha completa</span><span><i style="background:var(--cel-falta)"></i>falta preencher</span><span><i style="background:var(--acc-bg);outline:2px solid var(--acc)"></i>célula selecionada</span><span><i style="background:#fde2e4"></i>cor aplicada à mão (texto escuro garantido)</span></div>
+      </div>
+
+      <!-- 4. Relatórios -->
+      <div class="sec"><div class="tit"><h2>4 · Relatórios e Ranking</h2><span>tabela, ranking e mapa de calor</span></div>
+        <div class="grid g2">
+          <div class="card"><h2>Ranking · Validação</h2>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><div style="display:flex;justify-content:space-between;font-size:13px"><span>🥇 Matheus Henrique</span><b>9</b></div><div class="bar" style="margin-top:4px;height:6px"><i style="width:100%;background:var(--acc)"></i></div><div style="color:var(--txt3);font-size:11px;margin-top:3px">6 Sim · 3 Não · acerto 67%</div></div>
+              <div style="background:var(--acc-bg);border-radius:10px;padding:8px"><div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--acc-txt);font-weight:700">🥈 Você</span><b>4</b></div><div class="bar" style="margin-top:4px;height:6px"><i style="width:44%;background:var(--acc)"></i></div><div style="color:var(--txt3);font-size:11px;margin-top:3px">3 Sim · 1 Não · acerto 75%</div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:13px"><span>🥉 Rafaela Santos</span><b>3</b></div><div class="bar" style="margin-top:4px;height:6px"><i style="width:33%;background:var(--acc)"></i></div></div>
+            </div></div>
+          <div class="card"><h2>Horários em que mais produz</h2><div class="heat" id="heat"></div><div style="color:var(--txt2);font-size:12px;margin-top:10px">Mais produtivo entre 10h e 12h (38% do total). Melhor dia: terça.</div></div>
+        </div>
+      </div>
+
+      <!-- 5. Janelas, avisos, assistente, sugestão -->
+      <div class="sec"><div class="tit"><h2>5 · Janelas, avisos, Assistente de IA e botão de Sugestão</h2><span>aparecem em todas as telas</span></div>
+        <div class="grid g3">
+          <div class="modal"><h3>Remover o crédito de 3 linhas?</h3><p>As linhas voltam a ficar sem pessoa registrada. A ação fica registrada.</p><input placeholder="Motivo: só trocou maiúscula/minúscula"><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn">Cancelar</button><button class="btn pri" style="background:#dc2626;border-color:#dc2626">Remover crédito</button></div></div>
+          <div>
+            <div class="toast"><div style="color:var(--ok-txt);font-size:18px">✔</div><div><b>Validação passou para o seu nome.</b><span>Antes estava com Rafaela.</span></div></div>
+            <div class="toast er"><div style="color:var(--rd-txt);font-size:18px">✖</div><div><b>Não foi possível salvar.</b><span>Tente novamente em instantes.</span></div></div>
+            <div class="card" style="margin-top:6px"><b>Menu ⋯</b><div style="margin-top:8px;border:1px solid var(--borda);border-radius:10px;background:var(--elev);overflow:hidden;width:170px"><div style="padding:9px 12px">Editar nome</div><div style="padding:9px 12px;color:var(--rd-txt);border-top:1px solid var(--borda)">Apagar</div></div></div>
+          </div>
+          <div class="painel"><div class="cab">✦ Assistente do sistema</div><div class="corpo"><div class="bol eu">Quantas correções fiz hoje?</div><div class="bol ia">Hoje você resolveu <b>12 correções</b> e completou 8 linhas.</div><div class="in" style="min-height:0;color:var(--txt3)">Pergunte algo…</div></div></div>
+        </div>
+        <div class="grid g3" style="margin-top:14px">
+          <div class="painel"><div class="cab" style="background:linear-gradient(90deg,#4f46e5,#4338ca)">💡 Sugestão de melhoria</div><div class="corpo"><textarea placeholder="Descreva sua ideia…"></textarea><div style="display:flex;justify-content:space-between"><button class="btn">🎤 Gravar voz</button><button class="btn pri">Enviar</button></div></div></div>
+        </div>
+      </div>
+
+      <!-- 6. Paleta -->
+      <div class="sec"><div class="tit"><h2>6 · Paleta e contraste</h2><span>valores do tema atual; contraste calculado ao vivo (meta: AA ≥ 4,5)</span></div>
+        <div class="sw" id="sw"></div>
+        <div class="tw" style="margin-top:14px"><table class="contraste"><thead><tr><th>Texto</th><th>Sobre</th><th class="n">Contraste</th><th>AA</th></tr></thead><tbody id="ct"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fabs"><button class="fab" title="Sugestão de melhoria">💡</button><button class="fab" title="Assistente de IA">✦</button></div>
+
+<script>
+const b=document.body;
+function aplicar(t){
+  const real = t==="auto" ? (matchMedia("(prefers-color-scheme: dark)").matches?"escuro":"claro") : t;
+  b.dataset.tema=real; document.querySelectorAll("#segTema button").forEach(x=>x.classList.toggle("on",x.dataset.t===t));
+  document.getElementById("segTom").style.opacity = real==="escuro"?1:.45;
+  atualizar();
+}
+document.querySelectorAll("#segTema button").forEach(x=>x.onclick=()=>aplicar(x.dataset.t));
+document.querySelectorAll("#segTom button").forEach(x=>x.onclick=()=>{ if(x.dataset.m) b.dataset.tom=x.dataset.m; else delete b.dataset.tom; document.querySelectorAll("#segTom button").forEach(y=>y.classList.toggle("on",y===x)); atualizar(); });
+document.getElementById("bF").onclick=()=>{const f=document.getElementById("fc"); f.style.display=f.style.display==="none"?"grid":"none";};
+// gráficos de exemplo
+const dias=document.getElementById("dias"); [[8,3,2],[12,5,4],[6,2,1],[14,6,5],[10,4,2],[16,7,6],[9,3,3],[18,8,4],[11,5,2],[7,2,1]].forEach(([p,c,v])=>{dias.insertAdjacentHTML("beforeend",`<div><i style="height:${v*4}px;background:var(--c-v)"></i><i style="height:${c*4}px;background:var(--c-c)"></i><i style="height:${p*4}px;background:var(--c-p);border-radius:0 0 3px 3px"></i></div>`)});
+const heat=document.getElementById("heat"); for(let i=0;i<48;i++){const v=Math.max(0,Math.sin(i/5)*.8+Math.random()*.3-.1); heat.insertAdjacentHTML("beforeend",`<i style="background:${v<.08?'var(--heat0)':`rgba(var(--heat),${(.18+v*.8).toFixed(2)})`}"></i>`)}
+// paleta + contraste
+function css(v){return getComputedStyle(b).getPropertyValue(v).trim()}
+function rgb(h){h=h.trim(); if(h.startsWith("rgba")||h.startsWith("rgb")){const m=h.match(/[\d.]+/g).map(Number);return m.slice(0,3)} h=h.replace("#",""); if(h.length===3)h=h.split("").map(c=>c+c).join(""); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16))}
+function lum([r,g,b]){return [r,g,b].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0)}
+function mix(fg,bg,a){return fg.map((v,i)=>Math.round(v*a+bg[i]*(1-a)))}
+function cr(a,b){const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+function atualizar(){
+  const bg=rgb(css("--card")), pagina=rgb(css("--bg"));
+  const itens=[["Fundo da página","--bg"],["Cartões","--card"],["Elevado (janelas/menus)","--elev"],["Borda","--borda"],["Texto principal","--txt"],["Texto secundário","--txt2"],["Destaque","--acc"],["Rótulo OK","--ok-txt"],["Rótulo atenção","--am-txt"],["Rótulo erro","--rd-txt"],["Célula completa","--cel-ok"],["Célula que falta","--cel-falta"]];
+  document.getElementById("sw").innerHTML=itens.map(([n,v])=>`<div><div class="cor" style="background:var(${v})"></div><div class="inf"><b>${n}</b><span>${css(v)}</span></div></div>`).join("");
+  const par=[["Texto principal","--txt","--card"],["Texto principal","--txt","--bg"],["Texto secundário","--txt2","--card"],["Texto terciário","--txt3","--card"],["Destaque (links)","--acc-txt","--card"],["Rótulo OK","--ok-txt","--ok-bg"],["Rótulo atenção","--am-txt","--am-bg"],["Rótulo erro","--rd-txt","--rd-bg"],["Rótulo quase lá","--lj-txt","--lj-bg"],["Célula completa","--cel-ok-txt","--cel-ok"],["Célula que falta","--cel-falta-txt","--cel-falta"],["Branco sobre botão índigo","#ffffff","--acc"]];
+  document.getElementById("ct").innerHTML=par.map(([n,f,g])=>{
+    const fgc=f.startsWith("#")?rgb(f):rgb(css(f)); let bgc=rgb(css(g)); const raw=css(g); if(raw.startsWith("rgba")){const a=parseFloat(raw.match(/[\d.]+/g)[3]);bgc=mix(rgb(raw),bg,a)}
+    const r=cr(fgc,bgc); const ok=r>=4.5; return `<tr><td>${n}</td><td>${g.startsWith("--")?g.slice(2):g}</td><td class="n">${r.toFixed(1)}:1</td><td><span class="nota ${ok?'ok':'no'}">${ok?'AA ✔':(r>=3?'só texto grande':'revisar')}</span></td></tr>`}).join("");
+}
+aplicar("escuro");
+</script>
+</body>
+</html>

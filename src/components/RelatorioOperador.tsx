@@ -53,8 +53,8 @@ function Donut({ slices, size = 168 }: { slices: { label: string; value: number;
   if (total === 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Sem dados">
-        <circle cx={cx} cy={cy} r={r - 1} fill="none" stroke="#e2e8f0" strokeWidth="14" />
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fill="#94a3b8" fontSize="12">sem dados</text>
+        <circle cx={cx} cy={cy} r={r - 1} fill="none" style={{ stroke: "var(--donut-fundo)" }} strokeWidth="14" />
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" style={{ fill: "var(--donut-txt)" }} fontSize="12">sem dados</text>
       </svg>
     );
   }
@@ -77,8 +77,8 @@ function Donut({ slices, size = 168 }: { slices: { label: string; value: number;
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Distribuição dos resultados">
       {arcs}
       <circle cx={cx} cy={cy} r={r * 0.58} fill="white" />
-      <text x={cx} y={cy - 6} textAnchor="middle" dominantBaseline="central" fill="#1e293b" fontSize="22" fontWeight="600">{total}</text>
-      <text x={cx} y={cy + 14} textAnchor="middle" dominantBaseline="central" fill="#94a3b8" fontSize="11">trabalhados</text>
+      <text x={cx} y={cy - 6} textAnchor="middle" dominantBaseline="central" style={{ fill: "var(--donut-forte)" }} fontSize="22" fontWeight="600">{total}</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" dominantBaseline="central" style={{ fill: "var(--donut-txt)" }} fontSize="11">trabalhados</text>
     </svg>
   );
 }
