@@ -136,7 +136,6 @@ export default function Sidebar({
     { href: "/historico-correcoes", label: "Histórico de Correções", icon: "history", badge: 0 },
     // Áreas sensíveis: só admin
     ...(admin ? [{ href: "/creditos", label: "Revisar créditos", icon: "history", badge: 0 }] : []),
-    ...(admin ? [{ href: "/usuarios", label: "Usuários", icon: "users", badge: 0 }] : []),
     ...(admin ? [{ href: "/sugestoes", label: "Sugestões de Melhoria", icon: "bulb", badge: naPaginaSugestoes ? 0 : badges.sugestoes }] : []),
     { href: "/configuracoes", label: "Configurações", icon: "gear", badge: 0 },
   ];

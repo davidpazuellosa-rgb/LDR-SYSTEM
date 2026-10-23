@@ -6,20 +6,37 @@ import HubspotTestButton from "@/components/HubspotTestButton";
 import BackupPanel from "@/components/BackupPanel";
 import PrdView from "@/components/PrdView";
 import { secoesPrd } from "@/lib/prd";
+import UsersManager from "@/components/UsersManager";
+import { prisma } from "@/lib/prisma";
+import { isInvitePending } from "@/lib/invite";
+import { getMapaProprietarios, listarProprietarios } from "@/lib/user-proprietario";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
   const sp = await searchParams;
-  const aba = sp.aba === "ldr-hub" ? "ldr-hub" : "geral";
   const session = await auth();
   const admin = isAdmin((session?.user as { role?: string } | undefined)?.role);
+  // "Usuários" é área sensível: só administrador (quem não é admin cai em "Geral").
+  const aba = sp.aba === "ldr-hub" ? "ldr-hub" : sp.aba === "usuarios" && admin ? "usuarios" : "geral";
   const hubspotConfigured = isHubspotConfigured();
 
   // Aba "LDR Hub": a documentação do sistema. As partes internas (arquitetura, riscos, roadmap…)
   // só são geradas no servidor para administradores.
   const doc = aba === "ldr-hub" ? secoesPrd(admin) : null;
+  const usuarios =
+    aba === "usuarios"
+      ? await Promise.all([
+          prisma.user.findMany({
+            orderBy: { createdAt: "asc" },
+            select: { id: true, name: true, email: true, role: true, createdAt: true, passwordHash: true },
+          }),
+          getMapaProprietarios(),
+          listarProprietarios(),
+        ])
+      : null;
+  const selfId = (session?.user as { id?: string } | undefined)?.id;
   const tab = (on: boolean) =>
     `-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition ${on ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"}`;
 
@@ -29,10 +46,25 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
       <div className="space-y-6 p-8">
         <div className="flex gap-1 border-b border-slate-200">
           <Link href="/configuracoes" className={tab(aba === "geral")}>Geral</Link>
+          {admin && <Link href="/configuracoes?aba=usuarios" className={tab(aba === "usuarios")}>Usuários</Link>}
           <Link href="/configuracoes?aba=ldr-hub" className={tab(aba === "ldr-hub")}>LDR Hub</Link>
         </div>
 
-        {doc ? (
+        {usuarios ? (
+          <UsersManager
+            initialUsers={usuarios[0].map((u) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              role: u.role,
+              createdAt: u.createdAt.toISOString(),
+              pending: isInvitePending(u.passwordHash),
+            }))}
+            selfId={selfId || ""}
+            proprietarios={usuarios[2]}
+            proprietarioByUser={usuarios[1]}
+          />
+        ) : doc ? (
           <PrdView titulo={doc.titulo} intro={doc.intro} secoes={doc.secoes} />
         ) : (
         <>
