@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useVisao, VisaoToggle, ThSort, proximaOrd, type Ord } from "@/components/ListaUtils";
 import Dropdown from "@/components/Dropdown";
 import { BotaoFiltros } from "@/components/FiltrosCard";
 
@@ -20,8 +21,6 @@ export type BaseItem = {
   node: ReactNode; // cartão pronto (visão em cards)
 };
 
-type Visao = "cards" | "lista";
-const CHAVE_VISAO = "basesVisao";
 const nf = (n: number) => n.toLocaleString("pt-BR");
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -48,18 +47,10 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
   const [sit, setSit] = useState<string[]>([]);
   const [cont, setCont] = useState<string[]>([]);
   const [ordem, setOrdem] = useState<string[]>(["padrao"]);
-  // Formato de visualização (cards ou lista): lembrado neste navegador.
-  const [visao, setVisao] = useState<Visao>("cards");
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(CHAVE_VISAO);
-      if (v === "cards" || v === "lista") setVisao(v);
-    } catch { /* sem armazenamento: segue em cards */ }
-  }, []);
-  function escolher(v: Visao) {
-    setVisao(v);
-    try { localStorage.setItem(CHAVE_VISAO, v); } catch { /* ignora */ }
-  }
+  // Formato de visualização (cards ou lista): lembrado neste navegador, vale nos dois níveis.
+  const [visao, escolher] = useVisao();
+  // Ordenação por clique no cabeçalho da lista (sobrepõe o "Ordenar por" dos filtros).
+  const [ord, setOrd] = useState<Ord>(null);
 
   const ativos = (sit.length ? 1 : 0) + (cont.length ? 1 : 0) + (ordem[0] && ordem[0] !== "padrao" ? 1 : 0);
 
@@ -84,6 +75,23 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
     return r;
   }, [itens, q, sit, cont, ordem]);
 
+  const RANK: Record<string, number> = { "Não iniciado": 0, "Em andamento": 1, "Quase lá": 2, "Concluído": 3 };
+  const listaTabela = useMemo(() => {
+    if (!ord) return lista;
+    const valor = (i: BaseItem): string | number =>
+      ord.k === "nome" ? i.nome.toLowerCase()
+      : ord.k === "planilhas" ? i.planilhas
+      : ord.k === "contatos" ? i.total
+      : ord.k === "pct" ? i.pct
+      : ord.k === "situacao" ? RANK[i.situacao] ?? 0
+      : i.val && i.val.sim + i.val.nao + i.val.aValidar > 0 ? (i.val.sim + i.val.nao) / (i.val.sim + i.val.nao + i.val.aValidar) : -1;
+    return [...lista].sort((a, b) => {
+      const x = valor(a), y = valor(b);
+      return (x < y ? -1 : x > y ? 1 : a.nome.localeCompare(b.nome)) * ord.dir;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lista, ord]);
+
   const limpar = () => { setQ(""); setSit([]); setCont([]); setOrdem(["padrao"]); };
 
   return (
@@ -105,25 +113,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
             />
           </div>
           <BotaoFiltros aberto={aberto} ativos={ativos} onClick={() => setAberto((v) => !v)} />
-          <div role="group" aria-label="Formato de visualização" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white p-0.5">
-            {([["cards", "Cards"], ["lista", "Lista"]] as const).map(([v, t]) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={visao === v}
-                onClick={() => escolher(v)}
-                title={v === "cards" ? "Ver em cartões" : "Ver em lista"}
-                className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition ${visao === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                {v === "cards" ? (
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
-                ) : (
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" /></svg>
-                )}
-                {t}
-              </button>
-            ))}
-          </div>
+          <VisaoToggle visao={visao} onChange={escolher} />
           {acoes}
         </div>
       </div>
@@ -156,18 +146,18 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
             <table className="w-full min-w-[880px] text-left text-sm">
               <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Órgão</th>
-                  <th className="px-3 py-3 text-right font-medium">Planilhas</th>
-                  <th className="px-3 py-3 text-right font-medium">Contatos</th>
-                  <th className="px-3 py-3 font-medium">Preenchimento</th>
-                  <th className="px-3 py-3 font-medium">Situação</th>
-                  <th className="px-3 py-3 font-medium">Validados</th>
+                  <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Órgão</ThSort>
+                  <ThSort k="planilhas" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Planilhas</ThSort>
+                  <ThSort k="contatos" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Contatos</ThSort>
+                  <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
+                  <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
+                  <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
                   <th className="w-40 px-3 py-3" />
                   <th className="w-14 px-1 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {lista.map((i) => {
+                {listaTabela.map((i) => {
                   const feitos = i.val ? i.val.sim + i.val.nao : 0;
                   const totVal = i.val ? i.val.sim + i.val.nao + i.val.aValidar : 0;
                   return (

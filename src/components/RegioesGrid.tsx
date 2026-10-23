@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 import CardMenu from "@/components/CardMenu";
 import { pctOf, tier, REGIOES_BRASIL } from "@/lib/completude";
+import { useVisao, VisaoToggle, ThSort, proximaOrd, type Ord } from "@/components/ListaUtils";
 import ValidacaoResumo, { type ValidacaoContagem } from "@/components/ValidacaoResumo";
 
 export type RegiaoCard = {
@@ -47,6 +48,26 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
   const [creating, setCreating] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [regiao, setRegiao] = useState<string>(REGIOES_BRASIL[0]);
+  const [visao, escolher] = useVisao();
+  const [ord, setOrd] = useState<Ord>(null);
+
+  const RANK: Record<string, number> = { "Não iniciado": 0, "Em andamento": 1, "Quase lá": 2, "Concluído": 3 };
+  const linhas = useMemo(() => {
+    if (!ord) return cards;
+    const valor = (c: RegiaoCard): string | number => {
+      const v = c.validacao ? c.validacao.sim + c.validacao.nao + c.validacao.aValidar : 0;
+      return ord.k === "nome" ? (c.titulo || c.regiao).toLowerCase()
+        : ord.k === "planilha" ? (c.baseId ? 1 : 0)
+        : ord.k === "contatos" ? c.total
+        : ord.k === "pct" ? pctOf(c.done, c.total)
+        : ord.k === "situacao" ? RANK[c.total > 0 ? tier(pctOf(c.done, c.total)).label : "Não iniciado"] ?? 0
+        : v > 0 ? (c.validacao!.sim + c.validacao!.nao) / v : -1;
+    };
+    return [...cards].sort((a, b) => {
+      const x = valor(a), y = valor(b);
+      return (x < y ? -1 : x > y ? 1 : a.regiao.localeCompare(b.regiao)) * ord.dir;
+    });
+  }, [cards, ord]);
 
   // Cria a base "{orgao} - {regiao}" e abre a planilha. Usado pelo card "Sem planilha"
   // e pelo formulário "Nova região".
@@ -81,14 +102,95 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
         <p className="text-sm text-slate-500">
           {cards.length} {cards.length === 1 ? "região" : "regiões"}
         </p>
-        <button
-          onClick={() => setOpen(true)}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          Nova região
-        </button>
+        <div className="flex items-center gap-2">
+          <VisaoToggle visao={visao} onChange={escolher} />
+          <button
+            onClick={() => setOpen(true)}
+            className="h-9 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Nova região
+          </button>
+        </div>
       </div>
 
+      {visao === "lista" ? (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[880px] text-left text-sm">
+            <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Região</ThSort>
+                <ThSort k="planilha" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Planilha</ThSort>
+                <ThSort k="contatos" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Contatos</ThSort>
+                <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
+                <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
+                <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
+                <th className="w-40 px-3 py-3" />
+                <th className="w-14 px-1 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {linhas.map((c) => {
+                const pct = pctOf(c.done, c.total);
+                const t = tier(pct);
+                const v = c.validacao;
+                const totV = v ? v.sim + v.nao + v.aValidar : 0;
+                const href = c.baseId ? `/bases/${c.baseId}?regiao=${encodeURIComponent(c.regiao)}` : null;
+                return (
+                  <tr key={c.regiao} className="hover:bg-slate-50/70">
+                    <td className="px-5 py-3">
+                      {href ? (
+                        <Link href={href} className="font-semibold text-slate-800 hover:text-indigo-600">{c.titulo || c.regiao}</Link>
+                      ) : (
+                        <span className="font-semibold text-slate-800">{c.titulo || c.regiao}</span>
+                      )}
+                      <div className="text-xs text-slate-400">{orgao}</div>
+                    </td>
+                    <td className="px-3 py-3"><PlanilhaBadge has={c.hasPlanilha} /></td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">{c.total.toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-3">
+                      {c.total > 0 ? (
+                        <div className="flex items-center gap-3">
+                          <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
+                            <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                          </div>
+                          <span className={`w-10 text-right font-semibold tabular-nums ${t.text}`}>{pct}%</span>
+                          <span className="text-xs tabular-nums text-slate-400">{c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")}</span>
+                        </div>
+                      ) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-3 py-3">
+                      {c.total > 0 ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-3 py-3 text-xs">
+                      {v && totV > 0 ? (
+                        <span className="tabular-nums text-slate-500">
+                          <strong className="text-slate-700">{Math.round(((v.sim + v.nao) / totV) * 100)}%</strong>{" "}
+                          · <span className="text-emerald-700">{v.sim.toLocaleString("pt-BR")} Sim</span> · <span className="text-red-600">{v.nao.toLocaleString("pt-BR")} Não</span> · {v.aValidar.toLocaleString("pt-BR")} a validar
+                        </span>
+                      ) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {href ? (
+                        <Link href={href} className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:gap-1.5">
+                          Abrir planilha
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </Link>
+                      ) : (
+                        <button onClick={() => criarRegiao(c.regiao)} disabled={creating === c.regiao} className="text-sm font-medium text-indigo-600 hover:underline disabled:opacity-60">
+                          {creating === c.regiao ? "Criando..." : "Criar planilha"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="relative px-1 py-3">
+                      {c.baseId && <CardMenu kind="base" nome={c.regiao} baseId={c.baseId} titulo={c.titulo} contatos={c.total} />}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((c) => {
           const pct = pctOf(c.done, c.total);
@@ -164,6 +266,7 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
           );
         })}
       </div>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
