@@ -153,7 +153,7 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
             {menuNova && (
-              <div role="menu" className="absolute left-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+              <div role="menu" className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
                 <button role="menuitem" onClick={() => { setMenuNova(false); setAvulsaOpen(true); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Planilha avulsa</button>
                 <button role="menuitem" onClick={() => { setMenuNova(false); setOpen(true); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Nova região</button>
               </div>
