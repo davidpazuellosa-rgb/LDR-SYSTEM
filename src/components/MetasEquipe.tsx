@@ -182,11 +182,11 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
           placeholder="Buscar LDR…"
           className="h-9 w-56 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400"
         />
-        <VisaoToggle visao={visao} onChange={escolherVisao} />
         <div className="min-w-[200px] flex-1">
           <FiltrosCard
             ativos={(statusFiltro !== "todos" ? 1 : 0) + (tipoFiltro !== "todos" ? 1 : 0) + (prazoFiltro !== "todos" ? 1 : 0)}
             onLimpar={() => { setStatusFiltro("todos"); setTipoFiltro("todos"); setPrazoFiltro("todos"); }}
+            direita={<VisaoToggle visao={visao} onChange={escolherVisao} />}
           >
             <Campo titulo="Situação">
               <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400">

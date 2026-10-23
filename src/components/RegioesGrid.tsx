@@ -98,8 +98,8 @@ export default function RegioesGrid({ orgao, cards, voltar }: { orgao: string; c
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <div>{voltar}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        {voltar}
         <div className="flex items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
           <button

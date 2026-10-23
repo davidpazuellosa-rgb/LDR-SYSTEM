@@ -98,9 +98,9 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
 
   return (
     <div className="space-y-4">
-      {/* Uma linha só, no mesmo nível dos outros botões: resumo à esquerda; busca, Filtros e ações à direita */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span>{resumo}</span>
+      {/* Uma linha só, no mesmo nível dos outros botões: busca, Filtros e demais ações, todos à esquerda (padrão do sistema) */}
+      <div className="flex flex-wrap items-center gap-2">
+        {resumo}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -121,7 +121,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
       </div>
 
       {aberto && (
-        <div className="ml-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Campo titulo="Situação"><Dropdown label="Todas" options={SITUACOES} value={sit} onChange={setSit} multi searchable={false} /></Campo>
             <Campo titulo="Contatos"><Dropdown label="Todos" options={CONTATOS} value={cont} onChange={setCont} multi searchable={false} /></Campo>
