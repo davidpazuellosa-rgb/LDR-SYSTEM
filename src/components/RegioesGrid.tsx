@@ -137,8 +137,8 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {voltar}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>{voltar}</div>
         <div className="flex items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
           <div ref={menuRef} className="relative">
