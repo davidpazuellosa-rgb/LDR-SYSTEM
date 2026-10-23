@@ -27,6 +27,18 @@ export default function CardMenu({
   const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Popup com posição FIXA (ancorado no botão): não é cortado por tabelas/áreas com rolagem.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const fechar = () => setOpen(false);
+    window.addEventListener("scroll", fechar, true);
+    window.addEventListener("resize", fechar);
+    return () => {
+      window.removeEventListener("scroll", fechar, true);
+      window.removeEventListener("resize", fechar);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +102,11 @@ export default function CardMenu({
         type="button"
         aria-label="Mais opções"
         title="Mais opções"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 176) });
+          setOpen((v) => !v);
+        }}
         className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -99,8 +115,8 @@ export default function CardMenu({
           <circle cx="12" cy="19" r="1.7" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute right-0 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
+      {open && pos && (
+        <div style={{ top: pos.top, left: pos.left }} className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
           <button type="button" onClick={renomear} className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50">
             Editar nome
           </button>

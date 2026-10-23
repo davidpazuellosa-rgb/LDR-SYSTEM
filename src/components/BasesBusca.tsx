@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import Dropdown from "@/components/Dropdown";
 import { BotaoFiltros } from "@/components/FiltrosCard";
 
@@ -11,8 +12,17 @@ export type BaseItem = {
   pct: number;
   total: number;
   planilhas: number;
-  node: ReactNode;
+  done: number; // linhas completas
+  val?: { sim: number; nao: number; aValidar: number }; // validação (só se houver planilha validada)
+  href: string;
+  cor: { bar: string; text: string; chip: string }; // classes da faixa de progresso
+  menu: ReactNode; // menu ⋯ (editar nome / apagar)
+  node: ReactNode; // cartão pronto (visão em cards)
 };
+
+type Visao = "cards" | "lista";
+const CHAVE_VISAO = "basesVisao";
+const nf = (n: number) => n.toLocaleString("pt-BR");
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -38,6 +48,18 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
   const [sit, setSit] = useState<string[]>([]);
   const [cont, setCont] = useState<string[]>([]);
   const [ordem, setOrdem] = useState<string[]>(["padrao"]);
+  // Formato de visualização (cards ou lista): lembrado neste navegador.
+  const [visao, setVisao] = useState<Visao>("cards");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(CHAVE_VISAO);
+      if (v === "cards" || v === "lista") setVisao(v);
+    } catch { /* sem armazenamento: segue em cards */ }
+  }, []);
+  function escolher(v: Visao) {
+    setVisao(v);
+    try { localStorage.setItem(CHAVE_VISAO, v); } catch { /* ignora */ }
+  }
 
   const ativos = (sit.length ? 1 : 0) + (cont.length ? 1 : 0) + (ordem[0] && ordem[0] !== "padrao" ? 1 : 0);
 
@@ -83,6 +105,25 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
             />
           </div>
           <BotaoFiltros aberto={aberto} ativos={ativos} onClick={() => setAberto((v) => !v)} />
+          <div role="group" aria-label="Formato de visualização" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white p-0.5">
+            {([["cards", "Cards"], ["lista", "Lista"]] as const).map(([v, t]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={visao === v}
+                onClick={() => escolher(v)}
+                title={v === "cards" ? "Ver em cartões" : "Ver em lista"}
+                className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition ${visao === v ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                {v === "cards" ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" /></svg>
+                )}
+                {t}
+              </button>
+            ))}
+          </div>
           {acoes}
         </div>
       </div>
@@ -106,9 +147,70 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
           <button type="button" onClick={limpar} className="font-medium text-indigo-600 hover:underline">Limpar filtros</button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {lista.map((i) => <div key={i.key} className="contents">{i.node}</div>)}
-        </div>
+        visao === "cards" ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {lista.map((i) => <div key={i.key} className="contents">{i.node}</div>)}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[880px] text-left text-sm">
+              <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Órgão</th>
+                  <th className="px-3 py-3 text-right font-medium">Planilhas</th>
+                  <th className="px-3 py-3 text-right font-medium">Contatos</th>
+                  <th className="px-3 py-3 font-medium">Preenchimento</th>
+                  <th className="px-3 py-3 font-medium">Situação</th>
+                  <th className="px-3 py-3 font-medium">Validados</th>
+                  <th className="w-40 px-3 py-3" />
+                  <th className="w-14 px-1 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {lista.map((i) => {
+                  const feitos = i.val ? i.val.sim + i.val.nao : 0;
+                  const totVal = i.val ? i.val.sim + i.val.nao + i.val.aValidar : 0;
+                  return (
+                    <tr key={i.key} className="group hover:bg-slate-50/70">
+                      <td className="px-5 py-3">
+                        <Link href={i.href} className="font-semibold text-slate-800 hover:text-indigo-600">{i.nome}</Link>
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.planilhas)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.total)}</td>
+                      <td className="px-3 py-3">
+                        {i.total > 0 ? (
+                          <div className="flex items-center gap-3">
+                            <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
+                              <div className={`h-full rounded-full ${i.cor.bar}`} style={{ width: `${Math.max(2, i.pct)}%` }} />
+                            </div>
+                            <span className={`w-10 text-right font-semibold tabular-nums ${i.cor.text}`}>{i.pct}%</span>
+                            <span className="text-xs tabular-nums text-slate-400">{nf(i.done)} de {nf(i.total)}</span>
+                          </div>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${i.cor.chip}`}>{i.situacao}</span></td>
+                      <td className="px-3 py-3 text-xs">
+                        {i.val && totVal > 0 ? (
+                          <span className="tabular-nums text-slate-500">
+                            <strong className="text-slate-700">{Math.round((feitos / totVal) * 100)}%</strong>{" "}
+                            · <span className="text-emerald-700">{nf(i.val.sim)} Sim</span> · <span className="text-red-600">{nf(i.val.nao)} Não</span> · {nf(i.val.aValidar)} a validar
+                          </span>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <Link href={i.href} className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:gap-1.5">
+                          Ver regiões
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m0 0-6-6m6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </Link>
+                      </td>
+                      <td className="relative px-1 py-3">{i.menu}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
     </div>
   );

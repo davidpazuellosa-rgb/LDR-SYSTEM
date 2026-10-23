@@ -204,6 +204,11 @@ export default async function BasesPage({
                 pct,
                 total: e.total,
                 planilhas: e.planilhas,
+                done: e.done,
+                val: e.val,
+                href: `/bases?tipo=${encodeURIComponent(e.tipo)}`,
+                cor: { bar: t.bar, text: t.text, chip: t.chip },
+                menu: <CardMenu kind="orgao" nome={e.tipo} contatos={e.total} />,
                 node: (
                   <div className="relative">
                   <CardMenu kind="orgao" nome={e.tipo} contatos={e.total} />
