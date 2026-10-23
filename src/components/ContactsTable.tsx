@@ -1466,6 +1466,20 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       const grid = gridRef.current;
       const el = grid?.querySelector(`[data-grid-cell="${row}:${col}"]`);
       if (!grid || !el) return;
+      if (centralizarRef.current) {
+        // "a preencher": leva a célula para o MEIO da área visível (descontando cabeçalho e nº da linha).
+        centralizarRef.current = false;
+        const headH = grid.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+        const colW = grid.querySelector("tbody .sticky.left-0")?.getBoundingClientRect().width ?? 0;
+        const g = grid.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        grid.scrollTo({
+          top: grid.scrollTop + (r.top + r.height / 2) - (g.top + headH + (g.height - headH) / 2),
+          left: grid.scrollLeft + (r.left + r.width / 2) - (g.left + colW + (g.width - colW) / 2),
+          behavior: "smooth",
+        });
+        return;
+      }
       el.scrollIntoView({ block: "nearest", inline: "nearest" });
       // scrollIntoView não sabe que o cabeçalho (sticky top) e a coluna de
       // número da linha (sticky left) cobrem parte da área "visível" — sem
@@ -2063,6 +2077,7 @@ function setAlign(align: CellFmt["align"]) {
   }
 
   // Botão amarelo ("a preencher"): vai para a próxima célula que falta (a cada clique, a seguinte).
+  const centralizarRef = useRef(false);
   function irParaPendente() {
     const ponto = proximaCelulaQueFalta(
       estadoPorLinha.map((estado) => ({ estado })),
@@ -2073,11 +2088,11 @@ function setAlign(align: CellFmt["align"]) {
       toast.success("Nada faltando aqui.", "Todas as linhas com dados desta página estão completas.");
       return;
     }
+    centralizarRef.current = true;
     selectCell(ponto.row, ponto.col);
     focusGrid();
-    requestAnimationFrame(() =>
-      document.querySelector(`[data-cell="${ponto.row}:${ponto.col}"]`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" })
-    );
+    // Se a seleção não mudou (mesma célula), o efeito de rolagem não roda: limpa o pedido.
+    setTimeout(() => { centralizarRef.current = false; }, 400);
   }
 
   function selectAndFocus(row: number, col: number) {
