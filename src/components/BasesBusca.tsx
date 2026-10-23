@@ -151,7 +151,6 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                 <tr>
                   <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Órgão</ThSort>
                   <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
-                  <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
                   <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
                   <th className="w-14 px-1 py-3" />
                 </tr>
@@ -176,7 +175,6 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                           </div>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3"><span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${i.cor.chip}`}>{i.situacao}</span></td>
                       <td className="whitespace-nowrap px-3 py-3 text-xs">
                         {i.val && totVal > 0 ? (
                           <span className="tabular-nums text-slate-500">

@@ -170,7 +170,6 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                 <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Região</ThSort>
                 <ThSort k="contatos" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} direita>Contatos</ThSort>
                 <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
-                <ThSort k="situacao" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Situação</ThSort>
                 <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
                 <th className="w-40 px-3 py-3" />
                 <th className="w-14 px-1 py-3" />
@@ -204,9 +203,6 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                           <span className="text-xs tabular-nums text-slate-400">{c.done.toLocaleString("pt-BR")} de {c.total.toLocaleString("pt-BR")}</span>
                         </div>
                       ) : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      {c.total > 0 ? <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span> : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs">
                       {v && totV > 0 ? (
