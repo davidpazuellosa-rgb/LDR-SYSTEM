@@ -173,9 +173,6 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-[13px] text-slate-500">
-        Acompanhe as metas de cada LDR e crie/edite direto por aqui (ou em Usuários → Meta).
-      </p>
 
       {/* Busca + botão Filtros (card com os filtros) */}
       <div className="flex flex-wrap items-start gap-2">
@@ -190,7 +187,6 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
           <FiltrosCard
             ativos={(statusFiltro !== "todos" ? 1 : 0) + (tipoFiltro !== "todos" ? 1 : 0) + (prazoFiltro !== "todos" ? 1 : 0)}
             onLimpar={() => { setStatusFiltro("todos"); setTipoFiltro("todos"); setPrazoFiltro("todos"); }}
-            direita={<span className="text-xs text-slate-400">{filtrados.length} de {ldrs.length} LDR(s)</span>}
           >
             <Campo titulo="Situação">
               <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-indigo-400">

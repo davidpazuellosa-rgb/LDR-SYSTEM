@@ -104,7 +104,6 @@ export default function CreditosView({
       <FiltrosCard
         ativos={(pessoaSel ? 1 : 0) + (baseSel ? 1 : 0) + (periodo !== "hoje" ? 1 : 0)}
         onLimpar={() => router.push("/creditos")}
-        direita={<span className="text-xs text-slate-400">{sus.length === 0 && pessoaSel ? "Sem alerta para esta pessoa. " : ""}{linhas.length} crédito(s){truncado ? " (mostrando os 500 mais recentes)" : ""}</span>}
       >
         <Campo titulo="Período"><Dropdown label="Período" multi={false} searchable={false} options={periodos} value={[periodo]} onChange={(v) => ir({ periodo: v[0] || "hoje" })} /></Campo>
         <Campo titulo="Pessoa"><Dropdown label="Todas" options={pessoas.map((p) => ({ value: p.id, label: p.nome }))} value={pessoaSel ? [pessoaSel] : []} onChange={(v) => ir({ pessoa: v[0] || null })} /></Campo>
