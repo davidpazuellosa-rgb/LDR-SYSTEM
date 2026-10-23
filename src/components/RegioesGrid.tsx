@@ -145,9 +145,9 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                       )}
                       <div className="text-xs text-slate-400">{orgao}</div>
                     </td>
-                    <td className="px-3 py-3"><PlanilhaBadge has={c.hasPlanilha} /></td>
+                    <td className="whitespace-nowrap px-3 py-3"><PlanilhaBadge has={c.hasPlanilha} /></td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-600">{c.total.toLocaleString("pt-BR")}</td>
-                    <td className="px-3 py-3">
+                    <td className="whitespace-nowrap px-3 py-3">
                       {c.total > 0 ? (
                         <div className="flex items-center gap-3">
                           <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
@@ -158,10 +158,10 @@ export default function RegioesGrid({ orgao, cards }: { orgao: string; cards: Re
                         </div>
                       ) : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-3 py-3">
-                      {c.total > 0 ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span> : <span className="text-slate-300">—</span>}
+                    <td className="whitespace-nowrap px-3 py-3">
+                      {c.total > 0 ? <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span> : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-3 py-3 text-xs">
+                    <td className="whitespace-nowrap px-3 py-3 text-xs">
                       {v && totV > 0 ? (
                         <span className="tabular-nums text-slate-500">
                           <strong className="text-slate-700">{Math.round(((v.sim + v.nao) / totV) * 100)}%</strong>{" "}

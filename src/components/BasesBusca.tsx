@@ -167,7 +167,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.planilhas)}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-600">{nf(i.total)}</td>
-                      <td className="px-3 py-3">
+                      <td className="whitespace-nowrap px-3 py-3">
                         {i.total > 0 ? (
                           <div className="flex items-center gap-3">
                             <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
@@ -178,8 +178,8 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                           </div>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-3 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${i.cor.chip}`}>{i.situacao}</span></td>
-                      <td className="px-3 py-3 text-xs">
+                      <td className="whitespace-nowrap px-3 py-3"><span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${i.cor.chip}`}>{i.situacao}</span></td>
+                      <td className="whitespace-nowrap px-3 py-3 text-xs">
                         {i.val && totVal > 0 ? (
                           <span className="tabular-nums text-slate-500">
                             <strong className="text-slate-700">{Math.round((feitos / totVal) * 100)}%</strong>{" "}
