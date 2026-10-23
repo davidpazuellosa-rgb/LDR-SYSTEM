@@ -11,6 +11,7 @@ import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
 import { valorDeValidacao } from "@/lib/validacao";
 import { matrizParaTSV, tsvParaMatriz } from "@/lib/tsv";
+import { chavesExigidas, estadoDaLinha, corDaCelula, proximaCelulaQueFalta } from "@/lib/linha-cores";
 import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useDialog } from "@/components/Dialog";
@@ -704,6 +705,19 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     } catch {
       // localStorage indisponível — ignora
     }
+  }
+
+  // Cores automáticas (amarelo = faltam 1–2 células · verde = linha completa): cada pessoa liga/desliga
+  // para si; fica lembrado neste navegador. Padrão: ligadas.
+  const [coresAuto, setCoresAuto] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("gridcores") === "0") setCoresAuto(false);
+    } catch { /* sem armazenamento: segue ligado */ }
+  }, []);
+  function changeCores(v: boolean) {
+    setCoresAuto(v);
+    try { localStorage.setItem("gridcores", v ? "1" : "0"); } catch { /* ignora */ }
   }
 
   // Densidade das linhas — também guardada no navegador. Default compacta.
@@ -1404,6 +1418,14 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     [visibleIds, contactById]
   );
 
+  // Estado de cada linha visível para as cores automáticas e para o botão "a preencher".
+  // Mesma régua de "completa" do resto do sistema (visíveis + personalizadas, sem o Validado).
+  const exigidas = useMemo(() => chavesExigidas(hiddenColumns, customCols), [hiddenColumns, customCols]);
+  const estadoPorLinha = useMemo(
+    () => visible.map((c) => estadoDaLinha(exigidas, (k) => cellValue(c, k), isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id]))),
+    [visible, exigidas, cellValue, customValues]
+  );
+
   // Traduz as mesclas (por id/chave) para a visão atual: em quais posições há um
   // span (rowSpan/colSpan) e quais células devem ser PULADAS por estarem cobertas.
   // Uma mescla só vale na visão se todas as suas linhas/colunas estão presentes E
@@ -2047,6 +2069,24 @@ function setAlign(align: CellFmt["align"]) {
       setAnchorCell(next);
       setFocusCell(next);
     }
+  }
+
+  // Botão amarelo ("a preencher"): vai para a próxima célula que falta (a cada clique, a seguinte).
+  function irParaPendente() {
+    const ponto = proximaCelulaQueFalta(
+      estadoPorLinha.map((estado) => ({ estado })),
+      (k) => unifiedIndexOf.get(k),
+      focusCell
+    );
+    if (!ponto) {
+      toast.success("Nada faltando aqui.", "Todas as linhas com dados desta página estão completas.");
+      return;
+    }
+    selectCell(ponto.row, ponto.col);
+    focusGrid();
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-cell="${ponto.row}:${ponto.col}"]`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" })
+    );
   }
 
   function selectAndFocus(row: number, col: number) {
@@ -2912,10 +2952,15 @@ async function saveCell(id: string, key: string, value: string) {
           </svg>
           {headerCounts.concluidos.toLocaleString("pt-BR")}
         </span>
-        <span title="A preencher" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+        <button
+          type="button"
+          onClick={irParaPendente}
+          title="A preencher — clique para ir à próxima célula que falta"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
           {headerCounts.aPreencher.toLocaleString("pt-BR")}
-        </span>
+        </button>
         {validacaoCounts && (
           <span title="Validados (Sim · Não · a validar) nesta página" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-medium ring-1 ring-slate-200">
             <span className="text-slate-500">Validados</span>
@@ -3118,6 +3163,22 @@ async function saveCell(id: string, key: string, value: string) {
             Mostrar {hiddenColumns.size - deletedColumns.size} oculta{hiddenColumns.size - deletedColumns.size > 1 ? "s" : ""}
           </button>
         )}
+
+        {/* Cores automáticas: amarelo (faltam 1–2) e verde (linha completa) */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={coresAuto}
+          onClick={() => changeCores(!coresAuto)}
+          title={coresAuto ? "Cores automáticas ligadas (amarelo: faltam 1–2 células · verde: linha completa) — clique para desligar" : "Cores automáticas desligadas — clique para ligar"}
+          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition ${coresAuto ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+        >
+          <span className="flex -space-x-1">
+            <span className={`h-3 w-3 rounded-full border border-white ${coresAuto ? "bg-amber-300" : "bg-slate-300"}`} />
+            <span className={`h-3 w-3 rounded-full border border-white ${coresAuto ? "bg-green-400" : "bg-slate-200"}`} />
+          </span>
+          Cores
+        </button>
 
         {/* Densidade (zoom das linhas) */}
         <select
@@ -3567,6 +3628,7 @@ async function saveCell(id: string, key: string, value: string) {
                     return (
                     <td
                       key={col.key}
+                      data-cell={`${rowIndex}:${colIndex}`}
                       rowSpan={span?.rowSpan}
                       colSpan={span?.colSpan}
                       className={`relative px-1 ${padY} ${span ? "align-top" : ""} ${
@@ -3579,6 +3641,10 @@ async function saveCell(id: string, key: string, value: string) {
                       style={{
                         ...(frozen && colIndex === 0 ? { left: 48 } : {}),
                         ...(frozen && colIndex === 0 && !selectedCell && !f.bg ? { backgroundColor: "#ffffff" } : {}),
+                        // Cor automática (verde/amarelo): perde para seleção e para cor aplicada à mão.
+                        ...(coresAuto && !selectedCell && !f.bg && corDaCelula(estadoPorLinha[rowIndex], col.key)
+                          ? { backgroundColor: corDaCelula(estadoPorLinha[rowIndex], col.key)! }
+                          : {}),
                         ...(f.bg && !selectedCell ? { backgroundColor: f.bg } : {}),
                         ...clipStyle,
                       }}
