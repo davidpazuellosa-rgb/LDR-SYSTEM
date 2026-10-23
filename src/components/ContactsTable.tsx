@@ -262,20 +262,11 @@ export default function ContactsTable({
   const markSaving = useCallback(() => setSaved({ state: "saving", at: Date.now() }), [setSaved]);
   const markSaved = useCallback(() => setSaved({ state: "saved", at: Date.now() }), [setSaved]);
   const markSaveError = useCallback(() => setSaved({ state: "error", at: Date.now() }), [setSaved]);
-  // O contador de "concluídos" no cabeçalho da página é calculado no servidor
-  // (Server Component) e só chega de novo via router.refresh(). Sem isso, uma
-  // linha que acabou de ficar completa continua contada como "a preencher" até
-  // o usuário recarregar. Debounced pra não martelar o servidor a cada tecla.
-  const completionRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleCompletionRefresh = useCallback(() => {
-    if (completionRefreshTimer.current) clearTimeout(completionRefreshTimer.current);
-    completionRefreshTimer.current = setTimeout(() => router.refresh(), 1200);
-  }, [router]);
-  useEffect(() => {
-    return () => {
-      if (completionRefreshTimer.current) clearTimeout(completionRefreshTimer.current);
-    };
-  }, []);
+  // Os contadores (concluídos / a preencher / validados) e as cores são calculados AQUI, na tela,
+  // a cada edição. Antes, cada edição agendava um router.refresh() que recarregava a página
+  // inteira (~10 MB e 4 s numa planilha grande) e SOBRESCREVIA os dados locais — quem seguia
+  // digitando via os valores voltarem ao antigo ("células que atualizam sozinhas").
+  // Só importação/desfazer/sincronização ainda recarregam, de propósito.
   // Mostra a última data salva ao abrir (persistida no updatedAt dos contatos);
   // limpa o indicador ao sair da planilha (outras telas não mostram nada).
   useEffect(() => {
@@ -557,7 +548,6 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       .then(async (r) => {
         if (r.ok) {
           markSaved();
-          scheduleCompletionRefresh();
           if (ehValidacao) {
             const data = await r.json().catch(() => ({}));
             if (data.anteriorPor) toast.success("Validação passou para o seu nome.", `Antes estava com ${data.anteriorPor}.`);
@@ -1612,7 +1602,6 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
     ]);
     if (results.every((r) => r.ok)) {
       markSaved();
-      scheduleCompletionRefresh();
     } else {
       markSaveError();
     }
@@ -2366,7 +2355,6 @@ async function saveCell(id: string, key: string, value: string) {
       });
       if (res.ok) {
         markSaved();
-        scheduleCompletionRefresh();
       } else {
         markSaveError();
       }
@@ -2465,7 +2453,6 @@ async function saveCell(id: string, key: string, value: string) {
 
       if (results.every((res) => res.ok)) {
         markSaved();
-        scheduleCompletionRefresh();
       } else {
         markSaveError();
       }
