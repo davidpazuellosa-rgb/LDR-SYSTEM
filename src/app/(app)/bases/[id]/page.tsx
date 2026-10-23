@@ -115,7 +115,8 @@ export default async function BaseDetailPage({
   );
 
   // Volta para a lista de regiões do tipo quando veio de um card de região.
-  const backHref = regiao ? `/bases?tipo=${encodeURIComponent(tipoOrgao(base.name))}` : "/bases";
+  const avulsa = rawHeaders.__avulsa__ === true;
+  const backHref = regiao || avulsa ? `/bases?tipo=${encodeURIComponent(tipoOrgao(base.name))}` : "/bases";
 
   return (
     <div className="flex h-full flex-col">
@@ -124,7 +125,7 @@ export default async function BaseDetailPage({
         trail={[
           { label: "Bases de Dados", href: "/bases" },
           { label: tipoOrgao(base.name), href: `/bases?tipo=${encodeURIComponent(tipoOrgao(base.name))}` },
-          ...(regiao ? [{ label: regiao }] : []),
+          ...(regiao ? [{ label: regiao }] : avulsa ? [{ label: "Planilha avulsa" }] : []),
         ]}
       />
       <div className="flex min-h-0 flex-1 flex-col px-8 pb-3 pt-2">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
+import IconeMais from "@/components/IconeMais";
 
 // Form do nível 1: cria um órgão (tipo de órgão) já com as 5 regiões do Brasil.
 export default function NovoOrgaoButton() {
@@ -55,8 +56,9 @@ export default function NovoOrgaoButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+        className="flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
       >
+        <IconeMais />
         Novo órgão
       </button>
 

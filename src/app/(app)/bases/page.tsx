@@ -259,7 +259,14 @@ export default async function BasesPage({
   // ─── Nível 2: as 5 regiões do Brasil para este órgão ─────────────────────
   // Mostra SEMPRE as 5 regiões (mesmo sem planilha). Os dados vêm dos contatos;
   // bases vazias entram pela região do nome ("{Órgão} - {Região}").
-  const doTipo = bases.filter((b) => tipoOrgao(b.name) === tipo);
+  const ehAvulsa = (b: (typeof bases)[number]) => (b.headers as Record<string, unknown> | null)?.__avulsa__ === true;
+  const doTipoTodas = bases.filter((b) => tipoOrgao(b.name) === tipo);
+  const doTipo = doTipoTodas.filter((b) => !ehAvulsa(b));
+  // Planilhas avulsas: dentro do órgão, sem região (listadas à parte, abaixo das regiões).
+  const avulsas = doTipoTodas.filter(ehAvulsa).map((b) => {
+    const a = agg.get(b.id)!;
+    return { id: b.id, nome: b.name.slice(b.name.indexOf(" - ") + 3), total: a.total, done: a.done, validacao: a.val };
+  }).sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR"));
   const byReg = new Map<string, { total: number; done: number; baseId: string | null; isImport: boolean; val?: ValidacaoContagem }>();
   for (const b of doTipo) {
     const a = agg.get(b.id)!;
@@ -305,6 +312,7 @@ export default async function BasesPage({
         <RegioesGrid
           orgao={tipo}
           cards={regioesCards}
+          avulsas={avulsas}
           voltar={
           <Link
             href="/bases"

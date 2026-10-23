@@ -1,5 +1,6 @@
 "use client";
 
+import IconeMais from "@/components/IconeMais";
 import { useRef, useState } from "react";
 import { CORES_LISTA, CORES_ORDEM, MAX_OPCOES, MAX_TAM_OPCAO, sanitizarLista, type ColunaExtra, type CorLista, type OpcaoLista } from "@/lib/coluna-lista";
 
@@ -145,7 +146,7 @@ export default function ListaEditor({
                     className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500"
                     autoFocus
                   />
-                  <button type="button" onClick={adicionar} disabled={!novo.trim() || opcoes.length >= MAX_OPCOES} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40">Adicionar</button>
+                  <button type="button" onClick={adicionar} disabled={!novo.trim() || opcoes.length >= MAX_OPCOES} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"><IconeMais className="mr-1 inline h-4 w-4 align-[-2px]" />Adicionar</button>
                 </div>
 
                 {semOpcoes ? (

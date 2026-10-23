@@ -52,7 +52,7 @@ export default function FiltrosCard({
         {ativos > 0 && !onLimpar && limparHref && (
           <Link href={limparHref} className="flex h-9 items-center rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-red-500">Limpar tudo</Link>
         )}
-        {direita && <div className="flex flex-wrap items-center gap-1.5">{direita}</div>}
+        {direita && <div className="ml-auto flex flex-wrap items-center gap-1.5">{direita}</div>}
       </div>
       {aberto && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

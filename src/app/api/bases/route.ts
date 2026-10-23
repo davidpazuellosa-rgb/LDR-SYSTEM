@@ -17,7 +17,15 @@ export async function POST(req: Request) {
   // criar um duplicado (foi assim que duas "Defensoria Pública - Norte" apareceram, cada
   // pessoa vendo uma planilha diferente).
   const parte = name.split(" - ")[1];
-  if (parte && regiaoCanonica(parte)) {
+  const avulsa = body?.avulsa === true;
+  // Planilha avulsa: fica dentro do órgão, sem região. Não pode ter nome de região (viraria a
+  // planilha daquela região) e repetir o nome devolve a que já existe.
+  if (avulsa) {
+    if (!parte || !parte.trim()) return NextResponse.json({ error: "Informe o nome da planilha." }, { status: 400 });
+    if (regiaoCanonica(parte)) return NextResponse.json({ error: "Esse nome é de uma região. Use \"Nova região\" ou escolha outro nome." }, { status: 400 });
+    const existente = await prisma.base.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, orderBy: { createdAt: "asc" } });
+    if (existente) return NextResponse.json(existente);
+  } else if (parte && regiaoCanonica(parte)) {
     const existente = await prisma.base.findFirst({
       where: { name: { equals: name, mode: "insensitive" } },
       orderBy: { createdAt: "asc" },
@@ -31,7 +39,7 @@ export async function POST(req: Request) {
       description: body?.description ? String(body.description) : null,
       source: "manual",
       // Planilha nova nasce SEM colunas: só aparecem ao importar ou criar à mão.
-      headers: headersPlanilhaNova() as Prisma.InputJsonValue,
+      headers: (avulsa ? { ...headersPlanilhaNova(), __avulsa__: true } : headersPlanilhaNova()) as Prisma.InputJsonValue,
     },
   });
   return NextResponse.json(base);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import CardMenu from "@/components/CardMenu";
 import { pctOf, tier, REGIOES_BRASIL } from "@/lib/completude";
 import { useVisao, VisaoToggle, ThSort, proximaOrd, type Ord } from "@/components/ListaUtils";
+import IconeMais from "@/components/IconeMais";
 import ValidacaoResumo, { type ValidacaoContagem } from "@/components/ValidacaoResumo";
 
 export type RegiaoCard = {
@@ -42,11 +43,23 @@ function PlanilhaBadge({ has }: { has: boolean }) {
   );
 }
 
-export default function RegioesGrid({ orgao, cards, voltar }: { orgao: string; cards: RegiaoCard[]; voltar?: React.ReactNode }) {
+export type PlanilhaAvulsa = { id: string; nome: string; total: number; done: number; validacao?: ValidacaoContagem };
+
+export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { orgao: string; cards: RegiaoCard[]; voltar?: React.ReactNode; avulsas?: PlanilhaAvulsa[] }) {
   const router = useRouter();
   const toast = useToast();
   const [creating, setCreating] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [menuNova, setMenuNova] = useState(false);
+  const [avulsaOpen, setAvulsaOpen] = useState(false);
+  const [avulsaNome, setAvulsaNome] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuNova) return;
+    const fora = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuNova(false); };
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, [menuNova]);
   const [regiao, setRegiao] = useState<string>(REGIOES_BRASIL[0]);
   const [visao, escolher] = useVisao();
   const [ord, setOrd] = useState<Ord>(null);
@@ -96,18 +109,56 @@ export default function RegioesGrid({ orgao, cards, voltar }: { orgao: string; c
     }
   }
 
+  async function criarAvulsa() {
+    const nome = avulsaNome.trim();
+    if (!nome) { toast.error("Informe o nome da planilha."); return; }
+    setCreating("__avulsa__");
+    const loadingId = toast.loading("Criando planilha...", `${orgao} · ${nome}`);
+    try {
+      const res = await fetch(apiPath("/api/bases"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `${orgao} - ${nome}`, avulsa: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      toast.dismiss(loadingId);
+      if (!res.ok) { toast.error("Não foi possível criar a planilha.", data.error || `Erro ${res.status}.`); return; }
+      toast.success("Planilha criada.", `${orgao} · ${nome}`);
+      setAvulsaOpen(false);
+      setAvulsaNome("");
+      router.push(`/bases/${data.id}`);
+    } catch (error) {
+      toast.dismiss(loadingId);
+      toast.error("Não foi possível criar a planilha.", (error as Error).message);
+    } finally {
+      setCreating(null);
+    }
+  }
+
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {voltar}
         <div className="flex items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
-          <button
-            onClick={() => setOpen(true)}
-            className="h-9 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            Nova região
-          </button>
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuNova((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuNova}
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <IconeMais />
+              Nova planilha
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            {menuNova && (
+              <div role="menu" className="absolute left-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                <button role="menuitem" onClick={() => { setMenuNova(false); setAvulsaOpen(true); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Planilha avulsa</button>
+                <button role="menuitem" onClick={() => { setMenuNova(false); setOpen(true); }} className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Nova região</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -298,6 +349,75 @@ export default function RegioesGrid({ orgao, cards, voltar }: { orgao: string; c
               >
                 Criar região
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {avulsas.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <h3 className="text-sm font-semibold text-slate-700">Planilhas avulsas</h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {avulsas.map((a) => {
+              const pct = pctOf(a.done, a.total);
+              const t = tier(pct);
+              return (
+                <div key={a.id} className="relative">
+                  <CardMenu kind="base" nome={a.nome} baseId={a.id} contatos={a.total} />
+                  <Link href={`/bases/${a.id}`} className={`group flex h-full flex-col rounded-2xl border border-l-4 border-slate-200 ${t.borderL} bg-white p-5 text-left shadow-sm transition hover:shadow-md`}>
+                    <div className="flex min-w-0 items-center gap-3 pr-8">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><DatabaseIcon /></span>
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold text-slate-800">{a.nome}</h3>
+                        <p className="truncate text-xs text-slate-400">{orgao}</p>
+                      </div>
+                    </div>
+                    {a.total > 0 && (
+                      <div className="mt-4">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className={`text-2xl font-bold ${t.text}`}>{pct}%</span>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${t.chip}`}>{t.label}</span>
+                        </div>
+                        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                        </div>
+                        <p className="mt-1.5 text-xs text-slate-400">{a.done.toLocaleString("pt-BR")} de {a.total.toLocaleString("pt-BR")} contatos preenchidos</p>
+                        {a.validacao && <ValidacaoResumo v={a.validacao} />}
+                      </div>
+                    )}
+                    <div className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-500">
+                      <strong className="font-semibold text-slate-800">{a.total.toLocaleString("pt-BR")}</strong> {a.total === 1 ? "contato" : "contatos"}
+                    </div>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {avulsaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-1 text-lg font-semibold text-slate-800">Planilha avulsa</h2>
+            <p className="mb-4 text-sm text-slate-500">
+              Cria uma planilha dentro de <strong className="text-slate-700">{orgao}</strong>, sem região.
+            </p>
+            <label className="block text-sm font-medium text-slate-700">
+              Nome da planilha
+              <input
+                value={avulsaNome}
+                onChange={(e) => setAvulsaNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") criarAvulsa(); }}
+                maxLength={80}
+                autoFocus
+                placeholder="Ex.: Eventos 2026"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => { setAvulsaOpen(false); setAvulsaNome(""); }} disabled={!!creating} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+              <button onClick={criarAvulsa} disabled={!!creating || !avulsaNome.trim()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">Criar planilha</button>
             </div>
           </div>
         </div>

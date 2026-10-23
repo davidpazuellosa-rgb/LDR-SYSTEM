@@ -243,7 +243,15 @@ export default function UsersManager({
   return (
     <div className="space-y-6">
       {/* Cabeçalho: legenda de cargos + ação */}
-      <div className="flex flex-col items-start gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          {ROLES.map((role) => (
+            <div key={role} className="flex items-center gap-2 text-sm text-slate-500">
+              <RolePill role={role} />
+              <span>{ROLE_DESCRIPTIONS[role]}</span>
+            </div>
+          ))}
+        </div>
         <button
           onClick={() => setOpen(true)}
           className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
@@ -255,14 +263,6 @@ export default function UsersManager({
           </svg>
           Convidar usuário
         </button>
-        <div className="flex flex-col gap-2">
-          {ROLES.map((role) => (
-            <div key={role} className="flex items-center gap-2 text-sm text-slate-500">
-              <RolePill role={role} />
-              <span>{ROLE_DESCRIPTIONS[role]}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Lista de usuários */}

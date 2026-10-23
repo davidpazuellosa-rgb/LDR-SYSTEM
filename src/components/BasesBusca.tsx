@@ -98,9 +98,8 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
 
   return (
     <div className="space-y-4">
-      {/* Uma linha só, no mesmo nível dos outros botões: busca, Filtros e demais ações, todos à esquerda (padrão do sistema) */}
-      <div className="flex flex-wrap items-center gap-2">
-        {resumo}
+      {/* Uma linha só, no mesmo nível dos outros botões: PADRÃO DO SISTEMA: à esquerda só a busca e o Filtros; tudo o mais (formato, ações) no canto direito */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,6 +114,8 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
             />
           </div>
           <BotaoFiltros aberto={aberto} ativos={ativos} onClick={() => setAberto((v) => !v)} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <VisaoToggle visao={visao} onChange={escolher} />
           {acoes}
         </div>
