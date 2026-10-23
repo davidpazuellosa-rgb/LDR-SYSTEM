@@ -136,7 +136,7 @@ export default function MetasEquipe({ ldrs }: { ldrs: Ldr[] }) {
       else next.add(userId);
       return next;
     });
-    if (historicos[userId]) return; // já carregado (ou carregando)
+    if (historicos[userId] && historicos[userId] !== "erro") return; // já carregado (ou carregando); erro tenta de novo
     setHistoricos((prev) => ({ ...prev, [userId]: "carregando" }));
     try {
       const res = await fetch(apiPath(`/api/metas/${userId}/historico`));
