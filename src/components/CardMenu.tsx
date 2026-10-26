@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
@@ -28,6 +29,7 @@ export default function CardMenu({
   const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   // Popup com posição FIXA (ancorado no botão): não é cortado por tabelas/áreas com rolagem.
   const [pos, setPos] = useState<ReturnType<typeof posicaoPopup> | null>(null);
   useEffect(() => {
@@ -44,7 +46,8 @@ export default function CardMenu({
   useEffect(() => {
     if (!open) return;
     const fecha = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener("mousedown", fecha);
     return () => document.removeEventListener("mousedown", fecha);
@@ -116,8 +119,8 @@ export default function CardMenu({
           <circle cx="12" cy="19" r="1.7" />
         </svg>
       </button>
-      {open && pos && (
-        <div style={pos} className="fixed z-[80] w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div ref={popRef} style={pos} className="fixed z-[80] w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
           <button type="button" onClick={renomear} className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50">
             Editar nome
           </button>
@@ -125,7 +128,7 @@ export default function CardMenu({
             Apagar
           </button>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
