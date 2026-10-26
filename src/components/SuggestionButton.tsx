@@ -196,9 +196,9 @@ export default function SuggestionButton() {
         onClick={() => setOpen(true)}
         title="Enviar sugestão de melhoria"
         aria-label="Enviar sugestão de melhoria"
-        className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
+        className="fixed bottom-[4.25rem] right-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
       >
-        <BulbIcon />
+        <BulbIcon className="h-5 w-5" />
       </button>
 
       {open && (

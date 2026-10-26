@@ -96,7 +96,7 @@ export default function SystemAssistant() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
       {open ? (
         <div className="w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:w-[420px]">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -173,10 +173,10 @@ export default function SystemAssistant() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
         aria-label="Abrir agente do sistema"
       >
-        <SparkIcon className="h-6 w-6" />
+        <SparkIcon className="h-5 w-5" />
       </button>
     </div>
   );
