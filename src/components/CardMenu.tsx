@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiPath } from "@/lib/path";
 import { useToast } from "@/components/Toast";
 import { useDialog } from "@/components/Dialog";
+import { posicaoPopup } from "@/lib/ui-filtros";
 
 // Menu "⋯" dos cards de Bases: renomear e apagar.
 //  - kind "orgao": card do tipo de órgão (renomeia/apaga TODAS as planilhas dele)
@@ -28,7 +29,7 @@ export default function CardMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Popup com posição FIXA (ancorado no botão): não é cortado por tabelas/áreas com rolagem.
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<ReturnType<typeof posicaoPopup> | null>(null);
   useEffect(() => {
     if (!open) return;
     const fechar = () => setOpen(false);
@@ -104,7 +105,7 @@ export default function CardMenu({
         title="Mais opções"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
-          setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 176) });
+          setPos(posicaoPopup(r, 176, 92, true));
           setOpen((v) => !v);
         }}
         className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
@@ -116,7 +117,7 @@ export default function CardMenu({
         </svg>
       </button>
       {open && pos && (
-        <div style={{ top: pos.top, left: pos.left }} className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
+        <div style={pos} className="fixed z-[80] w-44 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
           <button type="button" onClick={renomear} className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50">
             Editar nome
           </button>

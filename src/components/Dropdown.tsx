@@ -1,5 +1,6 @@
 "use client";
 
+import { posicaoPopup } from "@/lib/ui-filtros";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export type Opt = { value: string; label: string };
@@ -27,7 +28,7 @@ export default function Dropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [pos, setPos] = useState<ReturnType<typeof posicaoPopup>>({ left: 0, top: 0 });
   const [cursor, setCursor] = useState(0);
   const btn = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +49,7 @@ export default function Dropdown({
 
   function abrir() {
     const r = btn.current?.getBoundingClientRect();
-    if (r) setPos({ x: r.left, y: r.bottom + 6 });
+    if (r) setPos(posicaoPopup(r, 256, Math.min(340, 64 + 36 * Math.max(1, options.length) + (searchable ? 52 : 0) + (multi ? 32 : 0))));
     setOpen((v) => !v);
   }
 
@@ -83,7 +84,7 @@ export default function Dropdown({
           <div className="fixed inset-0 z-[70]" onMouseDown={() => setOpen(false)} />
           <div
             className="fixed z-[71] w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
-            style={{ left: Math.min(pos.x, window.innerWidth - 272), top: pos.y }}
+            style={pos}
             onKeyDown={(e) => {
               if (e.key === "Escape") setOpen(false);
               if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(filtradas.length - 1, c + 1)); }
