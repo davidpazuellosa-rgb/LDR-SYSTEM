@@ -136,8 +136,18 @@ let lastResult: SyncResult | null = null;
 const THROTTLE_MS = 45_000;
 
 async function syncRegion(cfg: RegionConfig): Promise<string> {
-  let base = await prisma.base.findFirst({ where: { name: cfg.baseName } });
-  if (!base) base = await prisma.base.create({ data: { name: cfg.baseName } });
+  // A base é reconhecida pela MARCA interna __sync__ (não muda quando alguém renomeia o órgão ou a
+  // planilha). Sem marca, cai no nome original e grava a marca; só cria uma nova se não existir nenhuma.
+  let base =
+    (await prisma.base.findFirst({ where: { headers: { path: ["__sync__"], equals: cfg.baseName } }, orderBy: { createdAt: "asc" } })) ||
+    (await prisma.base.findFirst({ where: { name: cfg.baseName }, orderBy: { createdAt: "asc" } }));
+  if (!base) base = await prisma.base.create({ data: { name: cfg.baseName, headers: { __sync__: cfg.baseName } } });
+  else if ((base.headers as Record<string, unknown> | null)?.__sync__ !== cfg.baseName) {
+    base = await prisma.base.update({
+      where: { id: base.id },
+      data: { headers: { ...((base.headers as Record<string, unknown> | null) || {}), __sync__: cfg.baseName } },
+    });
+  }
 
   const locais = await prisma.contact.findMany({
     where: { baseId: base.id, deletedAt: null },
