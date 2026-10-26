@@ -152,7 +152,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                   <ThSort k="nome" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))} className="!px-5">Órgão</ThSort>
                   <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
                   <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
-                  <th className="w-14 px-1 py-3" />
+                  <th className="sticky right-0 w-14 bg-slate-50 px-1 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -183,7 +183,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="relative px-1 py-3" onClick={(e) => e.stopPropagation()}>{i.menu}</td>
+                      <td className="sticky right-0 bg-white px-1 py-3" onClick={(e) => e.stopPropagation()}>{i.menu}</td>
                     </tr>
                   );
                 })}

@@ -172,7 +172,7 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                 <ThSort k="pct" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Preenchimento</ThSort>
                 <ThSort k="valid" ord={ord} onSort={(k) => setOrd(proximaOrd(ord, k))}>Validados</ThSort>
                 <th className="w-40 px-3 py-3" />
-                <th className="w-14 px-1 py-3" />
+                <th className="sticky right-0 w-14 bg-slate-50 px-1 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -219,7 +219,7 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                         </button>
                       )}
                     </td>
-                    <td className="relative px-1 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="sticky right-0 bg-white px-1 py-3" onClick={(e) => e.stopPropagation()}>
                       {c.baseId && <CardMenu kind="base" nome={c.regiao} baseId={c.baseId} titulo={c.titulo} contatos={c.total} />}
                     </td>
                   </tr>
