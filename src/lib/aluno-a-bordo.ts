@@ -141,7 +141,12 @@ export async function importAlunoABordo(): Promise<{ ok: boolean; detail?: strin
     const pulled = await pullAlunoABordo();
     if (!pulled.length) return { ok: false, detail: "nenhum contato retornado das listas" };
 
-    let base = await prisma.base.findFirst({ where: { name: BASE_NAME } });
+    // Acha a base mesmo depois de renomear o órgão ("{Novo órgão} - Aluno a Bordo"): sem isso o
+    // próximo sync criaria uma segunda base "Aluno a Bordo" duplicada.
+    let base = await prisma.base.findFirst({
+      where: { OR: [{ name: BASE_NAME }, { name: { endsWith: ` - ${BASE_NAME}` } }] },
+      orderBy: { createdAt: "asc" },
+    });
     if (!base) {
       base = await prisma.base.create({
         data: { name: BASE_NAME, description: "Secretarias de Educação — Aluno a Bordo (HubSpot)", source: "import" },

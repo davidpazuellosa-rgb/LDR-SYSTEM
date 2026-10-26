@@ -81,9 +81,12 @@ export function tier(pct: number) {
 // Órgãos novos seguem o padrão de nome "{Órgão} - {Região}".
 export function tipoOrgao(name: string): string {
   const n = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  if (n.includes("aluno a bordo")) return "Secretaria de Educação";
-  if (n.includes("cidade na mao")) return "Prefeitura";
+  // Nomes antigos (sem "{Órgão} - ") caem num órgão pelo marcador. Se a base já tem um órgão
+  // explícito no nome ("{Órgão} - …"), esse órgão manda — senão renomear o órgão nunca "pega".
   const i = name.indexOf(" - ");
+  const prefixo = i > 0 ? n.slice(0, name.slice(0, i).normalize("NFD").replace(/[̀-ͯ]/g, "").length) : n;
+  if (prefixo.includes("aluno a bordo")) return "Secretaria de Educação";
+  if (prefixo.includes("cidade na mao")) return "Prefeitura";
   if (i > 0) return name.slice(0, i).trim();
   return "Órgão";
 }

@@ -13,6 +13,10 @@ test("tipoOrgao mapeia o nome da base para o tipo de órgão", () => {
   assert.equal(tipoOrgao("Cidade na mão - Região Nordeste"), "Prefeitura");
   assert.equal(tipoOrgao("CIDADE NA MÃO 2026"), "Prefeitura");
   assert.equal(tipoOrgao("Secretaria de Saúde XYZ"), "Órgão"); // ainda não mapeado
+  // órgão renomeado: o nome explícito manda sobre o marcador antigo
+  assert.equal(tipoOrgao("Secretaria Municipal de Educação - Aluno a Bordo"), "Secretaria Municipal de Educação");
+  assert.equal(tipoOrgao("Prefeituras Municipais - Cidade na mão"), "Prefeituras Municipais");
+  assert.equal(tipoOrgao("Aluno a Bordo - Região Sul"), "Secretaria de Educação");
 });
 
 test("isComplete só é verdadeiro com TODOS os campos da régua preenchidos", () => {
