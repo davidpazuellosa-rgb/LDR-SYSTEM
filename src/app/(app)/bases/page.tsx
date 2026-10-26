@@ -7,6 +7,8 @@ import { contarLixeira } from "@/lib/lixeira";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/PageHeader";
 import NovoOrgaoButton from "@/components/NovoOrgaoButton";
+import ProximasBasesButton from "@/components/ProximasBasesButton";
+import { listarEspera } from "@/lib/espera";
 import CardMenu from "@/components/CardMenu";
 import BasesBusca from "@/components/BasesBusca";
 import ValidacaoResumo, { type ValidacaoContagem } from "@/components/ValidacaoResumo";
@@ -75,6 +77,7 @@ export default async function BasesPage({
   if (papel === "prevendedor") redirect("/dashboard");
   const podeApagar = can(papel, "contacts.delete");
   const naLixeira = podeApagar ? await contarLixeira() : 0;
+  const espera = tipo ? [] : await listarEspera();
 
   // Independentes entre si — buscar junto corta o tempo pela metade nesta página.
   const [bases, contacts] = await Promise.all([
@@ -176,6 +179,7 @@ export default async function BasesPage({
             resumo={null}
             acoes={
               <>
+                <ProximasBasesButton inicial={espera} />
                 {podeApagar && (
                   <Link href="/bases/lixeira" className="flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
                     Lixeira{naLixeira > 0 ? ` (${naLixeira})` : ""}
