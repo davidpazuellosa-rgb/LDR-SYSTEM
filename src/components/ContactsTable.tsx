@@ -1446,10 +1446,22 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // Rola a tela para acompanhar a célula selecionada (setas/Tab/Enter/edição) —
   // só o mínimo necessário pra ela ficar visível, sem recentralizar à força.
   // Roda em rAF pra garantir que o React já terminou de renderizar a célula-alvo.
+  //
+  // IMPORTANTE: só dispara quando a CÉLULA-ALVO muda (linha/coluna/edição) — nunca por
+  // mudança de dados. Antes dependia de `mergeLayout`, que é recalculado a cada atualização
+  // de contatos (edição própria ou de outra pessoa em tempo real): com uma célula selecionada,
+  // qualquer atualização puxava a tela de volta a ela enquanto a pessoa rolava para outro lado.
+  const mergeLayoutRef = useRef(mergeLayout);
+  mergeLayoutRef.current = mergeLayout;
+  const alvoRolagem = editingCell || focusCell;
+  const alvoRow = alvoRolagem?.row;
+  const alvoCol = alvoRolagem?.col;
+  const alvoEditando = !!editingCell;
   useEffect(() => {
-    const target = editingCell || focusCell;
-    if (!target) return;
-    let { row, col } = target;
+    if (alvoRow === undefined || alvoCol === undefined) return;
+    const mergeLayout = mergeLayoutRef.current;
+    let row = alvoRow;
+    let col = alvoCol;
     // Célula coberta por mescla não tem elemento próprio no DOM — rola até a
     // célula-âncora do merge (que é quem realmente é renderizada).
     if (mergeLayout.skip.has(`${row}:${col}`)) {
@@ -1497,7 +1509,7 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         grid.scrollLeft -= gridRect.left + stickyColW - elRect.left;
       }
     });
-  }, [focusCell, editingCell, mergeLayout]);
+  }, [alvoRow, alvoCol, alvoEditando]);
 
   // Limpa a seleção quando o conjunto visível muda (troca de aba/filtro/busca):
   // os índices anchor/focus apontam para posições em `visible` e, sem isso,
