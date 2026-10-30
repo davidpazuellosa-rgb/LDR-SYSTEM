@@ -19,7 +19,7 @@ export async function PATCH(
     const b = await prisma.base.findUnique({ where: { id }, select: { headers: true } });
     if (!b) return NextResponse.json({ error: "Base não encontrada" }, { status: 404 });
     const cur = ((b.headers as Record<string, unknown> | null) || {}) as Record<string, unknown>;
-    const titulo = body.titulo.trim().slice(0, 60);
+    const titulo = body.titulo.trim().slice(0, 120);
     const next = { ...cur };
     if (titulo) next.__titulo__ = titulo;
     else delete next.__titulo__;

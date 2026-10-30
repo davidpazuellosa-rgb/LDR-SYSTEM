@@ -220,7 +220,7 @@ export default async function BasesPage({
                         <TipoIcon tipo={e.tipo} />
                       </span>
                       <div className="min-w-0">
-                        <h3 className="truncate font-semibold text-slate-800">{e.tipo}</h3>
+                        <h3 className="break-words font-semibold text-slate-800">{e.tipo}</h3>
                         <p className="text-xs text-slate-400">
                           {e.planilhas} {e.planilhas === 1 ? "planilha" : "planilhas"}
                         </p>

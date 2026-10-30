@@ -29,7 +29,7 @@ export async function listarEspera(): Promise<ItemEspera[]> {
 
 // O nome vira o prefixo "{Órgão} - {Região}" das planilhas: não pode ter " - ".
 export function nomeEsperaValido(bruto: unknown): string | null {
-  const n = String(bruto ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
+  const n = String(bruto ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
   if (!n || n.includes(" - ")) return null;
   return n;
 }

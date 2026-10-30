@@ -130,7 +130,7 @@ export default function Dropdown({
                       ) : (
                         <span className={`h-2 w-2 shrink-0 rounded-full ${on ? "bg-indigo-600" : "bg-transparent"}`} />
                       )}
-                      <span className="truncate">{o.label}</span>
+                      <span className="min-w-0 break-words">{o.label}</span>
                     </button>
                   </li>
                 );

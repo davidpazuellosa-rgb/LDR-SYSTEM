@@ -241,8 +241,8 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                     <DatabaseIcon />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="truncate font-semibold text-slate-800">{c.titulo || c.regiao}</h3>
-                    <p className="truncate text-xs text-slate-400">{orgao}</p>
+                    <h3 className="break-words font-semibold text-slate-800">{c.titulo || c.regiao}</h3>
+                    <p className="break-words text-xs text-slate-400">{orgao}</p>
                   </div>
                 </div>
                 <PlanilhaBadge has={c.hasPlanilha} />
@@ -364,8 +364,8 @@ export default function RegioesGrid({ orgao, cards, voltar, avulsas = [] }: { or
                     <div className="flex min-w-0 items-center gap-3 pr-8">
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><DatabaseIcon /></span>
                       <div className="min-w-0">
-                        <h3 className="truncate font-semibold text-slate-800">{a.nome}</h3>
-                        <p className="truncate text-xs text-slate-400">{orgao}</p>
+                        <h3 className="break-words font-semibold text-slate-800">{a.nome}</h3>
+                        <p className="break-words text-xs text-slate-400">{orgao}</p>
                       </div>
                     </div>
                     {a.total > 0 && (

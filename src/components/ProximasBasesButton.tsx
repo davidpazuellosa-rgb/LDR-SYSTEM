@@ -85,7 +85,7 @@ export default function ProximasBasesButton({ inicial }: { inicial: ItemEspera[]
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") adicionar(); }}
-                maxLength={60}
+                maxLength={120}
                 autoFocus
                 placeholder="Nome da base que vai entrar"
                 className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500"

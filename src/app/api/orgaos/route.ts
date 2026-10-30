@@ -55,7 +55,7 @@ export async function PATCH(req: Request) {
   if (deny) return deny;
   const body = await req.json().catch(() => ({}));
   const nome = String(body?.nome || "").trim();
-  const novo = String(body?.novo || "").trim().slice(0, 60);
+  const novo = String(body?.novo || "").trim().slice(0, 120);
   if (!nome || !novo) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
   if (novo.includes(" - ")) return NextResponse.json({ error: 'O nome não pode conter " - ".' }, { status: 400 });
 

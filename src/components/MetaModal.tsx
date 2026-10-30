@@ -475,7 +475,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
                   {valRows.map((r) => (
                     <div key={r.baseId} className="flex items-center gap-3 px-4 py-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{r.nome}</span>
+                      <span className="min-w-0 flex-1 break-words text-sm font-medium text-slate-700">{r.nome}</span>
                       <select value={r.prazo} onChange={(e) => setValRows((prev) => prev.map((x) => (x.baseId === r.baseId ? { ...x, prazo: e.target.value } : x)))} className={`${selCls} !w-32`}>
                         <option value="diaria">Diária</option>
                         <option value="semanal">Semanal</option>
@@ -533,7 +533,7 @@ export default function MetaModal({ userId, userName, onClose }: { userId: strin
                 <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
                   {corrRows.map((r) => (
                     <div key={r.campanha} className="flex items-center gap-3 px-4 py-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{r.campanha}</span>
+                      <span className="min-w-0 flex-1 break-words text-sm font-medium text-slate-700">{r.campanha}</span>
                       <select value={r.prazo} onChange={(e) => updCorr(r.campanha, { prazo: e.target.value })} className={`${selCls} !w-32`}>
                         <option value="diaria">Diária</option>
                         <option value="semanal">Semanal</option>
