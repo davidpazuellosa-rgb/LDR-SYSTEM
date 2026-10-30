@@ -31,6 +31,23 @@ const CONTATOS = [
   { value: "com", label: "Com contatos" },
   { value: "sem", label: "Sem contatos" },
 ];
+const VALIDACOES = [
+  { value: "com", label: "Com validação" },
+  { value: "sem", label: "Sem validação" },
+  { value: "pendente", label: "Com contatos a validar" },
+  { value: "completa", label: "Tudo validado" },
+];
+// Uma planilha "tem validação" quando há contagem de Sim/Não/a validar (toggle ligado).
+function passaValidacao(i: BaseItem, sel: string[]) {
+  const total = i.val ? i.val.sim + i.val.nao + i.val.aValidar : 0;
+  const tem = !!i.val && total > 0;
+  return sel.some((v) =>
+    v === "com" ? tem
+    : v === "sem" ? !tem
+    : v === "pendente" ? !!i.val && i.val.aValidar > 0
+    : !!i.val && total > 0 && i.val.aValidar === 0
+  );
+}
 const ORDENS = [
   { value: "padrao", label: "Ordem padrão" },
   { value: "nome", label: "Nome (A–Z)" },
@@ -48,13 +65,14 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
   const [aberto, setAberto] = useState(false);
   const [sit, setSit] = useState<string[]>([]);
   const [cont, setCont] = useState<string[]>([]);
+  const [valid, setValid] = useState<string[]>([]);
   const [ordem, setOrdem] = useState<string[]>(["padrao"]);
   // Formato de visualização (cards ou lista): lembrado neste navegador, vale nos dois níveis.
   const [visao, escolher] = useVisao();
   // Ordenação por clique no cabeçalho da lista (sobrepõe o "Ordenar por" dos filtros).
   const [ord, setOrd] = useState<Ord>(null);
 
-  const ativos = (sit.length ? 1 : 0) + (cont.length ? 1 : 0) + (ordem[0] && ordem[0] !== "padrao" ? 1 : 0);
+  const ativos = (sit.length ? 1 : 0) + (cont.length ? 1 : 0) + (valid.length ? 1 : 0) + (ordem[0] && ordem[0] !== "padrao" ? 1 : 0);
 
   const lista = useMemo(() => {
     const n = norm(q.trim());
@@ -62,6 +80,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
       if (n && !norm(i.nome).includes(n)) return false;
       if (sit.length && !sit.includes(i.situacao)) return false;
       if (cont.length && !cont.includes(i.total > 0 ? "com" : "sem")) return false;
+      if (valid.length && !passaValidacao(i, valid)) return false;
       return true;
     });
     const o = ordem[0] ?? "padrao";
@@ -75,7 +94,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
       );
     }
     return r;
-  }, [itens, q, sit, cont, ordem]);
+  }, [itens, q, sit, cont, valid, ordem]);
 
   const RANK: Record<string, number> = { "Não iniciado": 0, "Em andamento": 1, "Quase lá": 2, "Concluído": 3 };
   const listaTabela = useMemo(() => {
@@ -94,7 +113,7 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lista, ord]);
 
-  const limpar = () => { setQ(""); setSit([]); setCont([]); setOrdem(["padrao"]); };
+  const limpar = () => { setQ(""); setSit([]); setCont([]); setValid([]); setOrdem(["padrao"]); };
 
   return (
     <div className="space-y-4">
@@ -122,10 +141,11 @@ export default function BasesBusca({ itens, nenhum, resumo, acoes }: { itens: Ba
       </div>
 
       {aberto && (
-        <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Campo titulo="Situação"><Dropdown label="Todas" options={SITUACOES} value={sit} onChange={setSit} multi searchable={false} /></Campo>
             <Campo titulo="Contatos"><Dropdown label="Todos" options={CONTATOS} value={cont} onChange={setCont} multi searchable={false} /></Campo>
+            <Campo titulo="Validação"><Dropdown label="Todas" options={VALIDACOES} value={valid} onChange={setValid} multi searchable={false} /></Campo>
             <Campo titulo="Ordenar por"><Dropdown label="Ordem padrão" options={ORDENS} value={ordem} onChange={(v) => setOrdem(v.length ? [v[v.length - 1]] : ["padrao"])} searchable={false} /></Campo>
           </div>
           <div className="mt-3 flex justify-end">
