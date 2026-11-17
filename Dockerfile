@@ -28,4 +28,6 @@ RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3000
 ENV NODE_ENV=production
+# Fuso de Brasilia: metas diaria/semanal/mensal viram a meia-noite daqui, nao as 21h (UTC).
+ENV TZ=America/Sao_Paulo
 CMD ["/docker-entrypoint.sh"]
