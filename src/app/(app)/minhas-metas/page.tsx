@@ -68,7 +68,7 @@ export default async function MinhasMetasPage() {
 
   // LDR: "Minhas Metas" — as próprias metas.
   const userId = u.id || "";
-  const { ativas, historico, conquistas } = await buildMinhasMetas(userId);
+  const { ativas, historico, conquistas, refeitasHoje } = await buildMinhasMetas(userId);
 
   const fill = ativas.filter((a) => a.tipo !== "correcao" && a.tipo !== "validacao");
   const val = ativas.filter((a) => a.tipo === "validacao");
@@ -123,6 +123,11 @@ export default async function MinhasMetasPage() {
                       </div>
                     ))}
                   </div>
+                )}
+                {refeitasHoje > 0 && (
+                  <p className="mt-3 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-500">
+                    Refeitas hoje: <span className="font-semibold tabular-nums text-slate-700">{refeitasHoje}</span> — linhas suas que voltaram a ficar completas. Não somam na meta, que conta só linhas completadas pela 1ª vez.
+                  </p>
                 )}
               </div>
 

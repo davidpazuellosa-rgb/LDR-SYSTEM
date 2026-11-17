@@ -8,6 +8,7 @@ import { carregarValidacoes } from "@/lib/validacoes-carga";
 import { metaDetalhe, territorioConfere, rotuloEstado, territoriosCompartilhados, chaveTerritorio, periodStart, periodEnd, startOfDay, startOfMonth, startOfWeek, type Meta, type Fill, type CorrDone, type ValidacaoReg } from "@/lib/meta-progress";
 import { ensureMetaTable } from "@/lib/meta";
 import { ensureContactFillTable } from "@/lib/contact-fill";
+import { ensureAuditoriaTables } from "@/lib/auditoria";
 import { cached } from "@/lib/mini-cache";
 
 export type StatusMeta = "ok" | "risco" | "atrasado";
@@ -250,8 +251,20 @@ export async function buildMinhasMetas(userId: string, opts: { marcarVistoAoAbri
 
   const status = ativas.reduce<StatusMeta | null>((acc, a) => pior(acc, a.status), null);
 
+  // Linhas que ESTA pessoa refez hoje e cujo crédito voltou a ela (a linha tinha sido completada
+  // por ela antes, foi mexida e voltou a ficar completa). Não contam na meta (a data do crédito é a
+  // da 1ª conclusão), mas mostramos para o trabalho de hoje não parecer zerado.
+  let refeitasHoje = 0;
+  try {
+    await ensureAuditoriaTables();
+    const rows = await prisma.$queryRaw<{ n: bigint }[]>`SELECT COUNT(DISTINCT "contactId") AS n FROM "CreditoLog" WHERE "paraPessoaId" = ${userId} AND "motivo" LIKE 'linha voltou a ficar completa%' AND "em" >= ${startOfDay(now)}`;
+    refeitasHoje = Number(rows[0]?.n ?? 0);
+  } catch {
+    refeitasHoje = 0;
+  }
+
   // Abrir a página = "vi minhas metas": limpa o sinal de meta nova na sidebar.
   if (marcarVistoAoAbrir && userId && metas.length > 0) await marcarVisto(userId);
 
-  return { ativas, historico, conquistas, status };
+  return { ativas, historico, conquistas, status, refeitasHoje };
 }
