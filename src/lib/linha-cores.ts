@@ -5,6 +5,7 @@
 // "Completa" segue a MESMA regra do sistema: campos obrigatórios VISÍVEIS + colunas
 // personalizadas VISÍVEIS (a coluna Validado não conta). Coluna oculta não é exigida.
 import { REQUIRED_FIELDS } from "@/lib/completude";
+import { valorConta } from "@/lib/valor-conta";
 
 export const LIMITE_QUASE = 2;
 
@@ -27,7 +28,8 @@ export function chavesExigidas(
 
 export function estadoDaLinha(exigidas: string[], valorDe: (chave: string) => string, linhaVazia: boolean): EstadoLinha {
   if (linhaVazia) return { tipo: "vazia", faltam: [] };
-  const faltam = exigidas.filter((k) => !valorDe(k).trim());
+  // Só traços ('-', '--') conta como FALTANDO, igual a vazio (a célula ainda fica laranja na tela).
+  const faltam = exigidas.filter((k) => !valorConta(valorDe(k)));
   if (faltam.length === 0) return { tipo: "completa", faltam };
   if (faltam.length <= LIMITE_QUASE) return { tipo: "quase", faltam };
   return { tipo: "normal", faltam };
@@ -35,6 +37,9 @@ export function estadoDaLinha(exigidas: string[], valorDe: (chave: string) => st
 
 export const COR_COMPLETA = "var(--cel-ok)"; // verde suave (variável: muda no tema escuro)
 export const COR_FALTA = "var(--cel-falta)"; // amarelo (mesma família do indicador "a preencher")
+export const COR_TRACO = "var(--cel-traco)"; // laranja: célula só com hífen (não conta como preenchida)
+export const COR_GRAFIA = "var(--cel-grafia)"; // roxo: escrita suspeita (só aparece com o filtro de escrita)
+export const COR_NAO_POSSUI = "var(--cel-nao)"; // azul acinzentado: "Não possui" (ausência confirmada)
 
 // Fundo automático de uma célula (ou null = sem cor).
 export function corDaCelula(estado: EstadoLinha | undefined, chave: string): string | null {

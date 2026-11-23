@@ -66,3 +66,16 @@ test("próxima célula que falta: avança na ordem da tela e dá a volta; ignora
   assert.deepEqual(proximaCelulaQueFalta(linhas, col, { row: 3, col: 6 }), { row: 1, col: 6 }); // volta ao início
   assert.equal(proximaCelulaQueFalta([E("completa", []), E("vazia", [])], col, null), null);
 });
+
+test("só hífen NÃO conta como preenchido: a linha não completa", () => {
+  const val = (k: string) => (k === "siteOficial" ? "- - -" : "x");
+  const e = estadoDaLinha(exigidas, val, false);
+  assert.equal(e.tipo, "quase");
+  assert.deepEqual(e.faltam, ["siteOficial"]);
+  assert.equal(corDaCelula(e, "siteOficial"), COR_FALTA);
+});
+
+test("'Não possui' conta como preenchido", () => {
+  const e = estadoDaLinha(exigidas, (k) => (k === "siteOficial" ? "Não possui" : "x"), false);
+  assert.equal(e.tipo, "completa");
+});

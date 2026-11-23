@@ -23,6 +23,9 @@
   --agenda-bg: #f4f5f8;
   --cel-ok: #dcfce7; --cel-ok-txt: #14532d;       /* planilha: linha completa */
   --cel-falta: #fde68a; --cel-falta-txt: #78350f;  /* planilha: falta preencher */
+  --cel-traco: #fdba74; --cel-traco-txt: #7c2d12;  /* planilha: célula só com hífen (não conta) */
+  --cel-grafia: #e9d5ff; --cel-grafia-txt: #581c87; /* planilha: escrita suspeita (filtro) */
+  --cel-nao: #dbeafe; --cel-nao-txt: #1e3a8a;      /* planilha: "Não possui" */
   --heat0: #f1f5f9; --heat: 99, 102, 241;          /* mapa de calor */
   --donut-fundo: #e2e8f0; --donut-txt: #94a3b8; --donut-forte: #1e293b;
 }
@@ -36,6 +39,9 @@
   --agenda-bg: #0f1330;
   --cel-ok: #15382f; --cel-ok-txt: #d1fae5;
   --cel-falta: #5b4710; --cel-falta-txt: #fef3c7;
+  --cel-traco: #8a3a0e; --cel-traco-txt: #ffedd5;
+  --cel-grafia: #4a2a78; --cel-grafia-txt: #f3e8ff;
+  --cel-nao: #1e3556; --cel-nao-txt: #dbeafe;
   --heat0: #1a1f48; --heat: 129, 140, 248;
   --donut-fundo: #2a3163; --donut-txt: #8089b5; --donut-forte: #e6e9f5;
 }

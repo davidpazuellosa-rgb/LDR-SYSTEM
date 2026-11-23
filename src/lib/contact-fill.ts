@@ -151,9 +151,16 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
   const keys = cols.map((c) => c.key);
   const completos: string[] = [];
   const incompletos: string[] = [];
+  let protegidos = 0;
   for (const c of contatos) {
-    const ok = isCompleteVisivel(c as Parameters<typeof isComplete>[0], ocultas) && customsCompletos(keys, valsByContact.get(c.id));
-    (ok ? completos : incompletos).push(c.id);
+    const linha = c as Parameters<typeof isComplete>[0];
+    const vals = valsByContact.get(c.id);
+    const ok = isCompleteVisivel(linha, ocultas) && customsCompletos(keys, vals);
+    if (ok) completos.push(c.id);
+    // Completa só pela regra ANTIGA (tem "-" numa célula): o hífen não dá crédito novo, mas mudar as
+    // colunas da planilha também NÃO tira o crédito que a pessoa já tinha. Só perde quem edita a linha.
+    else if (isCompleteVisivel(linha, ocultas, true) && customsCompletos(keys, vals, true)) protegidos++;
+    else incompletos.push(c.id);
   }
 
   await ensureContactFillTable();
@@ -172,5 +179,5 @@ export async function reprocessarConclusaoDaBase(baseId: string, meId: string | 
       skipDuplicates: true, // preserva o crédito de quem já tinha; cria só p/ os sem crédito
     });
   }
-  return { revisados: contatos.length, completos: completos.length, semCredito: incompletos.length };
+  return { revisados: contatos.length, completos: completos.length, semCredito: incompletos.length, protegidos };
 }

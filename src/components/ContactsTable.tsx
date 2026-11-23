@@ -11,7 +11,8 @@ import { completeOrder, orderColumns } from "@/lib/base-columns";
 import { STATUS_INCORRETO } from "@/lib/status";
 import { valorDeValidacao } from "@/lib/validacao";
 import { matrizParaTSV, tsvParaMatriz } from "@/lib/tsv";
-import { chavesExigidas, estadoDaLinha, corDaCelula, proximaCelulaQueFalta } from "@/lib/linha-cores";
+import { chavesExigidas, estadoDaLinha, corDaCelula, proximaCelulaQueFalta, COR_TRACO, COR_GRAFIA, COR_NAO_POSSUI } from "@/lib/linha-cores";
+import { soTracos, suspeitasEscrita, classeEspecial, ROTULO_MOTIVO, NAO_POSSUI, type MotivoEscrita } from "@/lib/valor-conta";
 import { isCompleteVisivel, customsCompletos, isRowVazia, type ReqRow } from "@/lib/completude";
 import { useToast } from "@/components/Toast";
 import { useDialog } from "@/components/Dialog";
@@ -299,6 +300,10 @@ export default function ContactsTable({
   const [editingHeaderKey, setEditingHeaderKey] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [search, setSearch] = useState("");
+  // Filtro de escrita (pessoal, só nesta tela): hífen, escrita suspeita ou um tipo específico.
+  const [filtroEscrita, setFiltroEscrita] = useState<"todas" | "traco" | "grafia" | MotivoEscrita>("todas");
+  const [escritaOpen, setEscritaOpen] = useState(false);
+  const [escritaPos, setEscritaPos] = useState({ x: 0, y: 0 });
   const [history, setHistory] = useState<HistoryAction[]>([]);
   const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
   const [density, setDensity] = useState<"compacta" | "normal" | "ampla">("compacta");
@@ -886,8 +891,17 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
       customKeySet.has(key) ? customValOf(contact.id, key) : (contact[key] as string) || "",
     [customKeySet, customValOf]
   );
+  const exigidasRef = useRef<Set<string>>(new Set());
+  // Aviso (no máximo 1 a cada 8 s) quando alguém grava só hífen: não conta como preenchido.
+  const ultimoAvisoTraco = useRef(0);
+  function avisarTraco() {
+    if (Date.now() - ultimoAvisoTraco.current < 8000) return;
+    ultimoAvisoTraco.current = Date.now();
+    toast.error("Só hífen não conta como preenchido", `A linha não conclui. Se a informação não existe, escreva "${NAO_POSSUI}".`);
+  }
   const saveCellValue = useCallback(
     (id: string, key: string, value: string) => {
+      if (soTracos(value) && exigidasRef.current.has(key)) avisarTraco();
       if (customKeySet.has(key)) saveCustomValue(id, key, value);
       else saveCell(id, key, value);
     },
@@ -1386,6 +1400,9 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
   // IDs das linhas visíveis (aba/filtro/busca) — "congelados" enquanto se edita:
   // editar ou limpar uma célula NÃO remove a linha da visão atual (igual ao Excel).
   // Só recalcula ao trocar de aba/filtro/busca ou adicionar/remover linhas.
+  const exigidas = useMemo(() => chavesExigidas(hiddenColumns, customCols), [hiddenColumns, customCols]);
+  const exigidasSet = useMemo(() => new Set(exigidas), [exigidas]);
+  exigidasRef.current = exigidasSet;
   const visibleIds = useMemo(() => {
     const q = search.trim().toLowerCase();
     return contacts
@@ -1398,9 +1415,19 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
         for (const [key, set] of colFilterMap) if (!set.has(cellValue(c, key))) return false;
         return true;
       })
+      .filter((c) => {
+        // Filtro de escrita: linhas com pelo menos uma célula da régua com hífen / escrita suspeita.
+        if (filtroEscrita === "todas") return true;
+        return exigidas.some((k) => {
+          const v = cellValue(c, k);
+          if (filtroEscrita === "traco") return soTracos(v);
+          const m = suspeitasEscrita(v);
+          return filtroEscrita === "grafia" ? m.length > 0 : m.includes(filtroEscrita);
+        });
+      })
       .map((c) => c.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds, colFilterMap, cellValue, paginaVer]);
+  }, [tab, phoneFilter, search, membershipKey, hiddenRowIds, colFilterMap, cellValue, paginaVer, filtroEscrita, exigidas]);
 
   // Mapa id -> contato ATUAL (para a tela refletir as edições na hora).
   const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
@@ -1412,7 +1439,6 @@ const [deletedColumns, setDeletedColumns] = useState<Set<string>>(() => new Set(
 
   // Estado de cada linha visível para as cores automáticas e para o botão "a preencher".
   // Mesma régua de "completa" do resto do sistema (visíveis + personalizadas, sem o Validado).
-  const exigidas = useMemo(() => chavesExigidas(hiddenColumns, customCols), [hiddenColumns, customCols]);
   const estadoPorLinha = useMemo(
     () => visible.map((c) => estadoDaLinha(exigidas, (k) => cellValue(c, k), isRowVazia(c as unknown as Record<string, unknown>, customValues[c.id]))),
     [visible, exigidas, cellValue, customValues]
@@ -2403,6 +2429,7 @@ async function saveCell(id: string, key: string, value: string) {
         "Essa coluna só aceita as opções da lista suspensa — escolha uma delas.",
       );
     }
+    if (updates.some((u) => soTracos(u.value) && exigidasSet.has(u.key))) avisarTraco();
     if (updates.length === 0) return;
 
     // Registra o lote no histórico (capturando os valores anteriores) para que
@@ -3025,6 +3052,64 @@ async function saveCell(id: string, key: string, value: string) {
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" /></svg>
                 </button>
               )}
+            </div>
+          </>
+        )}
+
+        {/* Filtro de escrita: hífen e escrita suspeita (só mostra e destaca; quem corrige é a pessoa) */}
+        <button
+          type="button"
+          aria-label="Filtro de escrita"
+          title="Filtro de escrita: hífen e escrita suspeita"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setEscritaPos({ x: r.left, y: r.bottom + 6 });
+            setEscritaOpen((v) => !v);
+          }}
+          className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-md text-[13px] font-semibold transition ${
+            escritaOpen || filtroEscrita !== "todas" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          Aa
+          {filtroEscrita !== "todas" && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500" />}
+        </button>
+        {escritaOpen && (
+          <>
+            <div className="fixed inset-0 z-[70]" onMouseDown={() => setEscritaOpen(false)} />
+            <div
+              className="fixed z-[71] w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              style={{ left: Math.min(escritaPos.x, window.innerWidth - 270), top: escritaPos.y }}
+            >
+              <div className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Filtro de escrita</div>
+              {(
+                [
+                  ["todas", "Todas as linhas"],
+                  ["traco", "Com hífen (não conta)"],
+                  ["grafia", "Com escrita suspeita"],
+                  ["caixa", ROTULO_MOTIVO.caixa],
+                  ["espaco", ROTULO_MOTIVO.espaco],
+                  ["acento", ROTULO_MOTIVO.acento],
+                  ["semsentido", ROTULO_MOTIVO.semsentido],
+                ] as const
+              ).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => {
+                    setFiltroEscrita(valor);
+                    setEscritaOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
+                    filtroEscrita === valor ? "bg-indigo-50 font-medium text-indigo-700" : "text-slate-700 hover:bg-slate-100"
+                  } ${valor === "caixa" ? "mt-1 border-t border-slate-100 pt-2" : ""}`}
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${filtroEscrita === valor ? "bg-indigo-500" : "bg-slate-200"}`} />
+                  {rotulo}
+                </button>
+              ))}
+              <p className="px-2 pb-1 pt-2 text-[11px] leading-snug text-slate-400">
+                Só mostra e destaca em roxo. Nada é alterado. Hífen aparece em laranja e não conclui a linha.
+              </p>
             </div>
           </>
         )}
@@ -3670,6 +3755,12 @@ async function saveCell(id: string, key: string, value: string) {
                     const isActiveCell = focusCell?.row === rowIndex && focusCell?.col === colIndex;
                     const editing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
                     const value = cellValue(c, col.key);
+                    // Células especiais da régua: só hífen (laranja) e "Não possui"; escrita suspeita (roxo, com o filtro).
+                    const naRegua = exigidasSet.has(col.key);
+                    const espCls = coresAuto && naRegua ? classeEspecial(value) : null;
+                    const motivosCel = naRegua && filtroEscrita !== "todas" && filtroEscrita !== "traco" ? suspeitasEscrita(value) : [];
+                    const roxo = motivosCel.length > 0 && (filtroEscrita === "grafia" || motivosCel.includes(filtroEscrita as MotivoEscrita));
+                    const corEsp = espCls === "traco" ? "traco" : roxo ? "grafia" : espCls === "naopossui" ? "nao" : null;
                     // Coluna do tipo lista suspensa (só custom): célula escolhe UMA opção colorida.
                     const listaCol = item.kind === "custom" && item.col.tipo === "lista" ? item.col : null;
                     // Marca-d'água de copiar/recortar (tracejado nas bordas do retângulo).
@@ -3691,6 +3782,13 @@ async function saveCell(id: string, key: string, value: string) {
                       key={col.key}
                       data-cell={`${rowIndex}:${colIndex}`}
                       data-pintada={f.bg ? "" : undefined}
+                      title={
+                        espCls === "traco"
+                          ? `Só hífen não conta como preenchido. Se a informação não existe, escreva "${NAO_POSSUI}".`
+                          : roxo
+                            ? motivosCel.map((m) => ROTULO_MOTIVO[m]).join(" · ")
+                            : undefined
+                      }
                       rowSpan={span?.rowSpan}
                       colSpan={span?.colSpan}
                       className={`relative px-1 ${padY} ${span ? "align-top" : ""} ${
@@ -3708,6 +3806,13 @@ async function saveCell(id: string, key: string, value: string) {
                           ? {
                               backgroundColor: corDaCelula(estadoPorLinha[rowIndex], col.key)!,
                               color: estadoPorLinha[rowIndex]?.tipo === "completa" ? "var(--cel-ok-txt)" : "var(--cel-falta-txt)",
+                            }
+                          : {}),
+                        // Hífen (laranja) > escrita suspeita (roxo) > "Não possui": perdem só para seleção e cor à mão.
+                        ...(corEsp && !selectedCell && !f.bg
+                          ? {
+                              backgroundColor: corEsp === "traco" ? COR_TRACO : corEsp === "grafia" ? COR_GRAFIA : COR_NAO_POSSUI,
+                              color: `var(--cel-${corEsp}-txt)`,
                             }
                           : {}),
                         ...(f.bg && !selectedCell ? { backgroundColor: f.bg } : {}),

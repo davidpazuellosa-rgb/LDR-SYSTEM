@@ -4,6 +4,7 @@
 // IMPORTANTE: usado também pela planilha (client component) — não importe nada
 // que puxe o prisma aqui, senão o PrismaClient vai parar no bundle do navegador.
 import { CONTACT_FIELD_KEYS } from "@/lib/contact-fields";
+import { valorConta } from "@/lib/valor-conta";
 export const REQUIRED_FIELDS = [
   "cidade",
   "estado",
@@ -26,17 +27,20 @@ export const REQUIRED_SELECT = {
 
 export type ReqRow = Record<(typeof REQUIRED_FIELDS)[number], string | null>;
 
-const nonEmpty = (v: string | null) => !!(v && v.trim());
+// "Preenchido" = tem dado de verdade: vazio e só traços ("-", "--", "- - -") NÃO contam.
+const nonEmpty = (v: string | null) => valorConta(v);
 export const isComplete = (c: ReqRow) => REQUIRED_FIELDS.every((f) => nonEmpty(c[f]));
 // Igual a isComplete, mas ignora campo oculto — coluna escondida não conta pra
 // nada na régua de conclusão (nem exige, nem deixa faltando).
-export function isCompleteVisivel(c: ReqRow, hidden: Set<string> | string[]) {
+// `tracosContam`: SÓ para o reprocessamento da base proteger créditos antigos (regra de antes,
+// em que "-" contava como preenchido). Nas telas e no crédito novo fica sempre falso.
+export function isCompleteVisivel(c: ReqRow, hidden: Set<string> | string[], tracosContam = false) {
   const h = hidden instanceof Set ? hidden : new Set(hidden);
-  return REQUIRED_FIELDS.filter((f) => !h.has(f)).every((f) => nonEmpty(c[f]));
+  return REQUIRED_FIELDS.filter((f) => !h.has(f)).every((f) => (tracosContam ? !!(c[f] && c[f]!.trim()) : nonEmpty(c[f])));
 }
 // Todas as colunas personalizadas da base preenchidas para este contato.
-export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined) =>
-  customKeys.every((k) => !!(vals?.[k] && vals[k].trim()));
+export const customsCompletos = (customKeys: string[], vals: Record<string, string> | undefined, tracosContam = false) =>
+  customKeys.every((k) => (tracosContam ? !!vals?.[k]?.trim() : valorConta(vals?.[k])));
 
 // Quantas linhas em branco uma planilha nova (ou uma página nova) já nasce tendo,
 // para nunca abrir "vazia demais" e sem por onde começar.
